@@ -113,8 +113,30 @@ export const AUDIO_GAPS = [
   { slot: 'voice-acting', want: 'Recorded voice acting for story dialogue.', cueUsed: 'speech synthesis, labelled as synthesis', status: 'synthesised-not-recorded' },
 ];
 
-/** How far engine and music drop while Game TalkBack is speaking. */
-export const DUCK_LEVELS = { engine: 0.3, music: 0.22, sfx: 0.6, recoveryMs: 420 };
+/**
+ * How far engine, music and effects drop while Game TalkBack is speaking.
+ *
+ * `holdMs` is a SAFETY NET, not the normal duration. The duck is latched on by
+ * `duck()` and released by `unduck()` when the utterance settles, so it lasts
+ * exactly as long as the announcement does. An earlier version timed the duck at
+ * `recoveryMs` (420 ms) instead, which is shorter than almost every
+ * announcement: the engine came back to full volume mid-sentence and masked the
+ * guidance, so corner warnings and collision callouts were effectively silent
+ * while driving. `holdMs` only exists for an utterance that never fires `onend`,
+ * and is deliberately just above the speech module's own 12 s safety timer.
+ *
+ * Engine and music duck hard because for a blind player the speech IS the
+ * interface. Impact effects duck less: a collision sound is information, not
+ * atmosphere.
+ */
+export const DUCK_LEVELS = {
+  engine: 0.22,
+  music: 0.16,
+  sfx: 0.55,
+  recoveryMs: 420,
+  holdMs: 15000,
+  rampSeconds: 0.09,
+};
 
 export function createAudio(config = {}) {
   const getSettings = config.getSettings ?? (() => ({}));
@@ -150,15 +172,49 @@ export function createAudio(config = {}) {
     return ctx;
   }
 
-  function applyVolumes() {
+  /** Effective gain per group, so tests and the status readout can see them. */
+  function targetLevels() {
     const s = getSettings();
+    const sfxBase = s.sfx === false ? 0 : (s.sfxVolume ?? 0.85);
+    const musicBase = s.music === false ? 0 : (s.musicVolume ?? 0.5);
+    return {
+      // Voice is never ducked: it is the accessibility surface.
+      voice: 1,
+      sfx: sfxBase * (ducked ? DUCK_LEVELS.sfx : 1),
+      music: musicBase * (ducked ? DUCK_LEVELS.music : 1),
+      engine: sfxBase * (ducked ? DUCK_LEVELS.engine : 1),
+    };
+  }
+
+  /**
+   * Move a gain to `value` without a click. Setting `.value` directly on a
+   * running graph produces a step change that is audible as a tick, and ducking
+   * happens on every announcement, so it is worth smoothing.
+   */
+  function setGain(param, value) {
+    if (!param) return;
+    try {
+      if (typeof param.setTargetAtTime === 'function' && ctx && typeof ctx.currentTime === 'number') {
+        param.setTargetAtTime(value, ctx.currentTime, DUCK_LEVELS.rampSeconds);
+        return;
+      }
+    } catch {
+      /* fall through to the direct assignment */
+    }
+    param.value = value;
+  }
+
+  const lastLevels = { voice: null, sfx: null, music: null, engine: null };
+
+  function applyVolumes() {
     if (!ctx) return;
-    const duck = ducked ? 1 : 1;
-    if (groups.sfx) groups.sfx.gain.value = (s.sfx === false ? 0 : (s.sfxVolume ?? 0.85)) * (ducked ? DUCK_LEVELS.sfx : 1);
-    if (groups.music) groups.music.gain.value = (s.music === false ? 0 : (s.musicVolume ?? 0.5)) * (ducked ? DUCK_LEVELS.music : 1);
-    if (groups.voice) groups.voice.gain.value = 1;
-    if (groups.engine) groups.engine.gain.value = (s.sfx === false ? 0 : (s.sfxVolume ?? 0.85)) * (ducked ? DUCK_LEVELS.engine : 1);
-    void duck;
+    const levels = targetLevels();
+    for (const name of Object.keys(levels)) {
+      // tick() runs every frame; only touch the graph when something moved.
+      if (lastLevels[name] === levels[name]) continue;
+      lastLevels[name] = levels[name];
+      if (groups[name]) setGain(groups[name].gain, levels[name]);
+    }
   }
 
   const api = {
@@ -382,14 +438,25 @@ export function createAudio(config = {}) {
       },
     },
 
-    /** Called by the speech system so guidance stays intelligible. */
-    duck(ms = DUCK_LEVELS.recoveryMs) {
+    /**
+     * Called by the speech system when an utterance starts. Latched: it stays
+     * down until `unduck()`, however long the announcement runs.
+     */
+    duck(holdMs = DUCK_LEVELS.holdMs) {
       ducked = true;
-      duckUntil = Date.now() + ms;
+      duckUntil = Date.now() + holdMs;
       applyVolumes();
     },
+    /** Called when the utterance settles; the mix comes back up after a tail. */
     unduck() {
-      duckUntil = Date.now() + 120;
+      duckUntil = Date.now() + DUCK_LEVELS.recoveryMs;
+    },
+    get ducked() {
+      return ducked;
+    },
+    /** Effective mix levels, for tests and the audio status readout. */
+    get levels() {
+      return targetLevels();
     },
     /** Call once per frame; releases the duck after speech has finished. */
     tick() {
