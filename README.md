@@ -65,7 +65,7 @@ as a static site. Pages serves it from a **sub-directory**
 | Command | What it does |
 | --- | --- |
 | `npm run serve` | Static dev server on `0.0.0.0:8080` (no build step) |
-| `npm test` | All 189 automated tests (`node --test`) |
+| `npm test` | All 248 automated tests (`node --test`) |
 | `npm run validate` | Track geometry gate — fails if the circuit does not close or self-intersects |
 | `npm run map` | Regenerates `docs/circuit-map.svg` from the live geometry |
 | `npm run publish:list` | Prints the exact files the Pages deploy publishes |
@@ -148,7 +148,7 @@ src/
 
 **Design rule:** everything under `core`, `a11y`, `input`, `world`, `vehicles`,
 `race` and `story` is a pure ES module with **no DOM, WebGL or Web Audio access at
-import time**. That is why 212 of the 229 tests run headless in Node. Only `ui/`,
+import time**. That is why 231 of the 248 tests run headless in Node. Only `ui/`,
 `race/raceScreen.js`, `core/audio.js`, `a11y/speech.js` and `main.js` touch the
 browser, and they are covered by the jsdom suite.
 
@@ -225,11 +225,11 @@ the same script fills a gap only when given `--license`, `--author` and
 ## Testing
 
 ```bash
-npm test         # 229 tests
+npm test         # 248 tests
 npm run validate # track geometry gate
 ```
 
-189 automated tests across gesture recognition, settings state, the speech
+248 automated tests across gesture recognition, settings state, the speech
 queue, lap counting and checkpoint validation, race completion and finishing
 order, navigation announcement rules, vehicle physics, opponent AI, story
 branching, interview scoring, salary negotiation, save/load validation and

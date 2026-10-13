@@ -81,6 +81,8 @@ with the old value and the new value: *"Speech rate. 1.0 changed to 1.4."*
 | Sound effects volume | 0-100% | 85% |
 | Navigation announcements | minimal / balanced / detailed | balanced |
 | Corner warning distance | short (70 m) / normal (120 m) / long (190 m) | normal |
+| Car pace | slower (0.8x) / normal / faster (1.18x) | normal |
+| Race length | race default / 1 / 2 / 3 / 5 laps | race default |
 | Spoken speed and lap updates | on/off | on |
 | Spoken race position | on/off | on |
 | Spoken opponent warnings | on/off | on |
@@ -91,7 +93,19 @@ with the old value and the new value: *"Speech rate. 1.0 changed to 1.4."*
 | Hero name | text | Aarav |
 
 Volumes for **speech, music and sound effects are independent**, which is what
-keeps guidance intelligible over an engine.
+keeps guidance intelligible over an engine. Independence is not enough on its
+own, though: while an announcement is being spoken, the engine drops to 22%,
+music to 16% and effects to 55% of their set volumes, and the **voice channel is
+never attenuated**. The duck is held for the whole utterance and released only
+when it finishes, so a long corner warning is not drowned out halfway through.
+
+**Car pace** scales the player's car and the opponents by the same factor. That
+is deliberate: slowing only the player would make *slower* mean *harder to win*.
+The point is more time to react to a spoken warning, not a handicap.
+
+**Race length** overrides how many laps a race runs, including practice. The race
+start announcement is derived from the real lap count, so it always states the
+distance the race will actually run.
 
 ### Turning Game TalkBack off never traps you
 

@@ -689,3 +689,31 @@ test('a slower pace genuinely produces a slower car over a run', async () => {
   assert.ok(normal < fast, `faster pace should reach a higher speed: ${normal.toFixed(1)} vs ${fast.toFixed(1)} kph`);
   assert.ok(slow > 10, 'a slower pace must still be a moving car, not a crawl');
 });
+
+test('the race start announcement is derived from the real lap count', async () => {
+  // This line used to read "Race started. Two laps to go." on every race,
+  // including the three and four lap ones. A player who cannot see the lap board
+  // would plan the whole race around a number that was wrong, so the guard is on
+  // the source: the announcement has to come from race.totalLaps.
+  const { readFileSync } = await import('node:fs');
+  const src = readFileSync(new URL('../src/race/raceScreen.js', import.meta.url), 'utf8');
+  assert.ok(!/Two laps to go/.test(src), 'no hardcoded lap count in the start announcement');
+  assert.match(src, /intToWords\(laps\)/, 'the lap count should be spoken as words');
+  assert.match(src, /race\.totalLaps/, 'and taken from the race state');
+  assert.match(src, /raceLapsFor\(level/, 'the lap count should honour the Race length setting');
+});
+
+test('the lap count reaches the race, the lap board and the finish line together', async () => {
+  const { createRace } = await import('../src/race/raceState.js');
+  const { raceLapsFor } = await import('../src/a11y/settings.js');
+  const { getTrack } = await import('../src/world/trackData.js');
+  const track = getTrack();
+  const entrants = [{ id: 'player', car: { physics: { topSpeedKph: 180 } }, gridPosition: 1 }];
+
+  for (const id of ['default', 'one', 'five']) {
+    const laps = raceLapsFor({ laps: 3 }, id);
+    const race = createRace({ track, totalLaps: laps, entrants });
+    assert.equal(race.totalLaps, laps, `race length "${id}" should reach the race state`);
+    assert.ok(race.totalLaps >= 1);
+  }
+});

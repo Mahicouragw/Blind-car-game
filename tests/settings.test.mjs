@@ -11,6 +11,8 @@ import assert from 'node:assert/strict';
 import {
   CAR_PACE,
   coerceSettings,
+  RACE_LENGTH,
+  raceLapsFor,
   cycleSetting,
   defaultSettings,
   NAV_FREQUENCY,
@@ -362,4 +364,61 @@ test('Car pace is announced by name, and explains itself', () => {
 
 test('paceScale and CAR_PACE agree', () => {
   for (const pace of CAR_PACE) assert.equal(paceScale(pace.id), pace.scale);
+});
+
+// --------------------------------------------------------------- race length
+
+test('Race length defaults to what each race was designed for', () => {
+  assert.equal(defaultSettings().raceLength, 'default');
+  assert.equal(SETTINGS_SCHEMA.raceLength.label, 'Race length');
+  assert.equal(raceLapsFor({ laps: 2 }, 'default'), 2);
+  assert.equal(raceLapsFor({ laps: 3 }, 'default'), 3);
+  assert.equal(raceLapsFor({ laps: 4 }, 'default'), 4);
+});
+
+test('a chosen length overrides the level, including practice', () => {
+  assert.deepEqual(['one', 'two', 'three', 'five'].map((id) => raceLapsFor({ laps: 4 }, id)), [1, 2, 3, 5]);
+  // Practice is 99 laps by design; picking a length should still shorten it,
+  // otherwise the setting silently does nothing in the one place a player is
+  // most likely to want it.
+  assert.equal(raceLapsFor({ laps: 99 }, 'five'), 5);
+});
+
+test('race length is clamped and falls back safely', () => {
+  for (const bad of ['nope', '', null, undefined, 12, {}]) {
+    assert.equal(raceLapsFor({ laps: 3 }, bad), 3, `${String(bad)} should fall back to the designed distance`);
+  }
+  assert.ok(raceLapsFor({ laps: 0 }, 'default') >= 1, 'a zero-lap level must not produce a race that ends instantly');
+  assert.ok(raceLapsFor(null, 'default') >= 1, 'a missing level must not crash');
+  assert.ok(raceLapsFor({ laps: 3 }, 'one') >= 1);
+});
+
+test('every race length option is speakable and documented', () => {
+  assert.equal(RACE_LENGTH[0].id, 'default');
+  for (const option of RACE_LENGTH) {
+    assert.ok(option.label && option.label.length > 1, `${option.id} needs a spoken label`);
+    assert.ok(option.describe && option.describe.length > 5, `${option.id} needs a description`);
+    assert.ok(option.laps === null || (Number.isInteger(option.laps) && option.laps >= 1), `${option.id} needs a positive lap count or null`);
+  }
+  assert.equal(new Set(RACE_LENGTH.map((o) => o.id)).size, RACE_LENGTH.length, 'ids must be unique or cycling skips one');
+});
+
+test('an unrecognised saved race length is rejected, not trusted', () => {
+  const res = coerceSettings({ raceLength: 'ninety' });
+  assert.equal(res.settings.raceLength, 'default');
+  assert.ok(res.rejected.includes('raceLength'));
+  assert.equal(coerceSettings({ raceLength: 'five' }).settings.raceLength, 'five');
+});
+
+test('race length cycles and announces the new distance', () => {
+  let s = defaultSettings();
+  const seen = [s.raceLength];
+  for (let i = 0; i < RACE_LENGTH.length; i += 1) {
+    const res = cycleSetting(s, 'raceLength', 1);
+    assert.ok(res.announcement && res.announcement.length > 0, 'changing the length must be announced');
+    s = res.settings;
+    seen.push(s.raceLength);
+  }
+  assert.equal(seen[seen.length - 1], seen[0], 'cycling must wrap back to the start');
+  assert.equal(new Set(seen.slice(0, -1)).size, RACE_LENGTH.length, 'and must visit every option');
 });

@@ -38,7 +38,7 @@ import {
   toKph,
   withPace,
 } from '../vehicles/physics.js';
-import { paceScale } from '../a11y/settings.js';
+import { intToWords, paceScale, raceLapsFor } from '../a11y/settings.js';
 import { createAiDriver, separateRacers, updateAiDriver } from '../vehicles/ai.js';
 import {
   buildResults,
@@ -103,7 +103,15 @@ export function createRaceScreen(config) {
       carId: o.carId,
     })),
   ];
-  const race = createRace({ track, totalLaps: level.laps, entrants });
+  // Lap count comes from the Race length setting, falling back to what the
+  // level was designed for. Everything downstream - the lap board, the HUD, the
+  // spoken lap updates and the finish condition - reads race.totalLaps, so the
+  // choice applies to all of them rather than only to the finish line.
+  const race = createRace({
+    track,
+    totalLaps: raceLapsFor(level, gameState?.settings?.raceLength),
+    entrants,
+  });
 
   // Car pace is read once, at race start. It scales the player's car and the
   // opponents by the same factor, so it changes the pace of the race rather than
@@ -232,7 +240,17 @@ export function createRaceScreen(config) {
       S.started = true;
       setStartLights(gantry.lights, 0, true);
       hud.countdownEl.hidden = true;
-      say('Race started. Two laps to go.', { priority: SPEECH_PRIORITY.CRITICAL, interrupt: true, essential: true });
+      // Derived from race.totalLaps, not a literal. This line used to say "Two
+      // laps to go" on every race, including the three and four lap ones, which
+      // is exactly the kind of announcement that must come from real game state:
+      // a player who cannot see the lap board would plan the whole race around a
+      // number that was wrong.
+      const laps = race.totalLaps;
+      say(`Race started. ${intToWords(laps)} ${laps === 1 ? 'lap' : 'laps'} to go.`, {
+        priority: SPEECH_PRIORITY.CRITICAL,
+        interrupt: true,
+        essential: true,
+      });
       audio?.engine?.start();
       audio?.skid?.start();
       for (const r of race.racers) r.lapStartTime = S.elapsed;

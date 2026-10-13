@@ -38,6 +38,35 @@ export const CAR_PACE = [
   { id: 'fast', label: 'Faster', scale: 1.18, describe: 'a higher top speed and quicker acceleration' },
 ];
 
+/**
+ * Race length: how many laps a race runs.
+ *
+ * `laps: null` means "whatever this race was designed for", which keeps the
+ * campaign's own pacing intact. The fixed options override it, including for
+ * practice, so a player who wants a short session or a longer one can have it
+ * without the game pretending the level said something it did not.
+ */
+export const RACE_LENGTH = [
+  { id: 'default', label: 'Race default', laps: null, describe: 'the distance each race was designed for' },
+  { id: 'one', label: 'One lap', laps: 1, describe: 'a single lap of the circuit' },
+  { id: 'two', label: 'Two laps', laps: 2, describe: 'two laps' },
+  { id: 'three', label: 'Three laps', laps: 3, describe: 'three laps' },
+  { id: 'five', label: 'Five laps', laps: 5, describe: 'five laps, a full race distance' },
+];
+
+/**
+ * The lap count a race should actually run.
+ *
+ * Clamped to at least one lap: a zero-lap race would finish the instant it
+ * started, and a negative one never would.
+ */
+export function raceLapsFor(level, id) {
+  const found = RACE_LENGTH.find((r) => r.id === id);
+  const override = found && Number.isFinite(found.laps) && found.laps > 0 ? found.laps : null;
+  const designed = Number.isFinite(level?.laps) && level.laps > 0 ? level.laps : 2;
+  return Math.max(1, Math.min(99, override ?? designed));
+}
+
 /** The multiplier for a pace id; unknown or missing values fall back to normal. */
 export function paceScale(id) {
   const found = CAR_PACE.find((p) => p.id === id);
@@ -152,6 +181,14 @@ export const SETTINGS_SCHEMA = {
     options: CAR_PACE,
     help: 'How fast your car goes and how quickly it gets there. Slower gives you more time to react to a corner warning. It scales your opponents by the same amount, so it changes the pace of the race, not how hard it is to win.',
     announce: (v) => CAR_PACE.find((f) => f.id === v)?.label ?? v,
+  },
+  raceLength: {
+    type: 'enum',
+    default: 'default',
+    label: 'Race length',
+    options: RACE_LENGTH,
+    help: 'How many laps a race runs. Race default keeps the distance each race was designed for. The race start announcement always says the true number of laps, whichever you choose.',
+    announce: (v) => RACE_LENGTH.find((f) => f.id === v)?.label ?? v,
   },
   speakSpeedLaps: {
     type: 'boolean',
