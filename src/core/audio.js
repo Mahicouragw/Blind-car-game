@@ -485,10 +485,16 @@ export function createAudio(config = {}) {
         if (!low && !high) return false;
         const span = Math.max(1, (s.redlineRpm ?? 7000) - (s.idleRpm ?? 900));
         const frac = clamp((s.rpm - (s.idleRpm ?? 900)) / span, 0, 1);
-        // A recorded loop pitched up 0.7x..1.9x covers idle to redline.
-        const rate = 0.72 + frac * 1.18;
         const load = clamp(s.load ?? s.throttle ?? 0, 0, 1);
-        const loud = 0.22 + load * 0.5 + frac * 0.18;
+        const speed = clamp(s.speedNorm ?? 0, 0, 1);
+        // A recorded loop pitched up covers idle to redline - that is a rate
+        // change on a recording, not synthesis. The range is wide enough that
+        // pressing the throttle is obvious by ear alone, and road speed adds a
+        // little on top so a tall gear at speed does not sound like a short gear
+        // at idle. Both terms are capped so the total stays inside what Web Audio
+        // accepts and inside the two layers' crossfade.
+        const rate = 0.66 + frac * 1.42 + speed * 0.12;
+        const loud = 0.2 + load * 0.58 + frac * 0.14 + speed * 0.08;
         if (low) {
           low.setRate(rate);
           low.setVolume(loud * (1 - frac * 0.75));

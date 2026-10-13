@@ -9,10 +9,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  CAR_PACE,
   coerceSettings,
   cycleSetting,
   defaultSettings,
   NAV_FREQUENCY,
+  paceScale,
   setSetting,
   settingFocusSentence,
   SETTINGS_SCHEMA,
@@ -295,4 +297,69 @@ test('an unbroken run of text is hard-split rather than truncated', () => {
   const chunks = splitForSpeech(text, 240);
   assert.ok(chunks.length >= 3);
   assert.equal(chunks.join('').length, 700, 'every character survives');
+});
+
+// ------------------------------------------------------------------ car pace
+
+test('Car pace defaults to normal', () => {
+  assert.equal(defaultSettings().carPace, 'normal');
+  assert.equal(SETTINGS_SCHEMA.carPace.type, 'enum');
+  assert.equal(SETTINGS_SCHEMA.carPace.label, 'Car pace');
+});
+
+test('Car pace offers slower, normal and faster, in that order', () => {
+  assert.deepEqual(CAR_PACE.map((p) => p.id), ['slow', 'normal', 'fast']);
+  const scales = CAR_PACE.map((p) => p.scale);
+  assert.ok(scales[0] < scales[1] && scales[1] < scales[2], `scales must ascend: ${scales}`);
+  assert.equal(scales[1], 1, 'normal must be unscaled');
+  for (const pace of CAR_PACE) {
+    assert.ok(pace.label && pace.label.length > 1, `${pace.id} needs a spoken label`);
+    assert.ok(pace.describe && pace.describe.length > 10, `${pace.id} needs a description of what it does`);
+  }
+});
+
+test('an unrecognised pace falls back to normal rather than breaking physics', () => {
+  for (const bad of ['turbo', '', null, undefined, 0.5, NaN, {}]) {
+    assert.equal(paceScale(bad), 1, `paceScale(${JSON.stringify(bad) ?? String(bad)}) should be 1`);
+  }
+  // A corrupted or hand-edited save must not reach the physics as a nonsense
+  // multiplier: the value is rejected on load and the default stands.
+  const bad = coerceSettings({ carPace: 'turbo' });
+  assert.equal(bad.settings.carPace, 'normal');
+  assert.ok(bad.rejected.includes('carPace'), 'the rejected value should be reported, not silently accepted');
+  assert.equal(coerceSettings({ carPace: 'slow' }).settings.carPace, 'slow');
+});
+
+test('Car pace cycles through all three and wraps', () => {
+  let s = defaultSettings();
+  assert.equal(s.carPace, 'normal');
+
+  const res = setSetting(s, 'carPace', 'slow');
+  assert.equal(res.settings.carPace, 'slow');
+  assert.match(res.announcement, /Slower/, 'changing the pace must announce the new value');
+  s = res.settings;
+
+  for (const expected of ['normal', 'fast', 'slow', 'normal']) {
+    const next = cycleSetting(s, 'carPace', 1);
+    assert.equal(next.settings.carPace, expected, 'cycling forward must wrap at the end');
+    s = next.settings;
+  }
+  // The forward loop ends on 'normal', so backwards is 'slow', then wraps to
+  // 'fast' - the same wrap in the other direction.
+  const back = cycleSetting(s, 'carPace', -1);
+  assert.equal(back.settings.carPace, 'slow', 'cycling backwards from normal');
+  const wrapped = cycleSetting(back.settings, 'carPace', -1);
+  assert.equal(wrapped.settings.carPace, 'fast', 'cycling backwards past the start must wrap');
+});
+
+test('Car pace is announced by name, and explains itself', () => {
+  const sentence = settingFocusSentence('carPace', 'slow');
+  assert.match(sentence, /Car pace/i, 'the announcement must name the setting');
+  assert.match(sentence, /Slower/i, 'and its new value');
+  assert.ok(SETTINGS_SCHEMA.carPace.help.length > 40, 'the setting needs an explanation of what it changes');
+  assert.match(SETTINGS_SCHEMA.carPace.help, /opponents/i, 'it must say the opponents are scaled too, or players will read it as a handicap');
+});
+
+test('paceScale and CAR_PACE agree', () => {
+  for (const pace of CAR_PACE) assert.equal(paceScale(pace.id), pace.scale);
 });

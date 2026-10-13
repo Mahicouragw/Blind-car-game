@@ -403,3 +403,32 @@ test('the in-game credits screen carries the attribution, not just the docs', as
     'the screen must not claim the music is CC0 Kenney - three tracks are CC BY 4.0',
   );
 });
+
+test('road speed lifts the engine note even at constant rpm', async () => {
+  // A tall gear at 100 kph and a short gear at 100 kph should not sound
+  // identical, and holding the throttle open should feel like going faster.
+  const { audio, fake } = await makeRunningEngine();
+  const low = fake.sources[0];
+  const fixed = { rpm: 4000, idleRpm: 900, redlineRpm: 7000, throttle: 1, load: 1 };
+
+  audio.engine.update({ ...fixed, speedNorm: 0 });
+  const crawling = low.playbackRate.value;
+
+  audio.engine.update({ ...fixed, speedNorm: 1 });
+  const atSpeed = low.playbackRate.value;
+
+  assert.ok(atSpeed > crawling, `speed should raise the note, ${crawling} -> ${atSpeed}`);
+  assert.ok(atSpeed <= 4, 'and must stay inside the range Web Audio allows');
+});
+
+test('the engine range is wide enough to hear acceleration', async () => {
+  const { audio, fake } = await makeRunningEngine();
+  const low = fake.sources[0];
+  audio.engine.update({ rpm: 900, idleRpm: 900, redlineRpm: 7000, throttle: 0, load: 0, speedNorm: 0 });
+  const idle = low.playbackRate.value;
+  audio.engine.update({ rpm: 7000, idleRpm: 900, redlineRpm: 7000, throttle: 1, load: 1, speedNorm: 1 });
+  const redline = low.playbackRate.value;
+  // Under about a 2x range the pitch change is hard to hear through a phone
+  // speaker, which is the whole point for a player who cannot see the revs.
+  assert.ok(redline / idle > 2.5, `idle ${idle.toFixed(2)} to redline ${redline.toFixed(2)} should be a wide, audible change`);
+});

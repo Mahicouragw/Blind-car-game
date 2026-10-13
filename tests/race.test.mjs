@@ -628,3 +628,64 @@ test('opponent proximity is measured, not invented', () => {
   assert.ok(close[0].distanceM < 12);
   assert.equal(close[0].side, 'behind');
 });
+
+// ------------------------------------------------------------------ car pace
+
+test('withPace scales speed and acceleration but leaves handling alone', async () => {
+  const { withPace } = await import('../src/vehicles/physics.js');
+  const { availableCars } = await import('../src/vehicles/carCatalog.js');
+  const car = availableCars()[0];
+  const slow = withPace(car, 0.8);
+  const fast = withPace(car, 1.18);
+
+  assert.ok(Math.abs(slow.physics.topSpeedKph - car.physics.topSpeedKph * 0.8) < 1e-9);
+  assert.ok(Math.abs(fast.physics.topSpeedKph - car.physics.topSpeedKph * 1.18) < 1e-9);
+  assert.ok(Math.abs(slow.physics.peakTorqueNm - car.physics.peakTorqueNm * 0.8) < 1e-9, 'acceleration must scale too, or "slower" only means a lower top speed');
+  assert.ok(Math.abs(slow.physics.peakPowerKw - car.physics.peakPowerKw * 0.8) < 1e-9);
+
+  // Handling is what makes one car different from another, so the pace setting
+  // must not touch it.
+  for (const field of ['gripMu', 'mass', 'wheelbase', 'maxSteerAngle', 'steerRate']) {
+    assert.equal(slow.physics[field], car.physics[field], `${field} should not change with pace`);
+  }
+  assert.deepEqual(slow.physics.gearRatios, car.physics.gearRatios, 'gearing should not change');
+  assert.equal(slow.id, car.id, 'the catalogue identity must survive, so the chosen car is still the raced car');
+});
+
+test('withPace does not mutate its input, and is a no-op at scale 1', async () => {
+  const { withPace } = await import('../src/vehicles/physics.js');
+  const { availableCars } = await import('../src/vehicles/carCatalog.js');
+  const car = availableCars()[0];
+  const before = car.physics.topSpeedKph;
+
+  assert.equal(withPace(car, 1), car, 'scale 1 should return the same object, not a copy');
+  withPace(car, 0.8);
+  assert.equal(car.physics.topSpeedKph, before, 'the catalogue car must be untouched');
+
+  // A nonsense scale must not produce a car that cannot move.
+  for (const bad of [0, -1, NaN, Infinity, undefined]) {
+    assert.equal(withPace(car, bad), car, `scale ${String(bad)} should be ignored`);
+  }
+});
+
+test('a slower pace genuinely produces a slower car over a run', async () => {
+  const { createVehicleState, stepVehicle, withPace, toKph } = await import('../src/vehicles/physics.js');
+  const { availableCars } = await import('../src/vehicles/carCatalog.js');
+  const car = availableCars()[0];
+
+  const run = (scale) => {
+    const paced = withPace(car, scale);
+    const v = createVehicleState({ x: 0, z: 0, heading: 0 });
+    for (let i = 0; i < 60 * 12; i += 1) {
+      stepVehicle(v, { throttle: 1, brake: 0, steer: 0 }, paced, 1 / 60, {});
+    }
+    return toKph(v.speed);
+  };
+
+  const slow = run(0.8);
+  const normal = run(1);
+  const fast = run(1.18);
+  assert.ok(slow < normal, `slower pace should reach a lower speed: ${slow.toFixed(1)} vs ${normal.toFixed(1)} kph`);
+  assert.ok(normal < fast, `faster pace should reach a higher speed: ${normal.toFixed(1)} vs ${fast.toFixed(1)} kph`);
+  assert.ok(slow > 10, 'a slower pace must still be a moving car, not a crawl');
+});

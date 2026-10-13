@@ -141,6 +141,35 @@ export function physicsOf(car) {
   return car && car.physics ? car.physics : car;
 }
 
+/**
+ * A copy of a car spec with its pace scaled, for the Car pace setting.
+ *
+ * Top speed, peak torque and peak power are scaled together so the car is slower
+ * to accelerate as well as slower at the top - "slower" has to mean both, or it
+ * does not buy the player any time. Grip, steering, mass, gearing and the torque
+ * curve shape are left alone, so the car still handles like the car that was
+ * chosen in the garage, and the choice of car still matters.
+ *
+ * Returns the original object unchanged at a scale of 1, so the common case does
+ * not allocate a new spec every race.
+ *
+ * @param {object} carIn a catalogue car ({physics:{...}}) or a bare physics object
+ * @param {number} scale
+ */
+export function withPace(carIn, scale = 1) {
+  const car = physicsOf(carIn);
+  if (!car) return carIn;
+  const s = Number.isFinite(scale) && scale > 0 ? scale : 1;
+  if (s === 1) return carIn;
+  const physics = {
+    ...car,
+    topSpeedKph: car.topSpeedKph * s,
+    peakTorqueNm: car.peakTorqueNm * s,
+    peakPowerKw: car.peakPowerKw * s,
+  };
+  return carIn && carIn.physics ? { ...carIn, physics } : physics;
+}
+
 function substep(state, input, carIn, dt, opts) {
   const car = physicsOf(carIn);
   const throttle = clamp01(input.throttle ?? 0);

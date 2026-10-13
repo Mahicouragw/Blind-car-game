@@ -36,7 +36,9 @@ import {
   respawnOnTrack,
   stepVehicle,
   toKph,
+  withPace,
 } from '../vehicles/physics.js';
+import { paceScale } from '../a11y/settings.js';
 import { createAiDriver, separateRacers, updateAiDriver } from '../vehicles/ai.js';
 import {
   buildResults,
@@ -102,6 +104,12 @@ export function createRaceScreen(config) {
     })),
   ];
   const race = createRace({ track, totalLaps: level.laps, entrants });
+
+  // Car pace is read once, at race start. It scales the player's car and the
+  // opponents by the same factor, so it changes the pace of the race rather than
+  // how hard it is to win - see CAR_PACE in a11y/settings.js.
+  const pace = paceScale(gameState?.settings?.carPace);
+  const pacedCar = withPace(playerCar, pace);
 
   const vehicle = createVehicleState({ x: race.player.x, z: race.player.z, heading: race.player.heading });
   const carMeshes = new Map();
@@ -257,7 +265,7 @@ export function createRaceScreen(config) {
       }
     }
 
-    stepVehicle(vehicle, { throttle: input.throttle, brake: input.brake, steer }, playerCar, dt, {
+    stepVehicle(vehicle, { throttle: input.throttle, brake: input.brake, steer }, pacedCar, dt, {
       surface: surf.surface,
       gripMultiplier: level.gripMultiplier ?? 1,
       steeringAssist: level.steeringAssist ?? 0,
@@ -375,7 +383,7 @@ export function createRaceScreen(config) {
     for (const ai of ais) {
       updateAiDriver(ai, dt, {
         track,
-        speedScale: level.aiSpeedScale ?? 1,
+        speedScale: (level.aiSpeedScale ?? 1) * pace,
         rubberBand: level.rubberBand ?? 0,
         gripMultiplier: level.gripMultiplier ?? 1,
         racers: flatRacers,
@@ -527,7 +535,7 @@ export function createRaceScreen(config) {
         stepAi(FIXED_DT);
       } else if (S.phase === RACE_PHASE.FINISHED) {
         // Roll to a stop; no more inputs.
-        stepVehicle(vehicle, { throttle: 0, brake: 0.4, steer: 0 }, playerCar, FIXED_DT, {});
+        stepVehicle(vehicle, { throttle: 0, brake: 0.4, steer: 0 }, pacedCar, FIXED_DT, {});
         playerMesh.group.position.set(vehicle.x, 0, vehicle.z);
         playerMesh.group.rotation.y = vehicle.heading;
       }

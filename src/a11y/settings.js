@@ -23,6 +23,27 @@ export const WARNING_DISTANCE = [
   { id: 'long', label: 'Long', metres: 190, describe: 'about one hundred and ninety metres' },
 ];
 
+/**
+ * Car pace: how fast the player's car goes, and how quickly it gets there.
+ *
+ * The opponents are scaled by the same factor, deliberately. Slowing only the
+ * player would make "slower" mean "harder to win", which is the opposite of what
+ * an accessibility setting is for; the point is more time to react to a corner
+ * warning that is being spoken, not a handicap. `describe` is what the settings
+ * screen says aloud so the player knows what changed without having to see it.
+ */
+export const CAR_PACE = [
+  { id: 'slow', label: 'Slower', scale: 0.8, describe: 'a calmer pace, with more time to react to each warning' },
+  { id: 'normal', label: 'Normal', scale: 1, describe: 'the pace the car was designed for' },
+  { id: 'fast', label: 'Faster', scale: 1.18, describe: 'a higher top speed and quicker acceleration' },
+];
+
+/** The multiplier for a pace id; unknown or missing values fall back to normal. */
+export function paceScale(id) {
+  const found = CAR_PACE.find((p) => p.id === id);
+  return found && Number.isFinite(found.scale) && found.scale > 0 ? found.scale : 1;
+}
+
 const ON_OFF = [
   { id: true, label: 'On' },
   { id: false, label: 'Off' },
@@ -123,6 +144,14 @@ export const SETTINGS_SCHEMA = {
     label: 'Corner warning distance',
     options: WARNING_DISTANCE,
     announce: (v) => WARNING_DISTANCE.find((f) => f.id === v)?.label ?? v,
+  },
+  carPace: {
+    type: 'enum',
+    default: 'normal',
+    label: 'Car pace',
+    options: CAR_PACE,
+    help: 'How fast your car goes and how quickly it gets there. Slower gives you more time to react to a corner warning. It scales your opponents by the same amount, so it changes the pace of the race, not how hard it is to win.',
+    announce: (v) => CAR_PACE.find((f) => f.id === v)?.label ?? v,
   },
   speakSpeedLaps: {
     type: 'boolean',
