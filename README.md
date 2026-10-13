@@ -65,7 +65,7 @@ as a static site. Pages serves it from a **sub-directory**
 | Command | What it does |
 | --- | --- |
 | `npm run serve` | Static dev server on `0.0.0.0:8080` (no build step) |
-| `npm test` | All 248 automated tests (`node --test`) |
+| `npm test` | All 273 automated tests (`node --test`) |
 | `npm run validate` | Track geometry gate — fails if the circuit does not close or self-intersects |
 | `npm run map` | Regenerates `docs/circuit-map.svg` from the live geometry |
 | `npm run publish:list` | Prints the exact files the Pages deploy publishes |
@@ -148,7 +148,7 @@ src/
 
 **Design rule:** everything under `core`, `a11y`, `input`, `world`, `vehicles`,
 `race` and `story` is a pure ES module with **no DOM, WebGL or Web Audio access at
-import time**. That is why 231 of the 248 tests run headless in Node. Only `ui/`,
+import time**. That is why 256 of the 273 tests run headless in Node. Only `ui/`,
 `race/raceScreen.js`, `core/audio.js`, `a11y/speech.js` and `main.js` touch the
 browser, and they are covered by the jsdom suite.
 
@@ -225,15 +225,16 @@ the same script fills a gap only when given `--license`, `--author` and
 ## Testing
 
 ```bash
-npm test         # 248 tests
+npm test         # 273 tests
 npm run validate # track geometry gate
 ```
 
-248 automated tests across gesture recognition, settings state, the speech
+273 automated tests across gesture recognition, settings state, the speech
 queue, lap counting and checkpoint validation, race completion and finishing
 order, navigation announcement rules, vehicle physics, opponent AI, story
 branching, interview scoring, salary negotiation, save/load validation and
-progression — plus a jsdom suite that actually boots the game, mounts the
+progression, plus a mock-free integration suite that drives real touch events
+through the recognizer into the driving input — plus a jsdom suite that actually boots the game, mounts the
 screens and drives them with gesture events, and a deployment-safety suite that
 guards the relative asset paths and the dev server's path guard.
 

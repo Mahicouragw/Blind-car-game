@@ -19,6 +19,7 @@ Wiring lives in `src/input/pointerBus.js` (real pointer events → recognizer),
 | Tap twice quickly | driving surface | `doubleTap` | **Brake** (held ~620 ms, like a pedal tap) |
 | Drag left / right | driving surface | `dragStart`, `drag`, `dragEnd` | **Steer gradually** toward the drag offset |
 | Circular drag | driving surface | `circle` | **Request a U-turn** where the track allows it |
+| Swipe down | driving surface | `swipe` (`direction: 'down'`) | **Reverse** for 1.8 s, then stop on its own |
 | Single tap | menu / list | `tap` | Activate the focused control |
 | Swipe up / down | menu / list | `swipe` | Move the focus ring |
 | Swipe left / right | car browser | `swipe` | Previous / next car |
@@ -28,6 +29,14 @@ Wiring lives in `src/input/pointerBus.js` (real pointer events → recognizer),
 
 Every gesture has a keyboard equivalent in `src/input/keyboard.js`; see
 [ACCESSIBILITY.md](../ACCESSIBILITY.md#keyboard-map).
+
+**Reverse is a swipe, not a held control.** The physics model already reverses
+when throttle and brake are applied together below the standstill threshold, but
+no thumb can hold the screen for throttle and perform a double tap for the brake
+at the same time, so reverse was unreachable on a touch device. A downward swipe
+applies that combination for 1.8 seconds and then releases it, so the car cannot
+be left stuck in reverse. It is announced once, and steering keeps working while
+it runs so the car can be aimed.
 
 ---
 
@@ -93,6 +102,14 @@ Race control is deliberately a non-`immediateTap` zone**, so three rapid taps on
 it produce exactly one `tripleTap` and **zero** activations. This is structural,
 not a heuristic: there is no code path from three taps to a race start. The game
 also says so out loud when it happens, rather than staying silent.
+
+**R9 — `pressEnd` follows `pressStart` exactly once.** For any zone with `hold`,
+on contact the recognizer emits `pressStart`, and on release it emits `pressEnd`
+regardless of what the gesture turned out to be: tap, drag, swipe, long press or
+circle. Getting this wrong in any direction is severe. Emitting it only for
+non-drag presses left the throttle pinned wide open and the wheels still turned
+after any steering input; emitting it twice made the hold state flicker. The
+emission happens once, before the gesture branches, gated on `pressStartFired`.
 
 **R7 — A circle consumes the gesture.** Circle detection runs while the finger is
 still down. Once `circle` fires, lifting the finger emits `dragEnd` and **not**

@@ -83,6 +83,7 @@ with the old value and the new value: *"Speech rate. 1.0 changed to 1.4."*
 | Corner warning distance | short (70 m) / normal (120 m) / long (190 m) | normal |
 | Car pace | slower (0.8x) / normal / faster (1.18x) | normal |
 | Race length | race default / 1 / 2 / 3 / 5 laps | race default |
+| Spoken throttle feedback | on/off | on |
 | Spoken speed and lap updates | on/off | on |
 | Spoken race position | on/off | on |
 | Spoken opponent warnings | on/off | on |

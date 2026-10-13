@@ -9,31 +9,32 @@ Where something could not be run in this environment, it is listed under
 ## Executed
 
 ```bash
-npm test          # 248 tests, 248 passing
+npm test          # 273 tests, 273 passing
 npm run validate  # track geometry gate
 npm run map       # regenerates docs/circuit-map.svg
 ```
 
-Last run: **248 tests, 248 pass, 0 fail**, Node v22.22.3, ~18 s.
+Last run: **273 tests, 273 pass, 0 fail**, Node v22.22.3, ~20 s.
 
 | File | Tests | Covers |
 | --- | --- | --- |
 | `tests/gestures.test.mjs` | 26 | Gesture recognizer, rules R1–R8 |
-| `tests/settings.test.mjs` | 37 | Settings state, coercion, the speech queue, speech chunking, Car pace, Race length |
-| `tests/race.test.mjs` | 42 | Lap counting, checkpoints, race completion, positions, navigation, physics, AI, pace-scaled vehicle specs |
+| `tests/settings.test.mjs` | 38 | Settings state, coercion, the speech queue, speech chunking, Car pace, Race length |
+| `tests/race.test.mjs` | 44 | Lap counting, checkpoints, race completion, positions, navigation, physics, AI, pace-scaled vehicle specs |
 | `tests/story.test.mjs` | 47 | Story branching, interview scoring, negotiation, saving, progression |
 | `tests/dom.smoke.test.mjs` | 17 | Boots the real game in jsdom and drives it with gesture events |
 | `tests/publish.test.mjs` | 37 | Deployment safety: relative asset paths, the module graph, what the staged artefact does and does not contain, the dev server's path guard over a real socket, and the post-deploy verifier in both directions |
 | `tests/audio.test.mjs` | 26 | The audio mix against a fake Web Audio graph: ducking held for a whole utterance, engine response to rpm, load and road speed, lazy loading of the music beds, and per-track licence and attribution obligations |
 | `tests/music.test.mjs` | 16 | The music director: scene and chapter to track mapping, deliberate silence, settings interaction, and teardown |
-| **Total** | **248** | |
+| `tests/integration.test.mjs` | 22 | **No mocks**: real touch events through the real recognizer, onto the real bus, into the real driving input. Holding applies throttle, releasing cuts it, a double tap brakes, dragging steers gradually, the wheel self-centres, swiping down reverses, a circle asks for a U-turn, menu gestures never touch the car, and pressEnd follows pressStart exactly once for every kind of press |
+| **Total** | **273** | |
 
 `npm run validate` reports **"Track geometry OK."** — the lap closes to 0.070 m
 with exactly −360° of total turn, has no self-intersection, and keeps every pair
 of non-adjacent centre-line points at least 27 m apart.
 
 All logic modules are pure ES modules with no DOM, WebGL or Web Audio access at
-import time, which is why 231 of these tests run headless in Node with no
+import time, which is why 256 of these tests run headless in Node with no
 browser. The remaining 17 run in **jsdom** (dev-only dependency).
 
 ---
