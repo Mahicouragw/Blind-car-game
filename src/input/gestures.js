@@ -382,6 +382,9 @@ export function createGestureRecognizer(config = {}) {
       const duration = t - touch.startT;
       const wasDrag = touch.isDrag;
       const wasLongPress = touch.longPressFired;
+      // Captured before `touch` is cleared: the drag branch below has to be able
+      // to emit the matching pressEnd.
+      const pressStartWasFired = touch.pressStartFired;
       const tapCount = touch.tapCount;
       const circleFired = touch.circleFired;
       touch = null;
@@ -389,11 +392,27 @@ export function createGestureRecognizer(config = {}) {
       clearTimer('longPress');
       clearTimer('doubleTapHold');
 
-      if (z.hold && !wasDrag) {
+      // pressEnd must follow pressStart EXACTLY ONCE, whatever the gesture turned
+      // out to be. It used to be emitted only for a press that was neither a drag
+      // nor a long press, and the long-press branch returns before the drag branch
+      // can run, so a slow steering drag emitted neither pressEnd nor dragEnd. On
+      // the driving surface that left `holding` set with the throttle wide open
+      // and the wheels still turned: the car accelerated away and kept turning
+      // after every unhurried steering input.
+      //
+      // `pressStartFired` is only ever true for a zone with `hold`, so gating on it
+      // is exactly the old `z.hold` check, minus the drag hole.
+      if (pressStartWasFired) {
         emit('pressEnd', { zone: z, zoneId: z.id, role: z.role, x, y, durationMs: duration, tapCount });
       }
+
       if (wasLongPress) {
         emit('longPressEnd', { zone: z, zoneId: z.id, role: z.role, x, y, durationMs: duration });
+        // A long press can also have been a drag, and the wheels need the same
+        // release signal as any other drag.
+        if (wasDrag) {
+          emit('dragEnd', { zone: z, zoneId: z.id, role: z.role, dx, dy, dist, durationMs: duration, circle: circleFired });
+        }
         chain.active = false;
         chain.count = 0;
         chain.settled = false;

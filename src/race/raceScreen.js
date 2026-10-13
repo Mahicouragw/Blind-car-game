@@ -154,6 +154,11 @@ export function createRaceScreen(config) {
   // ---------------------------------------------------------------- state
   const S = {
     phase: RACE_PHASE.GRID,
+    gridWait: 0,
+    awaitingBriefing: false,
+    lastHolding: false,
+    lastReversing: false,
+    lastThrottleSay: -99,
     countdown: 3.999,
     countdownStep: 3,
     running: false,
@@ -188,9 +193,37 @@ export function createRaceScreen(config) {
     return palette[i % palette.length];
   }
 
+  /** Bounds on how long the controls briefing may delay the countdown. */
+  const GRID_MIN_WAIT = 0.8;
+  const GRID_MAX_WAIT = 26;
+
   // ------------------------------------------------------------- countdown
   function say(text, opts = {}) {
     speech?.say(text, opts);
+  }
+
+  /**
+   * The controls, in the order a player needs them.
+   *
+   * This used to be spoken from inside `startCountdown`, immediately before the
+   * countdown began, so "Three" interrupted it about a second in and the player
+   * never heard the second half - which is why holding the screen to accelerate
+   * was not discoverable. It is now spoken by `start()` and the countdown WAITS
+   * for it (see `gridWait` in the frame loop). It also used to say "Three laps"
+   * on every race regardless of the distance, and mentioned neither reverse nor
+   * how to leave a race.
+   */
+  function controlBriefing() {
+    const laps = race.totalLaps;
+    return [
+      `On the grid, position ${race.player.gridPosition} of ${race.racers.length}, for ${intToWords(laps)} ${laps === 1 ? 'lap' : 'laps'} of the Vettaru circuit.`,
+      'Hold your finger anywhere on the screen to accelerate. Release to coast.',
+      'Tap twice quickly to brake.',
+      'Drag left or right to steer. The car turns gradually, so hold the drag through the corner.',
+      'Draw a circle with your finger to turn around.',
+      'Swipe down to reverse.',
+      'Press the back gesture or key to leave the race at any time.',
+    ].join(' ');
   }
 
   function startCountdown() {
@@ -198,11 +231,6 @@ export function createRaceScreen(config) {
     race.phase = RACE_PHASE.COUNTDOWN;
     S.countdown = 3.999;
     S.countdownStep = 4;
-    say('On the grid. Three laps of the Vettaru circuit in a moment. Hold to accelerate. Tap twice to brake. Drag to steer.', {
-      priority: SPEECH_PRIORITY.CRITICAL,
-      interrupt: true,
-      essential: true,
-    });
     setStartLights(gantry.lights, 0, false);
     audio?.play('voice-ready', { group: 'voice' });
     updateHud();
@@ -258,6 +286,41 @@ export function createRaceScreen(config) {
   }
 
   // ---------------------------------------------------------------- physics
+  /**
+   * Tell the player whether their finger is actually on the throttle.
+   *
+   * Holding the screen is the accelerator, and with no visible needle and an
+   * engine note that is already loud, "am I holding it?" is a fair question. This
+   * announces the two edges - pressed and released - rather than a continuous
+   * stream, so it cannot become chatter, and it is governed by its own setting.
+   */
+  function announceDriveInput() {
+    const holding = !!drivingInput?.state?.holding;
+    const reversing = !!drivingInput?.state?.reversing;
+    if (reversing && !S.lastReversing) {
+      say('Reversing.', {
+        priority: SPEECH_PRIORITY.CRITICAL,
+        key: 'reverse',
+        cooldownMs: 900,
+        essential: true,
+      });
+    }
+    S.lastReversing = reversing;
+    if (holding === S.lastHolding) return;
+    S.lastHolding = holding;
+    if (gameState?.settings?.speakThrottle === false) return;
+    const now = S.elapsed;
+    if (now - S.lastThrottleSay < 0.55) return;
+    S.lastThrottleSay = now;
+    // NORMAL, not CRITICAL: this is feedback about the player's own finger, and it
+    // must never outrank a corner warning or a collision callout.
+    say(holding ? 'Accelerating.' : 'Coasting.', {
+      priority: SPEECH_PRIORITY.NORMAL,
+      key: 'throttle',
+      cooldownMs: 400,
+    });
+  }
+
   function stepPlayer(dt) {
     const input = drivingInput.update(dt);
     const surf = resolveSurface(track, vehicle.x, vehicle.z);
@@ -547,7 +610,20 @@ export function createRaceScreen(config) {
       steps++;
       S.elapsed += FIXED_DT;
       race.elapsed = S.elapsed;
-      if (S.phase === RACE_PHASE.COUNTDOWN) tickCountdown(FIXED_DT);
+      if (S.phase === RACE_PHASE.GRID && S.awaitingBriefing) {
+        S.gridWait += FIXED_DT;
+        // Wait for the controls briefing to finish. `holding` lets the player skip
+        // it by holding the screen - the same gesture that accelerates, so an
+        // eager player is not made to wait. The cap bounds a speech engine that
+        // never reports finishing; a muted or unsupported one goes idle at once,
+        // so this normally costs nothing.
+        const speaking = speech?.queue?.isSpeaking ?? false;
+        const skip = drivingInput?.state?.holding;
+        if (S.gridWait >= GRID_MIN_WAIT && (!speaking || skip || S.gridWait >= GRID_MAX_WAIT)) {
+          S.awaitingBriefing = false;
+          startCountdown();
+        }
+      } else if (S.phase === RACE_PHASE.COUNTDOWN) tickCountdown(FIXED_DT);
       else if (S.phase === RACE_PHASE.RACING) {
         stepPlayer(FIXED_DT);
         stepAi(FIXED_DT);
@@ -605,6 +681,7 @@ export function createRaceScreen(config) {
       speedNorm: Math.min(1, Math.abs(vehicle.speed) / 60),
     });
     audio.skid.update(vehicle.skidLevel ?? 0);
+    announceDriveInput();
     if (S.phase === RACE_PHASE.RACING && S.frames % 90 === 0 && vehicle.gear !== S.lastGear) {
       // No dedicated gear-change recording exists; a recorded metal click is
       // used instead and that substitution is listed in docs/AUDIO-CREDITS.md.
@@ -669,7 +746,12 @@ export function createRaceScreen(config) {
         `You are on the grid in position ${slot} of ${race.racers.length}. ${gridZone?.enterLine ?? ''} ${race.racers.length - 1} opponents: ${level.opponents.map((o) => o.name).join(', ')}. ${level.brief}`,
         { priority: SPEECH_PRIORITY.CRITICAL, essential: true, cooldownMs: 0 }
       );
-      setTimeout(() => startCountdown(), 1600);
+      // The control briefing follows the grid announcement in the speech queue.
+      // The countdown is started from the frame loop once the queue has drained,
+      // so the controls are actually heard rather than cut off by "Three".
+      say(controlBriefing(), { priority: SPEECH_PRIORITY.CRITICAL, essential: true, cooldownMs: 0 });
+      S.gridWait = 0;
+      S.awaitingBriefing = true;
       return api;
     },
     pause() {

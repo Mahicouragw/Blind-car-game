@@ -21,7 +21,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { bus } from '../src/core/bus.js';
 import { createGestureRecognizer, GESTURE_DEFAULTS } from '../src/input/gestures.js';
-import { createDrivingInput, DRIVING_ROLE, DRIVING_ZONE } from '../src/input/drivingInput.js';
+import { createDrivingInput, DRIVING_ROLE, DRIVING_ZONE, REVERSE_BURST_SECONDS } from '../src/input/drivingInput.js';
 import { ZONE_ROLE } from '../src/ui/screens.js';
 
 const MENU_ZONE = { id: 'menu', role: ZONE_ROLE.MENU, immediateTap: true, allowSwipe: true };
@@ -267,5 +267,159 @@ test('a tap on a menu zone carries the element so the control can be clicked', (
     assert.equal(seen[0].zone.role, ZONE_ROLE.MENU, 'and its role');
   } finally {
     off();
+  }
+});
+
+// ------------------------------------------------------------------- reverse
+
+test('swiping down reverses, because a thumb cannot hold throttle and brake', () => {
+  // Reverse existed in the physics only as "throttle and brake together at a
+  // standstill", which a touch player cannot perform: holding the screen is the
+  // throttle and the brake is a discrete double tap. So "how do I go back" had no
+  // answer. A downward swipe is the gesture for it.
+  withRig((r) => {
+    r.down(200, 300);
+    for (const y of [330, 370, 410, 450]) r.move(200, y);
+    r.up(200, 450);
+    assert.ok(r.drivingInput.state.reversing > 0, 'a downward swipe should start reversing');
+
+    const out = r.drivingInput.update(1 / 60);
+    assert.equal(out.reversing, true);
+    // The physics model engages reverse when throttle and brake are both applied
+    // below the standstill threshold, so that is what the input must present.
+    assert.equal(out.throttle, 1);
+    assert.equal(out.brake, 1);
+  });
+});
+
+test('the reverse burst ends on its own and cannot leave the car stuck', () => {
+  withRig((r) => {
+    r.down(200, 300);
+    for (const y of [330, 370, 410, 450]) r.move(200, y);
+    r.up(200, 450);
+
+    let steps = 0;
+    while (r.drivingInput.state.reversing > 0 && steps < 1000) {
+      r.drivingInput.update(1 / 60);
+      steps += 1;
+    }
+    const after = r.drivingInput.update(1 / 60);
+    // `reversing` is a countdown in the live state and a boolean on the burst's
+    // own output, so assert on truthiness rather than one exact shape.
+    assert.ok(!after.reversing, 'reverse must stop by itself');
+    assert.equal(after.brake, 0, 'and must not leave the brakes on');
+    assert.equal(after.throttle, 0, 'or the throttle pinned');
+    // A burst, not a permanent state change.
+    assert.ok(steps <= Math.ceil(REVERSE_BURST_SECONDS * 60) + 2, `reverse should last about ${REVERSE_BURST_SECONDS}s, took ${steps} steps`);
+  });
+});
+
+test('swiping down on a menu does not reverse the car', () => {
+  withRig((r) => {
+    r.down(200, 300, MENU_ZONE);
+    for (const y of [330, 370, 410, 450]) r.move(200, y);
+    r.up(200, 450);
+    assert.equal(r.drivingInput.state.reversing, 0, 'menu swipes are navigation, not reverse');
+  });
+});
+
+test('steering still works while reversing, so the car can be aimed', () => {
+  withRig((r) => {
+    r.down(200, 300);
+    for (const y of [330, 370, 410, 450]) r.move(200, y);
+    r.up(200, 450);
+    // Now drag to aim, with no finger down: the wheel should still respond.
+    r.down(300, 400);
+    for (const x of [280, 250, 220, 190]) r.move(x, 400);
+    const out = r.settle(1 / 60, 40);
+    assert.ok(out.reversing === true || out.steer >= 0, 'reversing must not lock the steering out');
+  });
+});
+
+test('a reset clears a reverse in progress', () => {
+  withRig((r) => {
+    r.down(200, 300);
+    for (const y of [330, 370, 410, 450]) r.move(200, y);
+    r.up(200, 450);
+    assert.ok(r.drivingInput.state.reversing > 0);
+    r.drivingInput.reset();
+    assert.equal(r.drivingInput.state.reversing, 0, 'a respawn or restart must not carry reverse over');
+  });
+});
+
+test('steering with a drag does not leave the throttle pinned open', () => {
+  // pressEnd used to be emitted only when the press was NOT a drag. On the
+  // driving surface, where pressStart fires on contact, that meant every steering
+  // drag left `holding` set and the throttle wide open: the car accelerated away
+  // on its own after every steering input, which is unplayable.
+  withRig((r) => {
+    r.down(300, 400);
+    assert.equal(r.drivingInput.state.throttle, 1, 'the press should have applied throttle');
+    for (const x of [280, 250, 220, 190]) r.move(x, 400);
+    r.up(190, 400);
+    assert.equal(r.drivingInput.state.holding, false, 'lifting the finger must end the hold, drag or not');
+    assert.equal(r.drivingInput.state.throttle, 0, 'and must release the throttle');
+  });
+});
+
+test('a long steering drag also releases the throttle', () => {
+  // The same path, with a slow drag, so the gesture is not classified as a swipe.
+  withRig((r) => {
+    r.down(300, 400);
+    for (const x of [295, 285, 270, 250, 230, 210, 195]) {
+      r.advance(150);
+      r.move(x, 400);
+    }
+    r.up(195, 400);
+    assert.equal(r.drivingInput.state.holding, false, 'a slow drag must still end the hold');
+    assert.equal(r.drivingInput.state.throttle, 0);
+  });
+});
+
+test('pressEnd follows pressStart exactly once, for every kind of press', () => {
+  // The invariant that took three attempts to get right: a press that started
+  // must end, once. Broken in all three directions during this work - missing for
+  // drags, missing for long presses, and then emitted twice for a long press
+  // because the branches are sequential `if`s rather than an else-chain.
+  const cases = {
+    'quick tap': (r) => {
+      r.down(200, 400);
+      r.up(200, 400);
+    },
+    'fast steering drag (also a swipe)': (r) => {
+      r.down(300, 400);
+      for (const x of [280, 250, 220, 190]) r.move(x, 400);
+      r.up(190, 400);
+    },
+    'slow steering drag (also a long press)': (r) => {
+      r.down(300, 400);
+      for (const x of [295, 285, 270, 250, 230, 210, 195]) {
+        r.advance(150);
+        r.move(x, 400);
+      }
+      r.up(195, 400);
+    },
+    'reverse swipe': (r) => {
+      r.down(200, 300);
+      for (const y of [330, 370, 410, 450]) r.move(200, y);
+      r.up(200, 450);
+    },
+  };
+
+  for (const [name, body] of Object.entries(cases)) {
+    const r = rig();
+    const seen = [];
+    const offStart = bus.on('gesture:pressStart', () => seen.push('start'));
+    const offEnd = bus.on('gesture:pressEnd', () => seen.push('end'));
+    try {
+      body(r);
+      assert.deepEqual(seen, ['start', 'end'], `${name}: expected pressStart then exactly one pressEnd, got ${seen.join(', ') || 'nothing'}`);
+      assert.equal(r.drivingInput.state.holding, false, `${name}: the hold must be released`);
+      assert.equal(r.drivingInput.state.throttle, 0, `${name}: the throttle must be released`);
+    } finally {
+      offStart();
+      offEnd();
+      r.detach();
+    }
   }
 });

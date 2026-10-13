@@ -190,6 +190,14 @@ export const SETTINGS_SCHEMA = {
     help: 'How many laps a race runs. Race default keeps the distance each race was designed for. The race start announcement always says the true number of laps, whichever you choose.',
     announce: (v) => RACE_LENGTH.find((f) => f.id === v)?.label ?? v,
   },
+  speakThrottle: {
+    type: 'boolean',
+    default: true,
+    label: 'Spoken throttle feedback',
+    options: ON_OFF,
+    help: 'Says Accelerating when you press the screen and Coasting when you let go, so you always know whether your finger is on the accelerator. Only the two changes are announced, never a continuous stream.',
+    announce: (v) => (v ? 'On' : 'Off'),
+  },
   speakSpeedLaps: {
     type: 'boolean',
     default: true,

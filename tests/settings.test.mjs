@@ -11,6 +11,7 @@ import assert from 'node:assert/strict';
 import {
   CAR_PACE,
   coerceSettings,
+  SETTINGS_SCHEMA as SCHEMA,
   RACE_LENGTH,
   raceLapsFor,
   cycleSetting,
@@ -421,4 +422,15 @@ test('race length cycles and announces the new distance', () => {
   }
   assert.equal(seen[seen.length - 1], seen[0], 'cycling must wrap back to the start');
   assert.equal(new Set(seen.slice(0, -1)).size, RACE_LENGTH.length, 'and must visit every option');
+});
+
+test('spoken throttle feedback is a setting, on by default, and speakable', () => {
+  assert.equal(defaultSettings().speakThrottle, true);
+  assert.equal(SCHEMA.speakThrottle.type, 'boolean');
+  assert.match(SCHEMA.speakThrottle.label, /throttle/i);
+  assert.ok(SCHEMA.speakThrottle.help.length > 40, 'it must explain what it says and when');
+  assert.match(SCHEMA.speakThrottle.help, /Accelerating/i, 'the help should name the words it speaks');
+  assert.equal(SCHEMA.speakThrottle.announce(true), 'On');
+  assert.equal(coerceSettings({ speakThrottle: false }).settings.speakThrottle, false);
+  assert.equal(coerceSettings({ speakThrottle: 'yes' }).settings.speakThrottle, true, 'a non-boolean is rejected, keeping the default');
 });

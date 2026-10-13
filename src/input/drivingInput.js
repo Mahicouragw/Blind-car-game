@@ -42,6 +42,16 @@ export const DRIVING_ZONE = {
 /** How fast a swipe moves the steering target, per second. */
 export const STEER_TARGET_RATE = 2.6;
 
+/**
+ * How long one downward swipe keeps the car reversing.
+ *
+ * A burst rather than a hold, because the reverse gear in the physics model is
+ * engaged by holding throttle and brake together, which is not something a thumb
+ * can do while also steering. This is applied for exactly as long as `state.reversing`
+ * lasts, so releasing the car happens on its own and it cannot be left stuck.
+ */
+export const REVERSE_BURST_SECONDS = 1.8;
+
 export function createDrivingInput(config = {}) {
   const state = {
     throttle: 0,
@@ -50,6 +60,7 @@ export function createDrivingInput(config = {}) {
     steerTarget: 0,
     handbrake: false,
     uturnRequest: 0, // countdown in seconds while a U-turn is being asked for
+    reversing: 0, // seconds of reverse still to apply
     respawnRequest: false,
     holding: false,
     braking: false,
@@ -115,6 +126,21 @@ export function createDrivingInput(config = {}) {
     dragSteer = 0;
   });
 
+  // ---- swipe down reverses ----
+  // Reverse already existed in the physics, but only as "throttle and brake
+  // together at a standstill", which a touch player cannot perform: holding the
+  // screen is the throttle, and the brake is a discrete double tap. So reverse
+  // was unreachable, and "how do I go back" had no answer. A downward swipe is
+  // the natural gesture for it and does not collide with the throttle, since the
+  // throttle needs the finger down and a swipe ends with it up.
+  on('gesture:swipe', (d) => {
+    if (d.zone?.role !== DRIVING_ROLE) return;
+    if (d.direction !== 'down') return;
+    state.reversing = REVERSE_BURST_SECONDS;
+    state.braking = false;
+    bus.emit('race:reverseStarted', { seconds: REVERSE_BURST_SECONDS });
+  });
+
   // ---- circle or directional swipe asks for a U-turn ----
   on('gesture:circle', (d) => {
     if (d.zone?.role !== DRIVING_ROLE) return;
@@ -158,6 +184,25 @@ export function createDrivingInput(config = {}) {
     state,
     /** Ramp steering toward its target and decay one-shot requests. */
     update(dt) {
+      // Reverse is expressed to the physics model the way it already understands:
+      // throttle and brake together below the standstill threshold engages the
+      // reverse gear. See REVERSE_BURST_SECONDS.
+      if (state.reversing > 0) {
+        state.reversing = Math.max(0, state.reversing - dt);
+        const out = {
+          ...state,
+          throttle: 1,
+          brake: 1,
+          reversing: true,
+          reverseSecondsLeft: state.reversing,
+          consumeRespawn: false,
+        };
+        if (state.respawnRequest) {
+          state.respawnRequest = false;
+          out.consumeRespawn = true;
+        }
+        return out;
+      }
       state.steerTarget = dragSteer;
       // Gradual: the target itself is rate-limited, and the vehicle model
       // rate-limits the wheels again on top of that.
@@ -174,6 +219,7 @@ export function createDrivingInput(config = {}) {
       return { ...state, consumeRespawn: false };
     },
     reset() {
+      state.reversing = 0;
       state.throttle = 0;
       state.brake = 0;
       state.steer = 0;

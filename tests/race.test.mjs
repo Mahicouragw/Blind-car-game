@@ -717,3 +717,42 @@ test('the lap count reaches the race, the lap board and the finish line together
     assert.ok(race.totalLaps >= 1);
   }
 });
+
+test('the grid briefing states the real lap count and every control', async () => {
+  const { readFileSync } = await import('node:fs');
+  const src = readFileSync(new URL('../src/race/raceScreen.js', import.meta.url), 'utf8');
+
+  // It said "Three laps" on every race, which the Race length setting makes
+  // plainly wrong, and it omitted reverse and how to leave a race.
+  assert.match(src, /function controlBriefing/, 'the controls should be written down in one place');
+  assert.match(src, /race\.totalLaps/, 'the briefing must state the real distance');
+
+  const briefing = src.slice(src.indexOf('function controlBriefing'), src.indexOf('function startCountdown'));
+  // Scoped to the briefing body, so the comment above it explaining this history
+  // cannot satisfy or trip the check.
+  assert.ok(!/Three laps/.test(briefing), 'no hardcoded lap count in the briefing itself');
+  assert.match(briefing, /intToWords\(laps\)/, 'the lap count should be spoken as words');
+  for (const [what, re] of [
+    ['how to accelerate', /Hold your finger/],
+    ['how to coast', /[Rr]elease to coast/],
+    ['how to brake', /Tap twice/],
+    ['how to steer', /Drag left or right/],
+    ['how to turn around', /circle/i],
+    ['how to reverse', /Swipe down to reverse/],
+    ['how to leave the race', /leave the race/],
+  ]) {
+    assert.match(briefing, re, `the briefing must tell the player ${what}`);
+  }
+});
+
+test('the countdown waits for the briefing instead of cutting it off', async () => {
+  const { readFileSync } = await import('node:fs');
+  const src = readFileSync(new URL('../src/race/raceScreen.js', import.meta.url), 'utf8');
+  // The briefing used to be spoken from inside startCountdown, so "Three"
+  // interrupted it about a second in and the player never heard the controls.
+  const countdown = src.slice(src.indexOf('function startCountdown'), src.indexOf('function tickCountdown'));
+  assert.ok(!/Hold your finger/.test(countdown), 'the briefing must not be spoken from inside the countdown');
+  assert.match(src, /awaitingBriefing/, 'the countdown should wait for the briefing to finish');
+  assert.match(src, /GRID_MAX_WAIT/, 'and be bounded so a stuck speech engine cannot hang the start');
+  assert.match(src, /speech\?\.queue\?\.isSpeaking/, 'the wait should be driven by the real speech queue');
+});

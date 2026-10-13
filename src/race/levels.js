@@ -25,6 +25,14 @@
  */
 
 /** @type {LevelConfig[]} */
+/**
+ * The campaigns's races.
+ *
+ * `brief` must NOT state a lap count. Race length is a player setting now, so a
+ * level that advertises "three laps" is simply wrong the moment someone picks one
+ * or five - and this text is spoken. The lap count is announced by the grid
+ * briefing, which reads the real number.
+ */
 export const LEVELS = [
   {
     id: 1,
@@ -48,7 +56,7 @@ export const LEVELS = [
     id: 2,
     name: 'Harbour Sprint',
     brief:
-      'Three laps and three opponents. They brake later than before and the extra grip is gone. Watch the Variante chicane.',
+      'Three opponents. They brake later than before and the extra grip is gone. Watch the Variante chicane.',
     laps: 3,
     opponents: [
       { name: 'Joseph', carId: 'metro-gt', skill: 0.8, aggression: 0.4 },
@@ -67,7 +75,7 @@ export const LEVELS = [
     id: 3,
     name: 'Dockside Challenge',
     brief:
-      'Three laps, four opponents, close racing. They will defend the inside into the Old Harbour hairpin.',
+      'Four opponents, close racing. They will defend the inside into the Old Harbour hairpin.',
     laps: 3,
     opponents: [
       { name: 'Kabir', carId: 'vantage-rs', skill: 0.86, aggression: 0.7 },
@@ -87,7 +95,7 @@ export const LEVELS = [
     id: 4,
     name: 'Vettaru Grand Prix',
     brief:
-      'Four laps, five opponents, no assistance. This is the full circuit at race pace.',
+      'Five opponents, no assistance. This is the full circuit at race pace.',
     laps: 4,
     opponents: [
       { name: 'Kabir', carId: 'vantage-rs', skill: 0.9, aggression: 0.85 },
