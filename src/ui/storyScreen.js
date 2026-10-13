@@ -11,6 +11,7 @@
  */
 
 import { bus } from '../core/bus.js';
+import { trackForChapter } from '../core/musicDirector.js';
 import { makeButton, ZONE_ROLE } from './screens.js';
 import {
   evaluateInterview,
@@ -481,6 +482,12 @@ export function buildStoryScreen(config) {
     story.goto(entry);
     render();
   }
+
+  // Every chapter mounts the same `story` screen, so the screen id alone cannot
+  // pick the music. The chapter does: the family and the rent notice, the
+  // pressure of the interview and the negotiation, the workshop floor, the
+  // invitation, and the race itself each get their own bed.
+  bus.emit('scene:music', { scene: `story-${chapterId}`, track: trackForChapter(chapterId) });
 
   return {
     id: 'story',

@@ -9,12 +9,12 @@ Where something could not be run in this environment, it is listed under
 ## Executed
 
 ```bash
-npm test          # 189 tests, 189 passing
+npm test          # 229 tests, 229 passing
 npm run validate  # track geometry gate
 npm run map       # regenerates docs/circuit-map.svg
 ```
 
-Last run: **189 tests, 189 pass, 0 fail**, Node v22.22.3, ~14 s.
+Last run: **229 tests, 229 pass, 0 fail**, Node v22.22.3, ~17 s.
 
 | File | Tests | Covers |
 | --- | --- | --- |
@@ -31,7 +31,7 @@ with exactly −360° of total turn, has no self-intersection, and keeps every p
 of non-adjacent centre-line points at least 27 m apart.
 
 All logic modules are pure ES modules with no DOM, WebGL or Web Audio access at
-import time, which is why 172 of these tests run headless in Node with no
+import time, which is why 212 of these tests run headless in Node with no
 browser. The remaining 17 run in **jsdom** (dev-only dependency).
 
 ---
@@ -204,7 +204,7 @@ and then 404s in production, because Pages serves from the sub-path
 `/Blind-car-game/` while the dev server serves from `/`. It asserts that
 `index.html` and every module and stylesheet contain **no absolute-root URL**,
 that nothing builds a URL from `location.pathname`, `document.baseURI` or
-`import.meta.url`, that **all 69 audio manifest entries are relative and exist
+`import.meta.url`, that **all 75 audio manifest entries are relative and exist
 on disk**, that **every relative import across `src/` resolves**, and that
 vendored Three.js ships **both** of its chunks — `three.module.js` imports
 `./three.core.js`, and vendoring only the first gives a blank canvas with no
@@ -308,7 +308,8 @@ every line.
 ### 4. Web Audio playback of the recorded samples — **UNTESTED**
 
 **Why:** no audio device in the sandbox. The manifest paths were verified against
-the files on disk and all 69 files are served with `audio/ogg` MIME, but actual
+the files on disk and every audio file is served with the right MIME (`audio/ogg`
+for the effects, `audio/mpeg` for the music beds), but actual
 playback was not heard.
 
 **How to test:** confirm the engine loop's pitch rises with rpm, the two layers
@@ -343,7 +344,7 @@ Three facts about the deployment that are easy to get wrong:
 - What actually ships is decided by `scripts/publish-list.mjs`, which stages an
   explicit include list into `_site/` and uploads that — rather than uploading
   the repository root and relying on `actions/upload-pages-artifact` to strip
-  things. Staged locally: **107 files, 3.62 MB** — `index.html`, `styles/`,
+  things. Staged locally: **114 files, 24.44 MB** — `index.html`, `styles/`,
   `src/`, `assets/` (all **69** audio samples), `vendor/` (both Three.js chunks)
   and `docs/circuit-map.svg`. Nothing else: no `tests/`, no `scripts/`, no
   `package-lock.json`, no prose docs, and **no dotfiles at any level**, so no git

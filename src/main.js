@@ -9,6 +9,7 @@
  */
 
 import { bus } from './core/bus.js';
+import { createMusicDirector } from './core/musicDirector.js';
 import { createGameState, SCREEN } from './core/gameState.js';
 import { createAudio } from './core/audio.js';
 import { createSpeech } from './a11y/speech.js';
@@ -61,6 +62,16 @@ export function bootApp(config = {}) {
 
   const audio = createAudio({ getSettings: () => gameState.settings });
   const track = getTrack();
+
+  // Music follows the scene rather than being started by each screen, so the six
+  // full-length beds are mapped in one place and two screens cannot fight over
+  // the same channel. The race screen is not a bus screen, so it is driven
+  // explicitly from beginRace below.
+  const musicDirector = createMusicDirector({
+    audio,
+    events: bus,
+    getSettings: () => gameState.settings,
+  });
 
   const drivingInput = createDrivingInput({ keyboard: null });
   const keyboard = attachKeyboard(typeof window !== 'undefined' ? window : null, {
@@ -370,6 +381,7 @@ export function bootApp(config = {}) {
       return;
     }
     stopPreview();
+    musicDirector.playTrack('music-race');
     const car = gameState.car;
     host.hidden = true;
     canvas.hidden = false;

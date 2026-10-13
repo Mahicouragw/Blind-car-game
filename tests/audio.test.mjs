@@ -16,8 +16,16 @@
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createAudio, DUCK_LEVELS } from '../src/core/audio.js';
-import { createFakeAudioContext, createFakeClock, fakeBuffer } from './helpers/audio.mjs';
+import {
+  AUDIO_MANIFEST,
+  createAudio,
+  DUCK_LEVELS,
+  eagerAudioNames,
+  LAZY_AUDIO,
+  MUSIC_CREDITS,
+  musicAttributionLines,
+} from '../src/core/audio.js';
+import { createFakeAudioContext, createFakeClock, createFakeFetch, fakeBuffer } from './helpers/audio.mjs';
 
 function makeAudio(settings = {}) {
   const fake = createFakeAudioContext();
@@ -225,4 +233,173 @@ test('duck levels are sane for an audio-first game', () => {
   assert.ok(DUCK_LEVELS.music < DUCK_LEVELS.engine, 'music should sit under the engine while speaking');
   assert.ok(DUCK_LEVELS.holdMs > DUCK_LEVELS.recoveryMs, 'the safety net must outlast the release tail');
   assert.ok(DUCK_LEVELS.rampSeconds > 0, 'gain changes should be smoothed');
+});
+
+// ------------------------------------------------------- full-length music
+
+/** An audio object wired to a recording fetch, for the lazy-loading tests. */
+async function makeFetchingAudio(settings = {}, fetchOpts = {}) {
+  const fake = createFakeAudioContext();
+  const fetchImpl = createFakeFetch(fetchOpts);
+  const state = { sfx: true, sfxVolume: 0.85, music: true, musicVolume: 0.5, ...settings };
+  const audio = createAudio({
+    getSettings: () => state,
+    AudioContext: fake.AudioContext,
+    fetch: fetchImpl,
+  });
+  await audio.unlock();
+  return { audio, fake, state, fetchImpl };
+}
+
+test('every lazy track is a real manifest entry, and none is loaded eagerly', () => {
+  assert.ok(LAZY_AUDIO.size >= 6, 'the full-length beds should be marked lazy');
+  for (const name of LAZY_AUDIO) {
+    assert.ok(AUDIO_MANIFEST[name], `${name} is lazy but missing from the manifest`);
+    assert.match(AUDIO_MANIFEST[name], /music\//, `${name} should point at the music folder`);
+  }
+  const eager = eagerAudioNames();
+  for (const name of eager) assert.ok(!LAZY_AUDIO.has(name), `${name} is both eager and lazy`);
+  assert.equal(eager.length + LAZY_AUDIO.size, Object.keys(AUDIO_MANIFEST).length);
+});
+
+test('boot loading never fetches the music beds', async () => {
+  const { audio, fetchImpl } = await makeFetchingAudio();
+  await audio.loadAll();
+  const music = fetchImpl.requested.filter((url) => url.includes('/music/') && url.endsWith('.mp3'));
+  assert.deepEqual(music, [], `boot must not download megabytes of music: ${music.join(', ')}`);
+  assert.ok(fetchImpl.requested.length > 60, 'the eager set should still have been fetched');
+});
+
+test('a music bed is fetched only when it is first played', async () => {
+  const { audio, fake, fetchImpl } = await makeFetchingAudio();
+  assert.equal(audio.music.playing, false);
+
+  const ok = await audio.music.play('music-race');
+  assert.equal(ok, true, 'the track should start');
+  assert.equal(audio.music.current, 'music-race');
+  assert.equal(audio.music.playing, true);
+  assert.ok(
+    fetchImpl.requested.includes(AUDIO_MANIFEST['music-race']),
+    `the bed should be fetched on demand: ${fetchImpl.requested.join(', ')}`,
+  );
+  assert.ok(fake.decoded.length > 0, 'the bed should be decoded');
+  // It runs on the music bus, so the settings volume and the speech duck apply.
+  const musicGain = fake.gains[2];
+  assert.ok(musicGain, 'the music group gain should exist');
+});
+
+test('repeating the same track does not restart or re-download it', async () => {
+  const { audio, fetchImpl } = await makeFetchingAudio();
+  await audio.music.play('music-theme-menu');
+  const downloads = fetchImpl.requested.length;
+  assert.equal(await audio.music.play('music-theme-menu'), true);
+  assert.equal(fetchImpl.requested.length, downloads, 'the track is already loaded and playing');
+});
+
+test('switching music off stops the bed instead of playing it quietly', async () => {
+  const { audio, state, fetchImpl } = await makeFetchingAudio({ music: false });
+  const ok = await audio.music.play('music-race');
+  assert.equal(ok, false, 'music that is switched off must not start');
+  assert.equal(audio.music.playing, false);
+  assert.deepEqual(fetchImpl.requested, [], 'and it must not be downloaded either');
+});
+
+test('a track that fails to load is reported, and does not break anything', async () => {
+  const url = AUDIO_MANIFEST['music-race'];
+  const { audio } = await makeFetchingAudio({}, { failFor: [url] });
+  const ok = await audio.music.play('music-race');
+  assert.equal(ok, false);
+  assert.equal(audio.music.playing, false);
+  const names = audio.failedAssets.map((f) => f.name);
+  assert.ok(names.includes('music-race'), 'the failure should be recorded for the audio status screen');
+});
+
+test('a scene change during a slow download wins over the older request', async () => {
+  // The player moves between scenes faster than a 5 MB bed can arrive on a
+  // phone. The stale track must not start late over the top of the newer one.
+  const fake = createFakeAudioContext();
+  const state = { sfx: true, sfxVolume: 0.85, music: true, musicVolume: 0.5 };
+  let releaseSlow;
+  const gate = new Promise((r) => {
+    releaseSlow = r;
+  });
+  const requested = [];
+  const fetchImpl = async (url) => {
+    requested.push(String(url));
+    if (String(url).endsWith('theme-menu.mp3')) await gate;
+    return { ok: true, status: 200, arrayBuffer: async () => new ArrayBuffer(64) };
+  };
+  const audio = createAudio({ getSettings: () => state, AudioContext: fake.AudioContext, fetch: fetchImpl });
+  await audio.unlock();
+
+  const slow = audio.music.play('music-theme-menu');
+  const fast = await audio.music.play('music-race');
+  assert.equal(fast, true, 'the newer scene should start');
+  releaseSlow();
+  const slowResult = await slow;
+
+  assert.equal(slowResult, false, 'the superseded request must report that it did not start');
+  assert.equal(audio.music.current, 'music-race', 'the newer track must still be the one playing');
+});
+
+test('stopping music clears the track so a later scene can start fresh', async () => {
+  const { audio } = await makeFetchingAudio();
+  await audio.music.play('music-story-city');
+  audio.music.stop();
+  assert.equal(audio.music.playing, false);
+  assert.equal(audio.music.current, null);
+  assert.equal(await audio.music.play('music-story-city'), true, 'it should be playable again');
+});
+
+// ------------------------------------------------- licence and attribution
+
+test('every music bed has recorded licence evidence', () => {
+  assert.ok(MUSIC_CREDITS.length >= 6, 'each full-length bed should be documented');
+  for (const credit of MUSIC_CREDITS) {
+    assert.ok(AUDIO_MANIFEST[credit.key], `${credit.key} is credited but not in the manifest`);
+    assert.ok(credit.title && credit.title.length > 1, `${credit.key} needs an original title`);
+    assert.ok(credit.artist && credit.artist.length > 1, `${credit.key} needs an artist`);
+    assert.ok(credit.licence && credit.licence.length > 1, `${credit.key} needs a licence`);
+    assert.ok(/^https:\/\//.test(credit.url ?? ''), `${credit.key} needs a source URL`);
+    assert.equal(typeof credit.attributionRequired, 'boolean', `${credit.key} must state whether attribution is required`);
+  }
+  // Every lazy music bed must be covered, so a new track cannot ship undocumented.
+  for (const name of LAZY_AUDIO) {
+    assert.ok(MUSIC_CREDITS.some((c) => c.key === name), `${name} ships without licence evidence`);
+  }
+});
+
+test('CC BY tracks produce the attribution the licence requires', () => {
+  const required = MUSIC_CREDITS.filter((c) => c.attributionRequired);
+  assert.ok(required.length >= 2, 'the CC BY tracks should be flagged as requiring attribution');
+  const lines = musicAttributionLines();
+  assert.ok(lines.length >= 2, 'attribution must not be empty');
+  for (const credit of required) {
+    const line = lines.find((l) => l.includes(credit.artist));
+    assert.ok(line, `${credit.artist} needs an attribution line`);
+    assert.ok(line.includes(credit.url), `${credit.artist}'s line needs the source URL`);
+    assert.ok(/Attribution/i.test(line), `${credit.artist}'s line needs to name the licence`);
+  }
+});
+
+test('public domain tracks are credited but not listed as obligations', () => {
+  const pd = MUSIC_CREDITS.filter((c) => !c.attributionRequired);
+  assert.ok(pd.length >= 1, 'the FreePD tracks should be marked as not requiring attribution');
+  const lines = musicAttributionLines().join(' ');
+  for (const credit of pd) {
+    assert.ok(!lines.includes(credit.artist), `${credit.artist} is public domain and should not appear as an obligation`);
+  }
+});
+
+test('the in-game credits screen carries the attribution, not just the docs', async () => {
+  // CC BY attribution has to be met somewhere a player can actually reach. The
+  // screen builds its lines from the same source of truth as these tests.
+  const { readFileSync } = await import('node:fs');
+  const screen = readFileSync(new URL('../src/ui/menuScreens.js', import.meta.url), 'utf8');
+  assert.match(screen, /musicAttributionLines\(\)/, 'the credits screen must render the attribution lines');
+  assert.ok(
+    !/licensed Creative Commons Zero 1\.0, recorded by Kenney Vleugels/.test(screen) ||
+      /music is licensed separately/.test(screen),
+    'the screen must not claim the music is CC0 Kenney - three tracks are CC BY 4.0',
+  );
 });

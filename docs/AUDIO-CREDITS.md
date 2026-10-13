@@ -1,8 +1,12 @@
 # Audio credits, licences and honest gaps
 
-**69 recorded sound files, 1.1 MB.** Every one is a real recording. There is no
-oscillator, no generated noise buffer, no synthesised tone and no placeholder beep
-anywhere in this project's audio code.
+**75 recorded sound files, 21.8 MB.** Every one is a real recording. There is no
+oscillator, no generated noise buffer, no synthesised tone, no AI-generated music
+and no placeholder beep anywhere in this project's audio code.
+
+That is 69 short effects and stingers (0.9 MB, all CC0) plus **six full-length
+music beds (21.0 MB)**, which are documented separately below because their
+licences differ from one another and two of them require attribution.
 
 ---
 
@@ -103,10 +107,106 @@ speed), `glass-light`, `generic-light`, `bell-heavy`, `footstep-concrete-0`,
 `metal-click`, `metal-latch`, `bag-drop`, `paper-open`, `paper-place`,
 `chips-stack`, `chips-handle`
 
-### `music/` — 9 files
+### `music/` — 15 files
 
-`stinger-warm`, `stinger-bright`, `stinger-light`, `stinger-hit`,
-`stinger-retro`, `achievement`, `three-tone`, `high-up`, `high-down`
+Nine short stingers, all CC0 Kenney: `stinger-warm`, `stinger-bright`,
+`stinger-light`, `stinger-hit`, `stinger-retro`, `achievement`, `three-tone`,
+`high-up`, `high-down`.
+
+Six full-length music beds, licensed individually — see the next section:
+`theme-menu`, `story-city`, `story-family`, `story-tension`, `race`,
+`results-fanfare`.
+
+---
+
+## Full-length music beds — per-track licence evidence
+
+The brief asked for recorded, royalty-free music and explicitly for **no
+AI-generated audio**. These six tracks are real recordings by real composers.
+They are *not* all CC0, so each is documented with the evidence that was actually
+available, and the two that require attribution are credited in-game as well as
+here.
+
+| File | Original title | Artist | Licence | Attribution required |
+| --- | --- | --- | --- | --- |
+| `theme-menu.mp3` | *New Hero in Town* (2019) | **Kevin MacLeod** | CC BY 4.0 (credited conservatively) | **Yes** |
+| `story-city.mp3` | *Adventure* | **Rafael Krux**, CinematicWaves.com | Public domain / FreePD | No |
+| `story-family.mp3` | *Fancy Family* | **Rafael Krux**, CinematicWaves.com | Public domain / FreePD | No |
+| `story-tension.mp3` | *Black Knight* (2014) | **Rafael Krux**, CinematicWaves.com | Public domain / FreePD | No |
+| `race.mp3` | *Celebration* (2017) | **Alexander Nakarada** | CC BY 4.0 | **Yes** |
+| `results-fanfare.mp3` | *Fanfare X* (2017) | **Alexander Nakarada** | CC BY 4.0 | **Yes** |
+
+Attribution for the CC BY 4.0 tracks:
+
+> Music by **Kevin MacLeod** — https://incompetech.com/ — licensed under
+> Creative Commons: By Attribution 4.0.
+>
+> Music by **Alexander Nakarada** — https://alexandernakarada.bandcamp.com/ —
+> licensed under Creative Commons: By Attribution 4.0.
+>
+> Music by **Rafael Krux** — https://cinematicwaves.com/ — released to the public
+> domain through FreePD.
+
+CC BY 4.0 licence text: https://creativecommons.org/licenses/by/4.0/
+
+All six permit commercial use, modification and redistribution. Attribution is
+the only condition, and it is satisfied both here and on the in-game *Audio and
+credits* screen, which is reachable without a sighted helper.
+
+### How this was verified, and what was rejected
+
+The tracks came from the public GitHub repository
+[`SoundSafari/CC0-1.0-Music`](https://github.com/SoundSafari/CC0-1.0-Music),
+whose own `LICENSE` is CC0 1.0 and which describes itself as "the world's largest
+corpus of CC0-1.0 licensed music", grouping ~7,000 files by the site that
+originally aggregated them. **That blanket claim was not trusted.** The source
+sites (freepd.com, incompetech.com, pixabay, freesound, FMA) are unreachable from
+the build sandbox, so each candidate file's own **embedded ID3 tags** were parsed
+and treated as the evidence.
+
+This mattered. Downloading ten candidates and reading their tags showed that the
+repository's CC0 labelling does not hold per-file:
+
+- `Fanfare X.mp3` carried `TALB = "Complete Discography (CC BY Attribution 4.0)"`
+  — the file itself states a licence that **requires attribution**, inside a
+  repository that claims the whole corpus is CC0.
+- `Celebration.mp3` is from the same artist and the same "Complete Discography"
+  set, so it is treated as CC BY 4.0 too.
+- `New Hero in Town.mp3` is tagged `TPE1 = Kevin MacLeod`, `TALB = "Royalty Free"`
+  only. MacLeod publishes both CC0 work (FreePD) and CC BY 4.0 work (incompetech),
+  and the tag does not say which. It is therefore **credited as CC BY 4.0**:
+  over-attributing is harmless, under-attributing is a licence violation, so the
+  conservative reading is the one recorded.
+
+**Rejected for lack of evidence** — downloaded, inspected, and deleted rather
+than shipped:
+
+| Candidate | Why rejected |
+| --- | --- |
+| *Rush*, *City Run*, *Action Strike*, *Cornfield Chase*, *Advertime*, *Aquatic City Vanished*, *Night Attack*, *Stunted Adventure* | **No ID3 tags at all.** No artist, no title, no licence. Nothing to verify against, so nothing to attribute. |
+| *Abstract Anxiety* | Artist named ("Severed Personality") but no licence tag; the comment field pointed at an online audio converter rather than a rights holder. |
+| *Heroic Adventure* | Title field read "Cubase" with no artist and a converter URL — tags had been stripped and rewritten. |
+
+The rejected files were never committed. Two of them had already been wired into
+the manifest and the scene mapping before the tags were read; that wiring was
+rewritten to the verified six, and `tests/publish.test.mjs` fails if any manifest
+entry does not exist on disk, so an unverifiable file cannot come back silently.
+
+**The honest limit:** ID3 tags are self-reported. They are strong evidence of who
+made a track and what licence was intended, and they are the only evidence
+available without reaching the source sites, but they are not a substitute for
+the licensor's own statement. If any of these six is later shown to be mis-tagged,
+remove it and the game still plays: music is an optional layer, every track is
+lazy-loaded, and `music.play` reports failure rather than throwing.
+
+### Why music is lazy-loaded
+
+The six beds total 21.0 MB. `loadAll()` therefore defaults to
+`eagerAudioNames()` — the 69 short effects, 0.9 MB — and each bed is fetched and
+decoded by `music.play()` the first time a scene asks for it. On a phone that is
+the difference between a ~1 MB boot and a ~22 MB one, and most sessions never
+reach every scene. A track that is still downloading when the player changes
+scene is dropped rather than starting late over the top of the newer one.
 
 ---
 
@@ -139,7 +239,7 @@ another *recorded* CC0 file and the substitution is stated.
 | `workshop-ambience` | Workshop floor bed: air gun, metal, radio | **Empty.** Chapters 4 and 6 have no bed |
 | `pit-lane-ambience` | Pit lane bed: air guns, idling engines, footsteps | **Empty.** The chapter 7 paddock has no bed |
 | `gear-change` | A dedicated recorded gear-change clunk, several variants | **Substituted** with the recorded `metal-click.ogg`. Disclosed here and in code |
-| `background-music` | Full-length looping music, 60 s+, plus a race variant | **Partial.** Only short recorded stingers (10-20 KB jingles) exist under CC0 in the sources reached. They are used for transitions and achievements, not as a continuous score |
+| `background-music` | Full-length looping music, 60 s+, plus a race variant | **Filled.** Six full-length recorded beds with per-track licence evidence, mapped to scenes by `src/core/musicDirector.js`. Two require attribution and are credited in-game. The nine short CC0 stingers remain for transitions and achievements |
 | `voice-acting` | Recorded voice acting for story dialogue | **Synthesised** by the device, and labelled as such everywhere |
 
 ### How to fill a gap

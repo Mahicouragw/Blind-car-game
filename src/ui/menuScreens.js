@@ -13,6 +13,7 @@ import * as THREE from '../../vendor/three/three.module.js';
 import { bus } from '../core/bus.js';
 import { SCREEN } from '../core/gameState.js';
 import { makeButton, makeReaderBlock, ZONE_ROLE } from './screens.js';
+import { musicAttributionLines } from '../core/audio.js';
 import {
   cycleSetting,
   SETTINGS_SCHEMA,
@@ -1140,12 +1141,16 @@ export function buildAudioStatusScreen({ screens, speech, audio }) {
   const status = audio?.status?.() ?? { ok: false, message: 'Audio is not available.' };
   const lines = [
     status.message,
-    'Every sound in this game is a real recorded file, licensed Creative Commons Zero 1.0, recorded by Kenney Vleugels and published at kenney.nl. Nothing is generated at runtime: there is no oscillator and no synthesised tone anywhere in the audio code.',
+    'Every sound in this game is a real recorded file. Nothing is generated at runtime: there is no oscillator, no synthesised tone, and no AI-generated music anywhere in the audio code.',
+    'Sound effects and voice recordings are licensed Creative Commons Zero 1.0, recorded by Kenney Vleugels and published at kenney.nl.',
+    'The full-length music is licensed separately, and three of the six tracks require attribution. ' + musicAttributionLines().join(' '),
+    'The other three music tracks are by Rafael Krux of CinematicWaves.com, released to the public domain through FreePD, and are credited here as a courtesy.',
     audio?.buffers ? `${audio.buffers.size} recorded assets decoded and ready to play.` : '',
     audio?.failedAssets?.length ? `These assets could not be loaded and are silent rather than replaced: ${audio.failedAssets.map((f) => f.name).join(', ')}.` : '',
     'Engine and tyre audio are recorded loops whose playback rate and gain follow engine rpm and wheel slip. Changing the rate of a recording is not synthesis.',
     'Story dialogue is spoken by the device speech synthesiser. That is synthesised speech and it is described as such; it is not recorded voice acting.',
-    'Known gaps, not filled with generated substitutes: crowd cheering, city ambience, family and workplace room tone, pit lane ambience, a dedicated gear-change recording (a recorded metal click is used instead), and full-length looping background music (only short recorded stingers are available). See docs/AUDIO-CREDITS.md for the full ledger and the fetch script.',
+    'Music is lazy-loaded: the six full-length beds total about 21 megabytes, so each one is downloaded the first time a scene asks for it rather than at boot.',
+    'Known gaps, not filled with generated substitutes: crowd cheering, city ambience, family and workplace room tone, pit lane ambience, and a dedicated gear-change recording, for which a recorded metal click is used instead. See docs/AUDIO-CREDITS.md for the full ledger and the per-track licence evidence.',
   ].filter(Boolean);
 
   const block = makeReaderBlock('Audio ledger', lines);

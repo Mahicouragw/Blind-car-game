@@ -18,6 +18,7 @@ export function createFakeAudioContext(options = {}) {
   const sources = [];
   const started = [];
   const contexts = [];
+  const decoded = [];
 
   let now = options.startTime ?? 0;
 
@@ -98,6 +99,11 @@ export function createFakeAudioContext(options = {}) {
       this.state = 'running';
     }
 
+    async decodeAudioData(data) {
+      decoded.push({ bytes: data?.byteLength ?? 0, at: now });
+      return { decoded: true, bytes: data?.byteLength ?? 0 };
+    }
+
     async close() {
       this.state = 'closed';
     }
@@ -116,6 +122,7 @@ export function createFakeAudioContext(options = {}) {
       return now;
     },
     contexts,
+    decoded,
     get time() {
       return now;
     },
@@ -147,4 +154,21 @@ export function createFakeClock(startMs = 1_000_000) {
 /** A stand-in decoded buffer; `createAudio` never reads its contents. */
 export function fakeBuffer(name = 'fake', duration = 2) {
   return { name, duration, length: 96000, numberOfChannels: 2, sampleRate: 48000 };
+}
+
+/**
+ * A fetch stand-in that records every URL asked for and answers with a few
+ * bytes. Used to prove that the large music beds are fetched on demand and not
+ * at boot, which is the whole point of LAZY_AUDIO.
+ */
+export function createFakeFetch(options = {}) {
+  const requested = [];
+  const failFor = new Set(options.failFor ?? []);
+  const impl = async (url) => {
+    requested.push(String(url));
+    if (failFor.has(String(url))) return { ok: false, status: 404, arrayBuffer: async () => new ArrayBuffer(0) };
+    return { ok: true, status: 200, arrayBuffer: async () => new ArrayBuffer(options.bytes ?? 64) };
+  };
+  impl.requested = requested;
+  return impl;
 }

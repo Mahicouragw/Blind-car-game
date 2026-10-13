@@ -48,8 +48,8 @@ as a static site. Pages serves it from a **sub-directory**
   `import.meta.url` to build a URL, so the same files run unmodified from `/`,
   from a sub-path and from the dev server.
 - The workflow does **not** upload the repository root. `scripts/publish-list.mjs`
-  stages an explicit include list into `_site/` and that is what ships — 107
-  files, 3.62 MB. `tests/`, `scripts/`, `package-lock.json` and the prose docs
+  stages an explicit include list into `_site/` and that is what ships — 114
+  files, 24.44 MB. `tests/`, `scripts/`, `package-lock.json` and the prose docs
   are development material and stay out of the public site, as does every
   dotfile, so no git history is reachable. Add a new runtime asset to
   `PUBLISH_INCLUDE` or the deploy will 404 on it; `tests/publish.test.mjs` fails
@@ -148,7 +148,7 @@ src/
 
 **Design rule:** everything under `core`, `a11y`, `input`, `world`, `vehicles`,
 `race` and `story` is a pure ES module with **no DOM, WebGL or Web Audio access at
-import time**. That is why 172 of the 189 tests run headless in Node. Only `ui/`,
+import time**. That is why 212 of the 229 tests run headless in Node. Only `ui/`,
 `race/raceScreen.js`, `core/audio.js`, `a11y/speech.js` and `main.js` touch the
 browser, and they are covered by the jsdom suite.
 
@@ -188,9 +188,21 @@ The short version:
 
 ## Audio
 
-**69 recorded sound files, 1.1 MB, all Creative Commons Zero 1.0**, recorded by
-Kenney Vleugels and published at [kenney.nl](https://kenney.nl/). Attribution is
-optional under CC0 and is given anyway.
+**75 recorded sound files, 21.8 MB.** Nothing is synthesised and nothing is
+AI-generated.
+
+- **69 effects and voice recordings, 0.9 MB — Creative Commons Zero 1.0**, by
+  Kenney Vleugels, [kenney.nl](https://kenney.nl/). Attribution is optional under
+  CC0 and is given anyway.
+- **6 full-length music beds, 21.0 MB — licensed individually.** Three are
+  **CC BY 4.0** (Kevin MacLeod, Alexander Nakarada) and attribution is *required*,
+  so it is credited both in [docs/AUDIO-CREDITS.md](docs/AUDIO-CREDITS.md) and on
+  the in-game *Audio and credits* screen. Three are public domain through FreePD
+  (Rafael Krux).
+
+The music beds are **lazy-loaded** — `loadAll()` fetches the 69 short effects at
+boot and each bed is downloaded the first time a scene asks for it, so a phone
+never pulls 21 MB before the menu appears.
 
 **Nothing in this game is synthesised.** There is no oscillator, no generated
 noise buffer and no placeholder beep anywhere in the audio code. Engine and tyre
@@ -213,7 +225,7 @@ the same script fills a gap only when given `--license`, `--author` and
 ## Testing
 
 ```bash
-npm test         # 189 tests
+npm test         # 229 tests
 npm run validate # track geometry gate
 ```
 
