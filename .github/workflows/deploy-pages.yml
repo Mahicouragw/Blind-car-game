@@ -68,3 +68,13 @@ jobs:
           path: _site
       - id: deployment
         uses: actions/deploy-pages@v4
+
+      # A green deploy step only proves Pages accepted the artefact. This fetches
+      # the live site and asserts it really serves the game, with usable MIME
+      # types, and that the development material stayed out - the failures that
+      # are invisible from a sandbox with no route to github.io. The same
+      # function is exercised against a locally staged site by
+      # tests/publish.test.mjs, including a negative control, so this check is
+      # proven able to fail before it is trusted on a runner.
+      - name: Verify the live site
+        run: node scripts/verify-deploy.mjs "${{ steps.deployment.outputs.page_url }}"

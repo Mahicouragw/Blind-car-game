@@ -49,13 +49,18 @@ as a static site. Pages serves it from a **sub-directory**
   dotfile, so no git history is reachable. Add a new runtime asset to
   `PUBLISH_INCLUDE` or the deploy will 404 on it; `tests/publish.test.mjs` fails
   first if you forget.
+- After deploying, the workflow runs `scripts/verify-deploy.mjs` against the live
+  URL and fails the job unless the real site serves the shell, the JS, the CSS,
+  the Three.js chunks, the audio and the track map with correct MIME types — and
+  does **not** serve the development material. A green tick then means the site
+  was checked, not merely uploaded.
 
 ### Commands
 
 | Command | What it does |
 | --- | --- |
 | `npm run serve` | Static dev server on `0.0.0.0:8080` (no build step) |
-| `npm test` | All 183 automated tests (`node --test`) |
+| `npm test` | All 189 automated tests (`node --test`) |
 | `npm run validate` | Track geometry gate — fails if the circuit does not close or self-intersects |
 | `npm run map` | Regenerates `docs/circuit-map.svg` from the live geometry |
 | `npm run publish:list` | Prints the exact files the Pages deploy publishes |
@@ -138,7 +143,7 @@ src/
 
 **Design rule:** everything under `core`, `a11y`, `input`, `world`, `vehicles`,
 `race` and `story` is a pure ES module with **no DOM, WebGL or Web Audio access at
-import time**. That is why 166 of the 183 tests run headless in Node. Only `ui/`,
+import time**. That is why 172 of the 189 tests run headless in Node. Only `ui/`,
 `race/raceScreen.js`, `core/audio.js`, `a11y/speech.js` and `main.js` touch the
 browser, and they are covered by the jsdom suite.
 
@@ -203,11 +208,11 @@ the same script fills a gap only when given `--license`, `--author` and
 ## Testing
 
 ```bash
-npm test         # 183 tests
+npm test         # 189 tests
 npm run validate # track geometry gate
 ```
 
-183 automated tests across gesture recognition, settings state, the speech
+189 automated tests across gesture recognition, settings state, the speech
 queue, lap counting and checkpoint validation, race completion and finishing
 order, navigation announcement rules, vehicle physics, opponent AI, story
 branching, interview scoring, salary negotiation, save/load validation and

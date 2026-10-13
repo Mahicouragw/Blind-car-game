@@ -9,12 +9,12 @@ Where something could not be run in this environment, it is listed under
 ## Executed
 
 ```bash
-npm test          # 183 tests, 183 passing
+npm test          # 189 tests, 189 passing
 npm run validate  # track geometry gate
 npm run map       # regenerates docs/circuit-map.svg
 ```
 
-Last run: **183 tests, 183 pass, 0 fail**, Node v22.22.3, ~13.5 s.
+Last run: **189 tests, 189 pass, 0 fail**, Node v22.22.3, ~14 s.
 
 | File | Tests | Covers |
 | --- | --- | --- |
@@ -23,15 +23,15 @@ Last run: **183 tests, 183 pass, 0 fail**, Node v22.22.3, ~13.5 s.
 | `tests/race.test.mjs` | 37 | Lap counting, checkpoints, race completion, positions, navigation, physics, AI |
 | `tests/story.test.mjs` | 47 | Story branching, interview scoring, negotiation, saving, progression |
 | `tests/dom.smoke.test.mjs` | 17 | Boots the real game in jsdom and drives it with gesture events |
-| `tests/publish.test.mjs` | 31 | Deployment safety: relative asset paths, the module graph, what the staged artefact does and does not contain, and the dev server's path guard over a real socket |
-| **Total** | **183** | |
+| `tests/publish.test.mjs` | 37 | Deployment safety: relative asset paths, the module graph, what the staged artefact does and does not contain, the dev server's path guard over a real socket, and the post-deploy verifier in both directions |
+| **Total** | **189** | |
 
 `npm run validate` reports **"Track geometry OK."** — the lap closes to 0.070 m
 with exactly −360° of total turn, has no self-intersection, and keeps every pair
 of non-adjacent centre-line points at least 27 m apart.
 
 All logic modules are pure ES modules with no DOM, WebGL or Web Audio access at
-import time, which is why 166 of these tests run headless in Node with no
+import time, which is why 172 of these tests run headless in Node with no
 browser. The remaining 17 run in **jsdom** (dev-only dependency).
 
 ---
@@ -346,11 +346,28 @@ Three facts about the deployment that are easy to get wrong:
   to "Deploy from a branch", where Jekyll does run against the branch and would
   strip directories beginning with `_`.
 
-After any deploy, verify the live site directly rather than trusting the job's
-green tick — fetch the page and one audio asset from the Pages URL and confirm
-both return `200` with the expected MIME type. Note that `mahicouragw.github.io`
-is **not reachable from the Arena sandbox**, so that final check cannot be done
-from here and has to be done from a real browser.
+A green `deploy-pages` step only proves Pages accepted the artefact, so the
+workflow runs one more step: `scripts/verify-deploy.mjs` fetches the live URL and
+asserts 13 things about it — the shell returns `200` `text/html` and references
+its entry module, the JS/CSS/SVG/OGG assets return `200` with usable MIME types,
+and `package-lock.json`, `README.md`, `tests/`, `scripts/` and `.git/config` are
+**not** served. Retries exist only for files that should be present, because a
+propagation delay is real while a published file will not become unpublished by
+asking again; if the site root never comes up it reports that once and stops
+rather than spending the retry budget thirteen times.
+
+`mahicouragw.github.io` is **not reachable from the Arena sandbox**, so that step
+cannot be run from here — but it is not taken on faith either. The same
+`verifySite` function is exercised by three tests against locally staged
+servers: it passes against the real staged tree, it pinpoints a single missing
+asset when one is punched out, and it **fails** against a server rooted at the
+repository root, naming exactly the four development files that would have been
+exposed. That last one is the negative control; without it the check could pass
+vacuously and the CI step would be decoration.
+
+Still worth confirming the URL in a real browser afterwards, because the verifier
+checks that files serve — not that WebGL draws, that speech is heard, or that
+touch works.
 
 ### 6. Multi-touch under a real palm — **UNTESTED**
 

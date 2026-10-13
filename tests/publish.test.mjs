@@ -18,10 +18,11 @@ import assert from 'node:assert/strict';
 import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync } from 'node:fs';
 import { createServer as createHttpServer, request as httpRequest } from 'node:http';
 import { tmpdir } from 'node:os';
-import { join, relative, resolve, sep } from 'node:path';
+import { extname, join, relative, resolve, sep } from 'node:path';
 import { AUDIO_MANIFEST } from '../src/core/audio.js';
-import { ALLOWED_DOTFILES, createDevServer, ROOT, safePath } from '../scripts/serve.mjs';
+import { ALLOWED_DOTFILES, createDevServer, MIME, ROOT, safePath } from '../scripts/serve.mjs';
 import { PUBLISH_INCLUDE, publishList, stageSite } from '../scripts/publish-list.mjs';
+import { DEPLOY_CHECKS, verifySite } from '../scripts/verify-deploy.mjs';
 
 // ------------------------------------------------------------------ utilities
 
@@ -446,7 +447,8 @@ const stagedServer = createHttpServer((req, res) => {
     res.writeHead(404).end('Not found');
     return;
   }
-  res.writeHead(200).end(readFileSync(full));
+  const type = MIME[extname(full).toLowerCase()] ?? 'application/octet-stream';
+  res.writeHead(200, { 'content-type': type }).end(readFileSync(full));
 });
 
 let stagedPort = 0;
@@ -476,4 +478,120 @@ test('the staged site serves the game and refuses development files', async () =
     const res = await rawGet(stagedPort, path);
     assert.notEqual(res.status, 200, `${path} must not be publicly served`);
   }
+});
+
+// --------------------------------------- the deploy verifier, proven both ways
+
+test('verifySite passes against the locally staged site', async () => {
+  await stagedListening;
+  const { passed, failed } = await verifySite(`http://127.0.0.1:${stagedPort}`, {
+    attempts: 1,
+    log: () => {},
+  });
+  assert.deepEqual(failed, [], `staged site failed verification: ${JSON.stringify(failed)}`);
+  assert.equal(passed, DEPLOY_CHECKS.length, 'every check should have run');
+});
+
+test('verifySite FAILS against a tree that publishes development material', async () => {
+  // Negative control. The real dev server serves the repository root, where
+  // package-lock.json, README.md, tests/ and scripts/ are all reachable, so the
+  // "absent" checks must fail. Without this the verifier could pass vacuously
+  // and the CI step it drives would be worth nothing.
+  await listening;
+  const { passed, failed } = await verifySite(`http://127.0.0.1:${port}`, {
+    attempts: 1,
+    log: () => {},
+  });
+  const paths = failed.map((f) => f.path).sort();
+  assert.deepEqual(
+    paths,
+    ['/README.md', '/package-lock.json', '/scripts/serve.mjs', '/tests/publish.test.mjs'],
+    'the verifier should flag exactly the development material that a root publish would expose',
+  );
+  assert.ok(passed > 0, 'the runtime checks should still pass against the repository root');
+});
+
+test('verifySite pinpoints a single missing asset', async () => {
+  // The failure that actually matters in production: the shell loads, so
+  // everything looks fine, but one lazily-loaded file never made it into the
+  // artefact. Retrying would not help and short-circuiting must not hide it.
+  const holes = ['/vendor/three/three.core.js', '/assets/audio/racing/engine-loop.ogg'];
+  const holeSet = new Set(holes);
+
+  const holey = createHttpServer((req, res) => {
+    const url = decodeURIComponent(req.url.split('?')[0]);
+    if (holeSet.has(url)) {
+      res.writeHead(404).end('Not found');
+      return;
+    }
+    const segments = url.split('/').filter(Boolean);
+    if (segments.some((part) => part === '..' || part.startsWith('.'))) {
+      res.writeHead(404).end('Not found');
+      return;
+    }
+    let full = join(STAGED, ...segments);
+    if (existsSync(full) && statSync(full).isDirectory()) full = join(full, 'index.html');
+    if (!existsSync(full)) {
+      res.writeHead(404).end('Not found');
+      return;
+    }
+    const type = MIME[extname(full).toLowerCase()] ?? 'application/octet-stream';
+    res.writeHead(200, { 'content-type': type }).end(readFileSync(full));
+  });
+
+  const holeyPort = await new Promise((r) => {
+    holey.listen(0, '127.0.0.1', () => r(holey.address().port));
+  });
+  try {
+    const { failed } = await verifySite(`http://127.0.0.1:${holeyPort}`, { attempts: 1, log: () => {} });
+    assert.deepEqual(
+      failed.map((f) => f.path).sort(),
+      [...holes].sort(),
+      'exactly the missing assets should be reported, and nothing else',
+    );
+  } finally {
+    holey.close();
+  }
+});
+
+test('verifySite short-circuits when the site root never comes up', async () => {
+  // If the shell does not serve, nothing below it will either. Reporting that
+  // once keeps a genuinely broken deploy red in seconds instead of grinding the
+  // retry budget thirteen times over.
+  const empty = createHttpServer((req, res) => res.writeHead(404).end('Not found'));
+  const emptyPort = await new Promise((r) => {
+    empty.listen(0, '127.0.0.1', () => r(empty.address().port));
+  });
+  try {
+    const { failed, passed } = await verifySite(`http://127.0.0.1:${emptyPort}`, { attempts: 1, log: () => {} });
+    assert.deepEqual(failed.map((f) => f.path), ['/'], 'a dead root is reported once, not thirteen times');
+    assert.equal(passed, 0);
+  } finally {
+    empty.close();
+  }
+});
+
+test('verifySite does not retry a file that should not be published', async () => {
+  // A published development file will not become unpublished by asking again,
+  // so absent checks get one attempt. Asserted by counting requests: without
+  // this, a failing deploy spent ~20s per path for no possible benefit.
+  let hits = 0;
+  const always = createHttpServer((req, res) => {
+    hits += 1;
+    res.writeHead(200, { 'content-type': 'application/json' }).end('{}');
+  });
+  const alwaysPort = await new Promise((r) => {
+    always.listen(0, '127.0.0.1', () => r(always.address().port));
+  });
+  try {
+    await verifySite(`http://127.0.0.1:${alwaysPort}`, { attempts: 5, delayMs: 1, log: () => {} });
+  } finally {
+    always.close();
+  }
+  const absentChecks = DEPLOY_CHECKS.filter((c) => c.absent).length;
+  assert.equal(hits, absentChecks, `each absent check should be requested exactly once, got ${hits} requests`);
+});
+
+test('verifySite rejects an empty base URL', async () => {
+  await assert.rejects(() => verifySite('', { attempts: 1 }), /base URL/);
 });
