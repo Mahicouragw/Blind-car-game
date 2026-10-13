@@ -53,13 +53,18 @@ jobs:
         with:
           node-version: 22
           cache: npm
-      # node_modules is a dev-only dependency (jsdom for the DOM tests) and must
-      # not be published to the site.
-      - name: Remove dev dependencies from the published artefact
-        run: rm -rf node_modules
+      # Publish exactly the site and nothing else. scripts/publish-list.mjs is
+      # the single source of truth for what ships, and tests/publish.test.mjs
+      # asserts that the staged tree still contains every file the running game
+      # asks for - so this list cannot quietly rot into a deploy that 404s on one
+      # asset. Development material (tests/, scripts/, package-lock.json, the
+      # prose docs) and every dotfile are excluded by construction rather than
+      # relying on the upload action's own exclusion rules.
+      - name: Stage the site
+        run: node scripts/publish-list.mjs --stage _site
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: .
+          path: _site
       - id: deployment
         uses: actions/deploy-pages@v4

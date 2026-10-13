@@ -22,10 +22,42 @@ coverage/
 dist/
 build/
 out/
+# Staged Pages artefact, written by scripts/publish-list.mjs in CI
+_site/
 
-# ---- Adventure Game Studio template (pre-existing, kept as-is) ------------
-AudioCache/
+# ---- Adventure Game Studio template (pre-existing, kept verbatim) ---------
+# The repository started life as an AGS template and this was its only file.
+# None of it applies to this game, but it is preserved in full so nothing that
+# was ignored before stops being ignored.
+
+# Built things
+_Debug/
 Compiled/
+
+# AudioCache can be rebuilt from sources
+AudioCache/
+
+# Lockfile
+_OpenInEditor.lock
+
+# User settings
 Game.agf.user
+*.crm.user
+
+# Backups
+Game.agf.bak
+backup_acsprset.spr
+
+# Memory dumps
+*.dmp
+
+# Temporary files
+# temporarily created during sprite or room background compression
+~aclzw.tmp
+# temporary, main game data, before getting packed into exe
 game28.dta
+# temporary build of the game before being moved to Compiled/ folder
 *.exe
+
+# Log files
+warnings.log

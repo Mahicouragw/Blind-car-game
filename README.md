@@ -37,19 +37,28 @@ as a static site. Pages serves it from a **sub-directory**
 - **Do not introduce an absolute path** such as `/src/main.js` or
   `/assets/audio/x.ogg`. It resolves against the domain root, works on
   `npm run serve` and on the branch preview, and then 404s on Pages. This is the
-  single easiest way to break the deployed site while every local test passes.
+  single easiest way to break a deployed site, so `tests/publish.test.mjs` fails
+  the build if one is ever introduced.
 - There is no `<base>` tag and nothing reads `location.pathname` or
   `import.meta.url` to build a URL, so the same files run unmodified from `/`,
   from a sub-path and from the dev server.
+- The workflow does **not** upload the repository root. `scripts/publish-list.mjs`
+  stages an explicit include list into `_site/` and that is what ships — 107
+  files, 3.62 MB. `tests/`, `scripts/`, `package-lock.json` and the prose docs
+  are development material and stay out of the public site, as does every
+  dotfile, so no git history is reachable. Add a new runtime asset to
+  `PUBLISH_INCLUDE` or the deploy will 404 on it; `tests/publish.test.mjs` fails
+  first if you forget.
 
 ### Commands
 
 | Command | What it does |
 | --- | --- |
 | `npm run serve` | Static dev server on `0.0.0.0:8080` (no build step) |
-| `npm test` | All automated tests (`node --test`) |
+| `npm test` | All 183 automated tests (`node --test`) |
 | `npm run validate` | Track geometry gate — fails if the circuit does not close or self-intersects |
 | `npm run map` | Regenerates `docs/circuit-map.svg` from the live geometry |
+| `npm run publish:list` | Prints the exact files the Pages deploy publishes |
 | `npm run fit` | Circuit shape fitter (authoring tool, see below) |
 
 ---
@@ -129,7 +138,7 @@ src/
 
 **Design rule:** everything under `core`, `a11y`, `input`, `world`, `vehicles`,
 `race` and `story` is a pure ES module with **no DOM, WebGL or Web Audio access at
-import time**. That is why 152 tests run headless in Node. Only `ui/`,
+import time**. That is why 166 of the 183 tests run headless in Node. Only `ui/`,
 `race/raceScreen.js`, `core/audio.js`, `a11y/speech.js` and `main.js` touch the
 browser, and they are covered by the jsdom suite.
 
@@ -194,16 +203,17 @@ the same script fills a gap only when given `--license`, `--author` and
 ## Testing
 
 ```bash
-npm test         # 152 tests
+npm test         # 183 tests
 npm run validate # track geometry gate
 ```
 
-152 automated tests across gesture recognition, settings state, the speech
+183 automated tests across gesture recognition, settings state, the speech
 queue, lap counting and checkpoint validation, race completion and finishing
 order, navigation announcement rules, vehicle physics, opponent AI, story
 branching, interview scoring, salary negotiation, save/load validation and
 progression — plus a jsdom suite that actually boots the game, mounts the
-screens and drives them with gesture events.
+screens and drives them with gesture events, and a deployment-safety suite that
+guards the relative asset paths and the dev server's path guard.
 
 See **[docs/TESTING.md](docs/TESTING.md)** for what was executed, what was not,
 and the manual test plan. **Nothing is claimed as tested that was not run.**

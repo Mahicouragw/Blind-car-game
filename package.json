@@ -12,6 +12,7 @@
     "test": "node --test",
     "serve": "node scripts/serve.mjs",
     "map": "node scripts/render-track-map.mjs",
+    "publish:list": "node scripts/publish-list.mjs",
     "validate": "node scripts/validate-track.mjs",
     "test:watch": "node --test --watch",
     "fit": "node scripts/fit-circuit.mjs"

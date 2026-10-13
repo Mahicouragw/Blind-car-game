@@ -9,12 +9,12 @@ Where something could not be run in this environment, it is listed under
 ## Executed
 
 ```bash
-npm test          # 152 tests, 152 passing
+npm test          # 183 tests, 183 passing
 npm run validate  # track geometry gate
 npm run map       # regenerates docs/circuit-map.svg
 ```
 
-Last run: **152 tests, 152 pass, 0 fail**, Node v22.22.3, ~13.5 s.
+Last run: **183 tests, 183 pass, 0 fail**, Node v22.22.3, ~13.5 s.
 
 | File | Tests | Covers |
 | --- | --- | --- |
@@ -23,14 +23,15 @@ Last run: **152 tests, 152 pass, 0 fail**, Node v22.22.3, ~13.5 s.
 | `tests/race.test.mjs` | 37 | Lap counting, checkpoints, race completion, positions, navigation, physics, AI |
 | `tests/story.test.mjs` | 47 | Story branching, interview scoring, negotiation, saving, progression |
 | `tests/dom.smoke.test.mjs` | 17 | Boots the real game in jsdom and drives it with gesture events |
-| **Total** | **152** | |
+| `tests/publish.test.mjs` | 31 | Deployment safety: relative asset paths, the module graph, what the staged artefact does and does not contain, and the dev server's path guard over a real socket |
+| **Total** | **183** | |
 
 `npm run validate` reports **"Track geometry OK."** — the lap closes to 0.070 m
 with exactly −360° of total turn, has no self-intersection, and keeps every pair
 of non-adjacent centre-line points at least 27 m apart.
 
 All logic modules are pure ES modules with no DOM, WebGL or Web Audio access at
-import time, which is why 135 of these tests run headless in Node with no
+import time, which is why 166 of these tests run headless in Node with no
 browser. The remaining 17 run in **jsdom** (dev-only dependency).
 
 ---
@@ -196,6 +197,34 @@ hero name is sanitised before it reaches speech or the DOM. The car preview
 degrades when WebGL is unavailable. **Starting a race without WebGL explains the
 limitation instead of white-screening.**
 
+### Deployment safety — `tests/publish.test.mjs`
+
+The failure mode this suite exists for is a site that passes every local check
+and then 404s in production, because Pages serves from the sub-path
+`/Blind-car-game/` while the dev server serves from `/`. It asserts that
+`index.html` and every module and stylesheet contain **no absolute-root URL**,
+that nothing builds a URL from `location.pathname`, `document.baseURI` or
+`import.meta.url`, that **all 69 audio manifest entries are relative and exist
+on disk**, that **every relative import across `src/` resolves**, and that
+vendored Three.js ships **both** of its chunks — `three.module.js` imports
+`./three.core.js`, and vendoring only the first gives a blank canvas with no
+obvious error.
+
+The second half drives the **real dev-server request handler over a socket**,
+because the guard that stops `.git/config` reaching a browser must not be
+allowed to regress into a comment. It reproduces the encoded-traversal bug that
+was actually found and fixed: decoding `%2e%2e` yields `../..`, `normalize()`
+collapses it, and the result *looks* like a legitimate path inside the root, so
+a containment check alone is not enough. Requests are sent with `node:http`
+rather than `fetch` on purpose — the WHATWG URL parser treats `%2e%2e` as a
+double-dot path segment and would silently rewrite the attack before it reached
+the server.
+
+All three mutations were verified to be caught: removing the dotfile-segment
+check fails the traversal test, making `index.html` reference `/src/main.js`
+fails two tests, and pointing one manifest entry at a missing file or an
+absolute path fails three.
+
 ---
 
 ## Track geometry gate — `npm run validate`
@@ -291,23 +320,37 @@ substitute anything**, and remains playable.
 ### 5. GitHub Pages deployment
 
 The workflow is written and its execution result is always read from the real
-API, never assumed.
+API, never assumed. **Nothing is published yet** — see the PR description for the
+current blocker, which is a repository permission, not a code defect.
 
-Two facts about the deployment that are easy to break locally and hard to notice:
+Three facts about the deployment that are easy to get wrong:
 
 - Pages serves from the sub-path `/Blind-car-game/`, so **every asset reference
   must stay document-relative**. An absolute `/src/...` or `/assets/...` path
-  passes `npm test`, passes `npm run serve` and passes the local import check,
-  then 404s only on the deployed site. See the README section
-  "Deployed on GitHub Pages".
-- The published artefact is the repository root minus `node_modules`. `.nojekyll`
-  is committed so Pages serves the files verbatim instead of running them through
-  Jekyll (which would strip any directory beginning with `_` and ignore the
-  vendored assets).
+  works under `npm run serve` and 404s only on the deployed site. This is now
+  caught automatically by `tests/publish.test.mjs` rather than relying on review;
+  see the README section "Deployed on GitHub Pages".
+- What actually ships is decided by `scripts/publish-list.mjs`, which stages an
+  explicit include list into `_site/` and uploads that — rather than uploading
+  the repository root and relying on `actions/upload-pages-artifact` to strip
+  things. Staged locally: **107 files, 3.62 MB** — `index.html`, `styles/`,
+  `src/`, `assets/` (all **69** audio samples), `vendor/` (both Three.js chunks)
+  and `docs/circuit-map.svg`. Nothing else: no `tests/`, no `scripts/`, no
+  `package-lock.json`, no prose docs, and **no dotfiles at any level**, so no git
+  history or dependency tree can reach a public URL. `tests/publish.test.mjs`
+  stages the tree with the same function and asserts both halves of that — every
+  file the game loads is present, and every development file is absent.
+- `.nojekyll` is committed but **does not ship** in that artefact, and it is not
+  needed while Pages is on `build_type: workflow` — no Jekyll step runs at all.
+  It is kept because it matters immediately if the source is ever switched back
+  to "Deploy from a branch", where Jekyll does run against the branch and would
+  strip directories beginning with `_`.
 
 After any deploy, verify the live site directly rather than trusting the job's
 green tick — fetch the page and one audio asset from the Pages URL and confirm
-both return `200` with the expected MIME type.
+both return `200` with the expected MIME type. Note that `mahicouragw.github.io`
+is **not reachable from the Arena sandbox**, so that final check cannot be done
+from here and has to be done from a real browser.
 
 ### 6. Multi-touch under a real palm — **UNTESTED**
 
