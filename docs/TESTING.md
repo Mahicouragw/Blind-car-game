@@ -288,10 +288,26 @@ graded by severity, and music ducks under speech. Then block one asset in devtoo
 and confirm the game reports it missing, stays silent for that sound, **does not
 substitute anything**, and remains playable.
 
-### 5. GitHub Pages deployment — **see PR description**
+### 5. GitHub Pages deployment
 
-The workflow is written but its execution result is reported from the real API,
-never assumed.
+The workflow is written and its execution result is always read from the real
+API, never assumed.
+
+Two facts about the deployment that are easy to break locally and hard to notice:
+
+- Pages serves from the sub-path `/Blind-car-game/`, so **every asset reference
+  must stay document-relative**. An absolute `/src/...` or `/assets/...` path
+  passes `npm test`, passes `npm run serve` and passes the local import check,
+  then 404s only on the deployed site. See the README section
+  "Deployed on GitHub Pages".
+- The published artefact is the repository root minus `node_modules`. `.nojekyll`
+  is committed so Pages serves the files verbatim instead of running them through
+  Jekyll (which would strip any directory beginning with `_` and ignore the
+  vendored assets).
+
+After any deploy, verify the live site directly rather than trusting the job's
+green tick — fetch the page and one audio asset from the Pages URL and confirm
+both return `200` with the expected MIME type.
 
 ### 6. Multi-touch under a real palm — **UNTESTED**
 

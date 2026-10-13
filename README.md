@@ -26,6 +26,22 @@ Open the page, tap once to unlock audio, and the game talks you through
 everything from there. Mobile-first: it is designed for Android Chrome and works
 on desktop with a keyboard.
 
+### Deployed on GitHub Pages
+
+The workflow `.github/workflows/deploy-pages.yml` publishes the repository root
+as a static site. Pages serves it from a **sub-directory**
+(`/Blind-car-game/`), not from a domain root, so:
+
+- Every `href`, `src`, texture and audio path in the app is **document-relative**
+  (`styles/main.css`, `assets/audio/...`, `vendor/three/...`).
+- **Do not introduce an absolute path** such as `/src/main.js` or
+  `/assets/audio/x.ogg`. It resolves against the domain root, works on
+  `npm run serve` and on the branch preview, and then 404s on Pages. This is the
+  single easiest way to break the deployed site while every local test passes.
+- There is no `<base>` tag and nothing reads `location.pathname` or
+  `import.meta.url` to build a URL, so the same files run unmodified from `/`,
+  from a sub-path and from the dev server.
+
 ### Commands
 
 | Command | What it does |
