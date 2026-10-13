@@ -17,14 +17,19 @@ Circuit, the cars, the characters and the seven-chapter story.
 
 ## Play it
 
+**Live: <https://mahicouragw.github.io/Blind-car-game/>** — published
+automatically by GitHub Actions, no build step.
+
+Open it on a phone, tap once to unlock audio, and the game talks you through
+everything from there. Mobile-first: it is designed for Android Chrome and works
+on desktop with a keyboard.
+
+To run it locally instead:
+
 ```bash
 npm install        # dev only: installs jsdom for the DOM tests
 npm run serve      # http://localhost:8080
 ```
-
-Open the page, tap once to unlock audio, and the game talks you through
-everything from there. Mobile-first: it is designed for Android Chrome and works
-on desktop with a keyboard.
 
 ### Deployed on GitHub Pages
 

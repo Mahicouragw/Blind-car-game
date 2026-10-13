@@ -319,9 +319,19 @@ substitute anything**, and remains playable.
 
 ### 5. GitHub Pages deployment
 
-The workflow is written and its execution result is always read from the real
-API, never assumed. **Nothing is published yet** — see the PR description for the
-current blocker, which is a repository permission, not a code defect.
+**Deployed, and verified against the live URL.** The workflow's execution result
+is always read from the real API, never assumed: run `38375031052` (commit
+`17806fc`) completed with **both jobs green** and all eight Deploy steps
+executed, and the deployment record progressed
+`waiting → queued → in_progress → success` with `environment_url` set to
+<https://mahicouragw.github.io/Blind-car-game/>.
+
+The two runs before it both died at `waiting → failure` with an empty
+`environment_url`, reporting `Branch "arena/..." is not allowed to deploy to
+github-pages due to environment protection rules`. That was a repository
+permission, not a code defect: the auto-created `github-pages` environment
+accepts only `main` until its deployment branch policy is widened. Nothing in the
+workflow needed to change to fix it.
 
 Three facts about the deployment that are easy to get wrong:
 
