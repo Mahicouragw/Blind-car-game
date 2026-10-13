@@ -1,31 +1,31 @@
-# Built things
-_Debug/
-Compiled/
+# ---- Node / tooling -------------------------------------------------------
+node_modules/
+npm-debug.log*
+yarn-error.log*
+.npm/
+.pnpm-store/
 
-# AudioCache can be rebuilt from sources
+# ---- Editors / OS ---------------------------------------------------------
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# ---- Test / coverage artefacts -------------------------------------------
+coverage/
+.nyc_output/
+*.lcov
+
+# ---- Build output (this project has no build step; kept for safety) -------
+dist/
+build/
+out/
+
+# ---- Adventure Game Studio template (pre-existing, kept as-is) ------------
 AudioCache/
-
-# Lockfile
-_OpenInEditor.lock
-
-# User settings
+Compiled/
 Game.agf.user
-*.crm.user
-
-# Backups
-Game.agf.bak
-backup_acsprset.spr
-
-# Memory dumps
-*.dmp
-
-# Temporary files
-# temporarily created during sprite or room background compression
-~aclzw.tmp
-# temporary, main game data, before getting packed into exe
 game28.dta
-# temporary build of the game before being moved to Compiled/ folder
 *.exe
-
-# Log files
-warnings.log

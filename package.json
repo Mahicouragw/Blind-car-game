@@ -1,0 +1,22 @@
+{
+  "name": "vettaru-grand-prix",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Vettaru Grand Prix - an accessible, story-driven 3D car racing game with Game TalkBack, a built-in screen-reader-style voice system for blind and low-vision players.",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "test": "node --test",
+    "serve": "node scripts/serve.mjs",
+    "map": "node scripts/render-track-map.mjs",
+    "validate": "node scripts/validate-track.mjs",
+    "test:watch": "node --test --watch",
+    "fit": "node scripts/fit-circuit.mjs"
+  },
+  "devDependencies": {
+    "jsdom": "^30.1.2"
+  }
+}
