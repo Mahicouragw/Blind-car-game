@@ -12,7 +12,35 @@
 
 import { bus } from '../core/bus.js';
 
-export const STEER_TARGET_RATE = 2.6; // how fast a swipe moves the steering target, per second
+/**
+ * The role the driving surface must carry for these handlers to act on it.
+ *
+ * Exported so the zone descriptor below and the guards underneath cannot drift
+ * apart. They did once: the recognizer emitted `zone` as a string id while every
+ * handler read `d.zone.role`, so the guard never matched and a finger held on the
+ * screen produced no throttle at all. The game was unplayable by touch and every
+ * test still passed, because the two sides were each tested against their own
+ * idea of the payload.
+ */
+export const DRIVING_ROLE = 'driving';
+
+/**
+ * The gesture zone for the driving surface. `main.js` installs this as the
+ * default zone for the whole race, and the tests import the same object rather
+ * than describing it a second time.
+ */
+export const DRIVING_ZONE = {
+  id: 'drivingSurface',
+  role: DRIVING_ROLE,
+  immediateTap: false,
+  hold: true,
+  allowCircle: true,
+  allowSwipe: true,
+  preventScroll: true,
+};
+
+/** How fast a swipe moves the steering target, per second. */
+export const STEER_TARGET_RATE = 2.6;
 
 export function createDrivingInput(config = {}) {
   const state = {
@@ -44,7 +72,7 @@ export function createDrivingInput(config = {}) {
 
   // ---- press and hold to accelerate; release to coast ----
   on('gesture:pressStart', (d) => {
-    if (d.zone?.role !== 'driving') return;
+    if (d.zone?.role !== DRIVING_ROLE) return;
     state.holding = true;
     state.throttle = 1;
   });
@@ -55,7 +83,7 @@ export function createDrivingInput(config = {}) {
 
   // ---- double tap on the driving surface brakes ----
   on('gesture:doubleTap', (d) => {
-    if (d.zone?.role !== 'driving') return;
+    if (d.zone?.role !== DRIVING_ROLE) return;
     state.braking = true;
     state.brake = 1;
     // Held for a moment, then released, exactly like tapping a brake pedal.
@@ -66,8 +94,12 @@ export function createDrivingInput(config = {}) {
   });
 
   // ---- gradual steering by drag ----
-  on('gesture:dragUpdate', (d) => {
-    if (d.zone?.role !== 'driving') return;
+  // The recognizer emits `drag` for continuous movement (with `dragStart` and
+  // `dragEnd` around it). This listened for `dragUpdate`, which nothing has ever
+  // emitted, so drag steering was dead: the wheel never turned on touch, and the
+  // tutorial's required "steer" step could never be demonstrated.
+  on('gesture:drag', (d) => {
+    if (d.zone?.role !== DRIVING_ROLE) return;
     if (!dragActive) {
       dragActive = true;
       dragStartX = d.x;
@@ -85,7 +117,7 @@ export function createDrivingInput(config = {}) {
 
   // ---- circle or directional swipe asks for a U-turn ----
   on('gesture:circle', (d) => {
-    if (d.zone?.role !== 'driving') return;
+    if (d.zone?.role !== DRIVING_ROLE) return;
     state.uturnRequest = 1.4;
     bus.emit('race:uturnRequested', { direction: d.direction });
   });

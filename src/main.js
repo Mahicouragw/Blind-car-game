@@ -16,7 +16,7 @@ import { createSpeech } from './a11y/speech.js';
 import { SPEECH_PRIORITY } from './a11y/speechQueue.js';
 import { attachKeyboard } from './input/keyboard.js';
 import { createPointerBus } from './input/pointerBus.js';
-import { createDrivingInput } from './input/drivingInput.js';
+import { createDrivingInput, DRIVING_ZONE, DRIVING_ROLE } from './input/drivingInput.js';
 import { createRaceScreen } from './race/raceScreen.js';
 import { webglAvailable } from './world/scene3d.js';
 import { getTrack } from './world/trackData.js';
@@ -123,15 +123,22 @@ export function bootApp(config = {}) {
     },
   }).attach();
 
-  const DRIVING_ZONE = {
-    id: 'drivingSurface',
-    role: ZONE_ROLE.DRIVING,
-    immediateTap: false,
-    hold: true,
-    allowCircle: true,
-    allowSwipe: true,
-    preventScroll: true,
-  };
+  // DRIVING_ZONE is imported from drivingInput rather than redeclared here: the
+  // handlers that decide whether a gesture is a driving gesture, and the zone
+  // that says "this is the driving surface", have to agree, and keeping a second
+  // copy of this object is how they stopped agreeing once already.
+  //
+  // This file compares gesture zones against ZONE_ROLE.DRIVING (from ui/screens)
+  // while drivingInput compares against DRIVING_ROLE. Two spellings of one
+  // contract, so check them at boot: if they drift, every driving gesture is
+  // silently ignored and the game becomes unplayable by touch while the test
+  // suite stays green.
+  if (ZONE_ROLE.DRIVING !== DRIVING_ROLE) {
+    throw new Error(
+      `Driving zone role mismatch: ui/screens says "${ZONE_ROLE.DRIVING}", input/drivingInput says "${DRIVING_ROLE}". ` +
+        'Driving gestures would be ignored. Make them the same string.',
+    );
+  }
 
   // ------------------------------------------------------------ gesture map
   bus.on('gesture:tap', (d) => {
@@ -191,7 +198,10 @@ export function bootApp(config = {}) {
     }
   });
 
-  bus.on('gesture:longPress', (d) => {
+  // The recognizer emits longPressStart/longPressEnd; `longPress` on its own was
+  // never a thing, so this alternative route into the voice settings was dead and
+  // only the double-tap-and-hold worked.
+  bus.on('gesture:longPressStart', (d) => {
     if (d.zone?.role === ZONE_ROLE.SETTINGS_HOTSPOT) {
       screens.openSettings();
       tutorialHarness.record('openedSettings');
@@ -205,7 +215,10 @@ export function bootApp(config = {}) {
     if (d.zone?.role === ZONE_ROLE.DRIVING) tutorialHarness.record('braked');
   });
   bus.on('gesture:dragEnd', (d) => {
-    if (d.zone?.role === ZONE_ROLE.DRIVING && Math.abs(d.totalDx ?? 0) > 24) tutorialHarness.record('steered');
+    // `dragEnd` carries `dx`, not `totalDx`. Reading a field that does not exist
+    // made this always false, so the tutorial never recorded "steered" and
+    // chapter seven stayed locked no matter how well the player drove.
+    if (d.zone?.role === ZONE_ROLE.DRIVING && Math.abs(d.dx ?? 0) > 24) tutorialHarness.record('steered');
   });
 
   // ---------------------------------------------------------- keyboard map

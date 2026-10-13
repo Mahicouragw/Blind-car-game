@@ -66,7 +66,12 @@ test('single tap activates immediately on an immediateTap zone (menus)', () => {
   h.down(100, 100, MENU);
   h.up(100, 100, 40);
   assert.deepEqual(h.names(), ['tap']);
-  assert.equal(h.find('tap').zone, 'menu');
+  // `zone` is the zone OBJECT and `zoneId` the string. Every consumer reads
+  // d.zone.role, so emitting the id here is what broke the driving gestures.
+  const tap = h.find('tap');
+  assert.equal(tap.zoneId, 'menu');
+  assert.equal(tap.zone.id, 'menu');
+  assert.equal(tap.zone.role, 'menu');
 });
 
 test('single tap waits out the double-tap window on the driving surface', () => {

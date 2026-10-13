@@ -137,7 +137,11 @@ test('demonstrating a gesture is what unlocks the tutorial step', () => {
   bus.emit('gesture:pressStart', { zone: { role: 'driving' } });
   bus.emit('gesture:pressEnd', { zone: { role: 'driving' } });
   bus.emit('gesture:doubleTap', { zone: { role: 'driving' } });
-  bus.emit('gesture:dragEnd', { zone: { role: 'driving', id: 'drivingSurface' }, totalDx: -140 });
+  // `dx`, not `totalDx`: this test used to hand-write a field the recognizer
+  // never emits, which is precisely why the suite stayed green while the real
+  // steering gesture was dead. See tests/integration.test.mjs, which drives the
+  // real recognizer instead of describing its payload.
+  bus.emit('gesture:dragEnd', { zone: { role: 'driving', id: 'drivingSurface' }, dx: -140 });
   bus.emit('gesture:circle', { zone: { role: 'driving' } });
   const report = harness.report();
   for (const key of ['accelerated', 'coasted', 'braked', 'steered', 'uturned']) {

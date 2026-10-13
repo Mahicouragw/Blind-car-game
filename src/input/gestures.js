@@ -146,9 +146,17 @@ export function createGestureRecognizer(config = {}) {
     if (reason) emit('cancel', { reason });
   }
 
-  /** Zone descriptors default to the safe (delayed) behaviour. */
+  /**
+   * Zone descriptors default to the safe (delayed) behaviour.
+   *
+   * The caller's own fields are spread in first and preserved: `element` is what
+   * lets a tap click the real control, and `preventScroll` is read by the pointer
+   * bus. An earlier version rebuilt the descriptor from a fixed list of keys,
+   * which silently dropped both.
+   */
   function zoneOpts(zone) {
     return {
+      ...(zone ?? {}),
       id: zone?.id ?? 'surface',
       immediateTap: !!zone?.immediateTap,
       doubleTapHoldTarget: !!zone?.doubleTapHoldTarget,
@@ -280,7 +288,7 @@ export function createGestureRecognizer(config = {}) {
       // threshold, otherwise the car feels like it is lagging behind the thumb.
       if (z.hold) {
         touch.pressStartFired = true;
-        emit('pressStart', { zone: z.id, role: z.role, x, y, tapCount: chain.count });
+        emit('pressStart', { zone: z, zoneId: z.id, role: z.role, x, y, tapCount: chain.count });
       }
 
       // Long press (R5): only when this is a fresh single contact.
@@ -288,7 +296,7 @@ export function createGestureRecognizer(config = {}) {
         setTimer('longPress', T.longPressMs, () => {
           if (!touch || touch.isDrag || touch.tapCount !== 1) return;
           touch.longPressFired = true;
-          emit('longPressStart', { zone: touch.zone.id, role: touch.zone.role, x: touch.x, y: touch.y });
+          emit('longPressStart', { zone: touch.zone, zoneId: touch.zone.id, role: touch.zone.role, x: touch.x, y: touch.y });
         });
       }
 
@@ -301,7 +309,7 @@ export function createGestureRecognizer(config = {}) {
           brakeSuppressed = true;
           clearTimer('tapResolve');
           emit('doubleTapHold', {
-            zone: touch.zone.id,
+            zone: touch.zone, zoneId: touch.zone.id,
             role: touch.zone.role,
             x: touch.x,
             y: touch.y,
@@ -315,13 +323,13 @@ export function createGestureRecognizer(config = {}) {
         // R3/R6. If an immediate tap was already delivered for tap 1, tell the
         // consumer to undo it before we report the multi-tap meaning.
         if (chain.emittedTap) {
-          emit('tapSuperseded', { zone: z.id, role: z.role, x, y });
+          emit('tapSuperseded', { zone: z, zoneId: z.id, role: z.role, x, y });
           chain.emittedTap = false;
         }
         if (chain.count >= 3) {
-          emit('tripleTap', { zone: z.id, role: z.role, x, y, tapCount: chain.count });
+          emit('tripleTap', { zone: z, zoneId: z.id, role: z.role, x, y, tapCount: chain.count });
         } else {
-          emit('doubleTap', { zone: z.id, role: z.role, x, y });
+          emit('doubleTap', { zone: z, zoneId: z.id, role: z.role, x, y });
         }
         chain.settled = true;
       }
@@ -348,16 +356,16 @@ export function createGestureRecognizer(config = {}) {
         clearTimer('doubleTapHold');
         clearTimer('tapResolve');
         if (chain.count >= 1 && touch.tapCount === chain.count) chain.active = false;
-        emit('dragStart', { zone: touch.zone.id, role: touch.zone.role, x: touch.startX, y: touch.startY });
+        emit('dragStart', { zone: touch.zone, zoneId: touch.zone.id, role: touch.zone.role, x: touch.startX, y: touch.startY });
       }
 
       if (touch.isDrag) {
-        emit('drag', { zone: touch.zone.id, role: touch.zone.role, dx, dy, x, y });
+        emit('drag', { zone: touch.zone, zoneId: touch.zone.id, role: touch.zone.role, dx, dy, x, y });
         if (touch.zone.allowCircle && !touch.circleFired) {
           const circle = detectCircle(touch.path);
           if (circle) {
             touch.circleFired = true;
-            emit('circle', { zone: touch.zone.id, role: touch.zone.role, ...circle });
+            emit('circle', { zone: touch.zone, zoneId: touch.zone.id, role: touch.zone.role, ...circle });
           }
         }
       }
@@ -382,10 +390,10 @@ export function createGestureRecognizer(config = {}) {
       clearTimer('doubleTapHold');
 
       if (z.hold && !wasDrag) {
-        emit('pressEnd', { zone: z.id, role: z.role, x, y, durationMs: duration, tapCount });
+        emit('pressEnd', { zone: z, zoneId: z.id, role: z.role, x, y, durationMs: duration, tapCount });
       }
       if (wasLongPress) {
-        emit('longPressEnd', { zone: z.id, role: z.role, x, y, durationMs: duration });
+        emit('longPressEnd', { zone: z, zoneId: z.id, role: z.role, x, y, durationMs: duration });
         chain.active = false;
         chain.count = 0;
         chain.settled = false;
@@ -398,7 +406,7 @@ export function createGestureRecognizer(config = {}) {
         // finger afterwards must not also produce a swipe.
         if (z.allowSwipe && !circleFired && dist >= T.swipeMinPx && duration <= T.swipeMaxMs) {
           emit('swipe', {
-            zone: z.id,
+            zone: z, zoneId: z.id,
             role: z.role,
             direction: classifySwipe(dx, dy),
             dx,
@@ -406,9 +414,14 @@ export function createGestureRecognizer(config = {}) {
             dist,
             durationMs: duration,
           });
-        } else {
-          emit('dragEnd', { zone: z.id, role: z.role, dx, dy, dist, durationMs: duration, circle: circleFired });
         }
+        // A swipe does NOT replace dragEnd. `dragEnd` is what tells the driving
+        // input the finger has lifted so the wheels can self-centre; emitting a
+        // swipe instead of it left `dragActive` set forever and the steering
+        // frozen at whatever angle the finger happened to leave it at, so the car
+        // kept turning after release. Most steering drags qualify as swipes, so
+        // this affected nearly every steering input.
+        emit('dragEnd', { zone: z, zoneId: z.id, role: z.role, dx, dy, dist, durationMs: duration, circle: circleFired });
         chain.active = false;
         chain.count = 0;
         chain.settled = false;
@@ -429,7 +442,7 @@ export function createGestureRecognizer(config = {}) {
       if (z.immediateTap && tapCount === 1 && !chain.emittedTap) {
         // Responsive menus fire on lift, but the chain STAYS OPEN so a second
         // tap can still be reported as a double/triple tap plus tapSuperseded.
-        emit('tap', { zone: z.id, role: z.role, x, y });
+        emit('tap', { zone: z, zoneId: z.id, role: z.role, x, y });
         chain.emittedTap = true;
         setTimer('chainExpire', T.doubleTapWindowMs, () => {
           chain.active = false;
@@ -442,8 +455,8 @@ export function createGestureRecognizer(config = {}) {
         // Second tap of a double-tap-and-hold zone, released before the hold
         // threshold: this is a plain double tap (second half of R4). Ordinary
         // zones already settled on pointerDown and never reach here.
-        if (chain.emittedTap) emit('tapSuperseded', { zone: z.id, role: z.role, x, y });
-        emit('doubleTap', { zone: z.id, role: z.role, x, y });
+        if (chain.emittedTap) emit('tapSuperseded', { zone: z, zoneId: z.id, role: z.role, x, y });
+        emit('doubleTap', { zone: z, zoneId: z.id, role: z.role, x, y });
         chain.active = false;
         chain.settled = true;
         chain.emittedTap = false;
@@ -459,9 +472,9 @@ export function createGestureRecognizer(config = {}) {
       if (touch && touch.id === id) {
         const z = touch.zone;
         if (z.hold && touch.pressStartFired) {
-          emit('pressEnd', { zone: z.id, role: z.role, x: touch.x, y: touch.y, cancelled: true });
+          emit('pressEnd', { zone: z, zoneId: z.id, role: z.role, x: touch.x, y: touch.y, cancelled: true });
         }
-        if (touch.longPressFired) emit('longPressEnd', { zone: z.id, role: z.role, cancelled: true });
+        if (touch.longPressFired) emit('longPressEnd', { zone: z, zoneId: z.id, role: z.role, cancelled: true });
         touch = null;
       }
       clearTimer('longPress');
@@ -525,15 +538,15 @@ export function createGestureRecognizer(config = {}) {
     }
     const count = chain.count || tapCount;
     if (count >= 3) {
-      if (chain.emittedTap) emit('tapSuperseded', { zone: z.id, role: z.role, x, y });
-      emit('tripleTap', { zone: z.id, role: z.role, x, y, tapCount: count });
+      if (chain.emittedTap) emit('tapSuperseded', { zone: z, zoneId: z.id, role: z.role, x, y });
+      emit('tripleTap', { zone: z, zoneId: z.id, role: z.role, x, y, tapCount: count });
     } else if (count === 2) {
       // Reached when the zone suppressed the immediate double tap (R4) and the
       // hold threshold did not fire.
-      if (chain.emittedTap) emit('tapSuperseded', { zone: z.id, role: z.role, x, y });
-      emit('doubleTap', { zone: z.id, role: z.role, x, y });
+      if (chain.emittedTap) emit('tapSuperseded', { zone: z, zoneId: z.id, role: z.role, x, y });
+      emit('doubleTap', { zone: z, zoneId: z.id, role: z.role, x, y });
     } else if (!chain.emittedTap) {
-      emit('tap', { zone: z.id, role: z.role, x, y });
+      emit('tap', { zone: z, zoneId: z.id, role: z.role, x, y });
     }
     chain.active = false;
     chain.count = 0;
