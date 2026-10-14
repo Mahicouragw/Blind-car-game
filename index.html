@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, maximum-scale=5, viewport-fit=cover"
+    />
+    <meta name="theme-color" content="#0e1116" />
+    <meta
+      name="description"
+      content="Vettaru: The Blind Driver. An accessible, story-driven, realistic 3D racing game with built-in spoken guidance that does not require TalkBack."
+    />
+    <title>Vettaru: The Blind Driver - accessible racing</title>
+    <link rel="stylesheet" href="styles/main.css" />
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230e1116'/%3E%3Cpath d='M6 22h20M9 22l3-9h8l3 9' stroke='%23e8a33d' stroke-width='2.4' fill='none' stroke-linejoin='round'/%3E%3C/svg%3E" />
+  </head>
+  <body>
+    <a class="skip-link" href="#screen-host">Skip to the game controls</a>
+
+    <div id="app-root">
+      <!-- 3D race view. Hidden while menus are showing so the GPU work stops. -->
+      <canvas id="scene" class="scene-canvas" hidden aria-hidden="true"></canvas>
+
+      <!-- HUD, minimap, countdown and caption during a race. -->
+      <div id="race-overlay" class="race-overlay" hidden></div>
+
+      <!-- Menus, story, settings, tutorial and results. -->
+      <main id="screen-host" class="screen-host" tabindex="-1"></main>
+
+      <!-- Transparent layer that receives every pointer event and feeds the
+           gesture recognizer. It sits above the screens so taps, swipes, holds
+           and circles are recognized consistently, while real buttons remain
+           focusable and clickable underneath. -->
+      <div id="gesture-layer" class="gesture-layer" aria-hidden="true"></div>
+
+      <!-- Every spoken line is mirrored here as text, so a player with no
+           speech voices, or who uses a screen reader, gets the same content. -->
+      <div id="live-region" class="live-region" role="status" aria-live="polite" aria-atomic="true"></div>
+    </div>
+
+    <noscript>
+      <p class="noscript">
+        This game needs JavaScript. All spoken guidance is produced in the browser;
+        nothing is sent to a server and no account is required.
+      </p>
+    </noscript>
+
+    <script type="module" src="src/main.js"></script>
+  </body>
+</html>

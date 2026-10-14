@@ -1,3 +1,35 @@
+# ---- Node / tooling -------------------------------------------------------
+node_modules/
+npm-debug.log*
+yarn-error.log*
+.npm/
+.pnpm-store/
+
+# ---- Editors / OS ---------------------------------------------------------
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# ---- Test / coverage artefacts -------------------------------------------
+coverage/
+.nyc_output/
+*.lcov
+
+# ---- Build output (this project has no build step; kept for safety) -------
+dist/
+build/
+out/
+# Staged Pages artefact, written by scripts/publish-list.mjs in CI
+_site/
+
+# ---- Adventure Game Studio template (pre-existing, kept verbatim) ---------
+# The repository started life as an AGS template and this was its only file.
+# None of it applies to this game, but it is preserved in full so nothing that
+# was ignored before stops being ignored.
+
 # Built things
 _Debug/
 Compiled/
