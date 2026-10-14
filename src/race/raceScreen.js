@@ -193,6 +193,8 @@ export function createRaceScreen(config) {
     cleanLaps: 0,
     lapWasClean: true,
     started: false,
+    weather: null,
+    lastTireSqueal: -99,
   };
 
   let rafId = null;
@@ -294,12 +296,13 @@ export function createRaceScreen(config) {
     return [
       `On the grid, position ${race.player.gridPosition} of ${race.racers.length}, for ${intToWords(laps)} ${laps === 1 ? 'lap' : 'laps'} of the Vettaru circuit.`,
       'Hold your finger anywhere on the screen to accelerate. Release to coast.',
-      'Tap once to brake.',
-      'Tap twice quickly for the handbrake, which makes the car slide.',
-      'Drag left or right to steer. The car turns gradually, so hold the drag through the corner.',
+      'Tap once to brake. A quick double tap brakes too.',
+      'Double tap and hold for the handbrake, which makes the car slide.',
+      'Drag left or right to steer. The car turns gradually, so hold the drag through the corner. After the turn, let go of the steering: the wheel straightens itself. Then accelerate.',
       'Draw a circle with your finger to turn around.',
-      'Swipe down to reverse.',
-      'Press the back gesture or key to leave the race at any time.',
+      'Swipe straight down to reverse.',
+      'Swipe down and left to open the race menu, with coins, repair, petrol, settings and where you are.',
+      'Press Escape, or the Pause button, to pause. You can leave the race from the race menu at any time.',
     ].join(' ');
   }
 
@@ -363,6 +366,24 @@ export function createRaceScreen(config) {
       audio?.play('crowd-cheer', { group: 'sfx', volume: 0.55 });
       audio?.engine?.start();
       audio?.skid?.start();
+      // Weather: sometimes it rains, and when it does the wipers work. Real
+      // recordings (unfa's rain loop, itinerantmonk108's wipers), not
+      // synthesised noise - the brief allows AI voices and nothing else.
+      const raining = level.forceRain === true || (level.forceRain !== false && Math.random() < 0.35);
+      if (raining) {
+        S.weather = 'rain';
+        Promise.all([audio?.ensureLoaded?.('rain'), audio?.ensureLoaded?.('wiper')]).then(() => {
+          if (S.aborted || S.weather !== 'rain') return;
+          audio?.loop('rain', { volume: 0.32, group: 'sfx' });
+          audio?.loop('wiper', { volume: 0.5, group: 'sfx' });
+        });
+        say('Light rain. The wipers are on.', {
+          priority: SPEECH_PRIORITY.NORMAL,
+          essential: true,
+        });
+      } else {
+        S.weather = 'dry';
+      }
       for (const r of race.racers) r.lapStartTime = S.elapsed;
     }
   }
@@ -479,11 +500,15 @@ export function createRaceScreen(config) {
 
     S.direction = next;
     S.lastDirectionSay = S.elapsed;
+    // COMMANDS, not observations. "You are going left" is heard as "steer
+    // left" and drives players into the barrier; the words must say what to DO.
+    // Car angled left of the racing line -> steer RIGHT to come back, and
+    // vice versa (positive headingError is left of the line).
     const words = {
-      forward: 'Going forward.',
-      left: 'You are going left.',
-      right: 'You are going right.',
-      backward: 'Going backward.',
+      forward: 'Straight ahead.',
+      left: 'Steer right to get back on the line.',
+      right: 'Steer left to get back on the line.',
+      backward: 'Going backward. Turn the car around.',
     };
     say(words[next], {
       priority: SPEECH_PRIORITY.NORMAL,
@@ -944,10 +969,20 @@ export function createRaceScreen(config) {
     });
     audio.skid.update(vehicle.skidLevel ?? 0);
     if (S.phase === RACE_PHASE.RACING && S.frames % 90 === 0 && vehicle.gear !== S.lastGear) {
-      // A dedicated generated gear-change clunk now exists (it used to be
+      // A dedicated gear-change clunk (CC0 field recording; it used to be
       // substituted with metal-click; see docs/AUDIO-CREDITS.md).
       audio.play('gear-change', { group: 'sfx', volume: 0.45, rate: 0.94 + Math.random() * 0.12 });
       S.lastGear = vehicle.gear;
+    }
+    // The recorded tyre chirp on hard cornering at speed - the "turning" sound
+    // the brief asks for. Throttled, or a held drift would machine-gun it.
+    const cornering =
+      S.phase === RACE_PHASE.RACING &&
+      Math.abs(drivingInput?.state?.steer ?? 0) > 0.55 &&
+      Math.abs(vehicle.speed) > 14;
+    if (cornering && S.elapsed - S.lastTireSqueal > 2.8) {
+      S.lastTireSqueal = S.elapsed;
+      audio.play('tire-squeal', { group: 'sfx', volume: 0.5 });
     }
   }
 
@@ -1019,6 +1054,7 @@ export function createRaceScreen(config) {
       S.paused = true;
       audio?.engine?.stop();
       audio?.skid?.stop();
+      audio?.stopGroup?.('sfx');
       speech?.stop();
       return api;
     },
@@ -1029,6 +1065,10 @@ export function createRaceScreen(config) {
       if (S.phase === RACE_PHASE.RACING) {
         audio?.engine.start();
         audio?.skid.start();
+        if (S.weather === 'rain') {
+          audio?.loop('rain', { volume: 0.32, group: 'sfx' });
+          audio?.loop('wiper', { volume: 0.5, group: 'sfx' });
+        }
       }
       return api;
     },
@@ -1040,6 +1080,7 @@ export function createRaceScreen(config) {
       if (rafId) cancelAnimationFrame(rafId);
       audio?.engine?.stop();
       audio?.skid?.stop();
+      audio?.stopGroup?.('sfx');
       speech?.stop();
       onAbort?.({ reason, elapsed: S.elapsed, lapsCompleted: race.player.lapsCompleted });
     },
@@ -1050,6 +1091,7 @@ export function createRaceScreen(config) {
       window.removeEventListener('orientationchange', resize);
       audio?.engine?.stop();
       audio?.skid?.stop();
+      audio?.stopGroup?.('sfx');
       for (const mesh of carMeshes.values()) mesh.dispose();
       scene.traverse((o) => {
         o.geometry?.dispose?.();

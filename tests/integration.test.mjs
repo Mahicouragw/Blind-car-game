@@ -150,14 +150,28 @@ test('a single tap on the driving surface brakes', () => {
   });
 });
 
-test('a double tap on the driving surface pulls the handbrake', () => {
+test('a quick double tap on the driving surface brakes too, not the handbrake', () => {
   withRig((r) => {
     r.down(200, 400);
     r.up(200, 400);
     r.advance(80);
     r.down(200, 400);
     r.up(200, 400);
-    assert.equal(r.drivingInput.state.handbrake, true, 'the second tap inside the window pulls the handbrake');
+    assert.equal(r.drivingInput.state.handbrake, false, 'a quick double tap is the brake pedal');
+    assert.equal(r.drivingInput.state.braking, true);
+    assert.equal(r.drivingInput.state.brake, 1, 'the double tap brakes');
+  });
+});
+
+test('a double tap AND HOLD pulls the handbrake', () => {
+  withRig((r) => {
+    r.down(200, 400);
+    r.up(200, 400);
+    r.advance(80);
+    r.down(200, 400);
+    // The second contact stays down past the hold threshold: the e-brake.
+    r.advance(GESTURE_DEFAULTS.doubleTapHoldMs + 60);
+    assert.equal(r.drivingInput.state.handbrake, true, 'holding the second tap pulls the handbrake');
     assert.equal(r.drivingInput.state.braking, true);
     assert.ok(r.drivingInput.state.brake > 0, 'the handbrake also retards the car');
   });

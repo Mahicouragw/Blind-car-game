@@ -37,6 +37,10 @@ export const DRIVING_ZONE = {
   allowCircle: true,
   allowSwipe: true,
   preventScroll: true,
+  // The driving surface owns a double-tap-and-hold meaning (the handbrake), so
+  // a quick double tap still brakes while a held second tap drifts. See R4 in
+  // input/gestures.js.
+  doubleTapHoldTarget: true,
 };
 
 /** How fast a swipe moves the steering target, per second. */
@@ -54,19 +58,26 @@ export const REVERSE_BURST_SECONDS = 1.8;
 
 /**
  * How long one brake tap holds the pedal, in ms. A tap, not a hold: the finger
- * is wanted for steering, so braking is a deliberate tap-tap rhythm like a real
+ * is wanted for steering, so braking is a deliberate tap rhythm like a real
  * pedal tap.
  */
 export const BRAKE_TAP_MS = 620;
 
 /**
- * How long one double tap holds the handbrake, in seconds.
+ * How long one handbrake pull lasts, in seconds.
  *
  * A burst for the same reason as reverse: the e-brake is pulled and released.
  * Inside that window the physics lose rear grip and the car slides, which is
- * what makes the double tap a DRIFT input rather than a second brake.
+ * what makes the hold a DRIFT input rather than a harder brake.
  */
-export const HANDBRAKE_BURST_SECONDS = 0.9;
+export const HANDBRAKE_BURST_SECONDS = 1.1;
+
+/**
+ * A downward swipe is only "reverse" when it is mostly vertical. A swipe that
+ * also travels left is the "swipe down and left" the brief asks for: it opens
+ * the race menu (see main.js) and must NOT throw the car into reverse.
+ */
+export const REVERSE_MAX_DX = 60;
 
 export function createDrivingInput(config = {}) {
   const state = {
@@ -108,24 +119,32 @@ export function createDrivingInput(config = {}) {
     state.throttle = 0;
   });
 
-  // ---- double tap on the driving surface is the HANDBRAKE ----
+  // ---- one tap OR two quick taps on the driving surface brake ----
   //
-  // The brief changed the mapping: one tap is the brake, two quick taps pull the
-  // handbrake and make the car slide (see HANDBRAKE_BURST_SECONDS). The
-  // recognizer already resolves the two gestures apart - a single tap on this
-  // zone waits out the double-tap window exactly so the second tap can win - so
-  // neither gesture can ever fire twice for one intention.
-  on('gesture:doubleTap', (d) => {
-    if (d.zone?.role !== DRIVING_ROLE) return;
-    startHandbrake();
-    bus.emit('race:handbrakeStarted', { seconds: HANDBRAKE_BURST_SECONDS });
-  });
-
-  // ---- single tap on the driving surface is the brake ----
+  // Play-testing settled this: people instinctively DOUBLE TAP to brake, and a
+  // single tap must brake too. Both are the same pedal tap, both are announced
+  // ("Brake"), and the recognizer already separates them from the hold below.
   on('gesture:tap', (d) => {
     if (d.zone?.role !== DRIVING_ROLE) return;
     startBrake();
     bus.emit('race:brakePressed', {});
+  });
+  on('gesture:doubleTap', (d) => {
+    if (d.zone?.role !== DRIVING_ROLE) return;
+    startBrake();
+    bus.emit('race:brakePressed', {});
+  });
+
+  // ---- double tap AND HOLD is the handbrake ----
+  //
+  // The second tap held for a moment pulls the e-brake: the car slides (see
+  // HANDBRAKE_BURST_SECONDS). A quick double tap is NOT this - it brakes - so
+  // the recognizer's doubleTapHold is exactly the right gesture: same rhythm as
+  // braking, but the finger stays down for the drift.
+  on('gesture:doubleTapHold', (d) => {
+    if (d.zone?.role !== DRIVING_ROLE) return;
+    startHandbrake();
+    bus.emit('race:handbrakeStarted', { seconds: HANDBRAKE_BURST_SECONDS });
   });
 
   /** Brake pedal tap: held briefly, then released, exactly like tapping a pedal. */
@@ -176,13 +195,16 @@ export function createDrivingInput(config = {}) {
   // ---- swipe down reverses ----
   // Reverse already existed in the physics, but only as "throttle and brake
   // together at a standstill", which a touch player cannot perform: holding the
-  // screen is the throttle, and the brake is a discrete double tap. So reverse
-  // was unreachable, and "how do I go back" had no answer. A downward swipe is
-  // the natural gesture for it and does not collide with the throttle, since the
-  // throttle needs the finger down and a swipe ends with it up.
+  // screen is the throttle, and the brake is a discrete tap. So reverse was
+  // unreachable, and "how do I go back" had no answer. A mostly-vertical
+  // downward swipe is the natural gesture for it and does not collide with the
+  // throttle, since the throttle needs the finger down and a swipe ends with it
+  // up. A swipe that also travels LEFT is the "down and left" menu gesture and
+  // is left alone (REVERSE_MAX_DX).
   on('gesture:swipe', (d) => {
     if (d.zone?.role !== DRIVING_ROLE) return;
     if (d.direction !== 'down') return;
+    if (Math.abs(d.dx ?? 0) > REVERSE_MAX_DX) return;
     state.reversing = REVERSE_BURST_SECONDS;
     state.braking = false;
     bus.emit('race:reverseStarted', { seconds: REVERSE_BURST_SECONDS });

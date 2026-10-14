@@ -18,7 +18,7 @@ import { attachKeyboard } from './input/keyboard.js';
 import { createPointerBus } from './input/pointerBus.js';
 import { createDrivingInput, DRIVING_ZONE, DRIVING_ROLE } from './input/drivingInput.js';
 import { createRaceScreen } from './race/raceScreen.js';
-import { dirtLevel } from './race/garage.js';
+import { dirtLevel, WASH_COST } from './race/garage.js';
 import { webglAvailable } from './world/scene3d.js';
 import { getTrack } from './world/trackData.js';
 import { getCar } from './vehicles/carCatalog.js';
@@ -277,6 +277,18 @@ export function bootApp(config = {}) {
       }
       return;
     }
+    // Swiping while racing opens the RACE MENU ("swipe down and left... what is
+    // the menu?"). A mostly-downward swipe is reverse and belongs to
+    // drivingInput, so only leftward, upward, and down-and-left swipes open the
+    // menu. The race pauses behind it.
+    if (raceScreen && !raceScreen.state.paused) {
+      const downLeft = d.direction === 'down' && (d.dx ?? 0) < -60;
+      if (d.direction === 'left' || d.direction === 'up' || downLeft) {
+        pauseRace('race-menu');
+        return;
+      }
+      return;
+    }
     const ring = activeRing();
     if (!ring) return;
     if (d.direction === 'up') ring.move(-1);
@@ -288,14 +300,13 @@ export function bootApp(config = {}) {
 
   bus.on('gesture:doubleTapHold', (d) => {
     unlockAudio();
+    // While racing, the driving surface owns this gesture: double-tap-and-hold
+    // is the HANDBRAKE (drivingInput.js pulls the e-brake and the car drifts).
+    // It must never open a menu over a moving car. The race menu is the
+    // down-and-left swipe, and the pause menu is Escape, P, or the Pause button.
+    if (raceScreen && !raceScreen.state.paused) return;
     // The documented way into Game TalkBack settings from anywhere, and the
-    // accessible alternative is F1 (see input/keyboard.js). Mid-race it pauses
-    // first: opening a settings screen over a running race would leave the car
-    // driving itself while the player is reading.
-    if (raceScreen && !raceScreen.state.paused) {
-      pauseRace();
-      return;
-    }
+    // accessible alternative is F1 (see input/keyboard.js).
     if (d.zone?.doubleTapHoldTarget || d.zone?.role === ZONE_ROLE.SETTINGS_HOTSPOT || d.zone?.role === ZONE_ROLE.DRIVING) {
       screens.openSettings();
       tutorialHarness.record('openedSettings');
@@ -321,11 +332,15 @@ export function bootApp(config = {}) {
   bus.on('gesture:pressStart', () => tutorialHarness.record('accelerated'));
   bus.on('gesture:pressEnd', () => tutorialHarness.record('coasted'));
   bus.on('gesture:tap', (d) => {
-    // A single tap on the driving surface is the brake (the brief's mapping).
+    // A single tap on the driving surface brakes (and announces "Brake").
     if (d.zone?.role === ZONE_ROLE.DRIVING) tutorialHarness.record('braked');
   });
   bus.on('gesture:doubleTap', (d) => {
-    // Two quick taps pull the handbrake.
+    // A quick double tap brakes too - the play-tested mapping.
+    if (d.zone?.role === ZONE_ROLE.DRIVING) tutorialHarness.record('braked');
+  });
+  bus.on('gesture:doubleTapHold', (d) => {
+    // Double-tap-and-hold pulls the handbrake and the car drifts.
     if (d.zone?.role === ZONE_ROLE.DRIVING) tutorialHarness.record('handbraked');
   });
   bus.on('gesture:dragEnd', (d) => {
@@ -590,21 +605,28 @@ export function bootApp(config = {}) {
     return 'medium';
   }
 
-  function pauseRace() {
+  /**
+   * The RACE MENU. Reached by the Pause button, Escape, P, or the "swipe down
+   * and left" gesture. The race is paused behind it. The item list is the one
+   * the player asked for: where am I, coins, experience, repair, wash, petrol,
+   * settings, garage, how to play, go back, main menu, exit.
+   *
+   * @param {string} reason 'pause' from the button/key, 'race-menu' from the swipe
+   */
+  function pauseRace(reason = 'pause') {
     if (!raceScreen || raceScreen.state.paused) return;
     raceScreen.pause();
     audio.play('ui-pause', { group: 'sfx', volume: 0.6 });
     const panel = document.createElement('div');
     panel.className = 'pause-panel';
     panel.id = 'pause-panel';
-    panel.innerHTML = '<h2 class="pause-title">Paused</h2>';
-    // Every pause option is a real, announced, focus-ring-navigable button.
-    // Swiping up or down moves between them exactly like in the menus - the
-    // pause panel used to be tap-only, which is not usable without sight.
+    panel.innerHTML = '<h2 class="pause-title">Race menu</h2>';
+    // Every option is a real, announced, focus-ring-navigable button. Swiping
+    // up or down moves between them exactly like in the menus.
     const buttons = [
       makeButton({
-        label: 'Resume the race',
-        hint: 'Back to driving',
+        label: 'Go back and resume the race',
+        hint: 'Close this menu and keep driving',
         className: 'ui-button-primary',
         onActivate: () => resumeRace(),
       }),
@@ -612,13 +634,82 @@ export function bootApp(config = {}) {
         label: 'Where am I on the track',
         hint: 'Lap, position and race time',
         onActivate: () => {
-          const facts = raceScreen.state;
-          void facts;
           speech.sayEssential(describeRacePosition(), { key: 'whereAmI', cooldownMs: 0 });
         },
       }),
+      makeButton({
+        label: 'Coins',
+        hint: 'How many coins you have',
+        onActivate: () => {
+          const coins = gameState.save.coins ?? 0;
+          speech.sayEssential(`You have ${coins} ${coins === 1 ? 'coin' : 'coins'}.`, { key: 'coins', cooldownMs: 0 });
+        },
+      }),
+      makeButton({
+        label: 'Experience level',
+        hint: 'Your driver level',
+        onActivate: () => {
+          speech.sayEssential(`You are driver level ${gameState.save.level ?? 1}.`, { key: 'xp', cooldownMs: 0 });
+        },
+      }),
+      makeButton({
+        label: 'Repair',
+        hint: 'Repairs the car for 8 coins',
+        onActivate: () => {
+          const save = gameState.save;
+          const coins = save.coins ?? 0;
+          if (coins < 8) {
+            speech.sayEssential(`Not enough coins. A repair costs 8 coins and you have ${coins}.`, { key: 'repair', cooldownMs: 0 });
+            return;
+          }
+          save.coins = coins - 8;
+          save.grime = 0;
+          gameState.persist();
+          speech.sayEssential(`Car repaired. 8 coins spent, ${save.coins} left.`, { key: 'repair', cooldownMs: 0 });
+          audio.play('ui-confirm', { group: 'sfx', volume: 0.5 });
+        },
+      }),
+      makeButton({
+        label: 'Go for a wash',
+        hint: 'Washes the car clean',
+        onActivate: () => {
+          const save = gameState.save;
+          const cost = WASH_COST;
+          const coins = save.coins ?? 0;
+          if (coins < cost) {
+            speech.sayEssential(`Not enough coins. A wash costs ${cost} coins and you have ${coins}.`, { key: 'wash', cooldownMs: 0 });
+            return;
+          }
+          save.coins = coins - cost;
+          save.grime = 0;
+          gameState.persist();
+          speech.sayEssential(`Car washed clean. ${cost} coins spent, ${save.coins} left.`, { key: 'wash', cooldownMs: 0 });
+          audio.play('ui-confirm', { group: 'sfx', volume: 0.5 });
+        },
+      }),
+      makeButton({
+        label: 'Petrol',
+        hint: 'The fuel level',
+        onActivate: () => {
+          speech.sayEssential('The tank is full. There is no fuel use during a race.', { key: 'petrol', cooldownMs: 0 });
+        },
+      }),
       makeButton({ label: 'Game TalkBack settings', hint: 'Speech and announcement settings', onActivate: () => screensApi.openSettings() }),
-      makeButton({ label: 'Repeat the controls', hint: 'Every driving control, spoken again', onActivate: () => speech.sayEssential(controlsSummary(), { key: 'controls', cooldownMs: 0 }) }),
+      makeButton({
+        label: 'Cars garage',
+        hint: 'Leaves the race and opens the garage',
+        onActivate: () => {
+          panel.remove();
+          pauseRing = null;
+          raceScreen.abort('player');
+          screensApi.openGarage();
+        },
+      }),
+      makeButton({
+        label: 'How to play',
+        hint: 'Every driving control, spoken',
+        onActivate: () => speech.sayEssential(controlsSummary(), { key: 'controls', cooldownMs: 0 }),
+      }),
       makeButton({
         label: 'Main menu',
         hint: 'Abandons the race and returns to the menu',
@@ -647,7 +738,11 @@ export function bootApp(config = {}) {
     const first = buttons[0].label;
     // "Paused." comes from its AI voice clip when available; the options list is
     // dynamic text and is always synthesised. One clip, one line, no doubles.
-    speakCue('Paused.', 'voice-paused', { priority: 4, essential: true, interrupt: true });
+    if (reason === 'race-menu') {
+      speech.say('Race menu.', { priority: 4, essential: true, interrupt: true });
+    } else {
+      speakCue('Paused.', 'voice-paused', { priority: 4, essential: true, interrupt: true });
+    }
     speech.say(`${buttons.length} options. ${first} is first. Swipe up or down to move between them, single tap to activate.`, {
       priority: 2,
       essential: true,
@@ -674,7 +769,17 @@ export function bootApp(config = {}) {
   }
 
   function controlsSummary() {
-    return 'Press and hold to accelerate, release to coast. Tap the driving surface once to brake. Tap twice quickly for the handbrake, which makes the car slide. Drag left or right to steer gradually. Draw a circle to ask for a U-turn where the track allows it. Press R or use the recovery option to be placed back on the racing line. Press Escape or P to pause.';
+    return [
+      'Press and hold anywhere to accelerate, and release to coast.',
+      'Tap once - or twice quickly - to brake. The game says Brake when you do.',
+      'Double tap and hold the second tap for the handbrake, which makes the car slide.',
+      'Drag left or right to steer gradually. Hold the drag through the corner. After the turn, let go of the steering: the wheel straightens itself. Then accelerate.',
+      'Draw a circle for a U-turn where the track allows it.',
+      'Swipe straight down to reverse.',
+      'Swipe down and left to open the race menu, with coins, repair, petrol, settings and where you are.',
+      'Press R to be placed back on the racing line.',
+      'Press Escape, P, or the Pause button to pause and open the menu.',
+    ].join(' ');
   }
 
   function endRace(result, level, opts) {

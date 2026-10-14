@@ -122,7 +122,7 @@ test('the tutorial lists every gesture and refuses to finish early', () => {
   // Only the current step is on screen, so check the step content itself: every
   // gesture must be taught somewhere in the lesson, not just on step one.
   const taught = screen.steps.map((s) => `${s.title} ${s.text}`).join(' ').toLowerCase();
-  for (const phrase of ['press and hold', 'tap the driving surface once', 'tap twice quickly', 'handbrake', 'drag left or right', 'circular drag', 'f1', 'gradually', 'self-centre', 'recovery']) {
+  for (const phrase of ['press and hold', 'tap the driving surface once', 'twice quickly', 'double tap and hold', 'handbrake', 'drag left or right', 'circular drag', 'f1', 'gradually', 'straightens itself', 'recovery']) {
     assert.ok(taught.includes(phrase.toLowerCase()), `tutorial should teach "${phrase}"`);
   }
   assert.ok(document.body.textContent.includes('Step 1 of 11'), 'the on-screen step is labelled with its position');
@@ -144,6 +144,8 @@ test('demonstrating a gesture is what unlocks the tutorial step', () => {
   // menu button behind the tutorial, which is not what is under test here.
   bus.emit('gesture:tap', { zone: { role: 'driving', element: { click() {} } } });
   bus.emit('gesture:doubleTap', { zone: { role: 'driving', element: { click() {} } } });
+  // Double-tap-and-HOLD is the handbrake (a quick double tap only brakes).
+  bus.emit('gesture:doubleTapHold', { zone: { role: 'driving', element: { click() {} } } });
   // `dx`, not `totalDx`: this test used to hand-write a field the recognizer
   // never emits, which is precisely why the suite stayed green while the real
   // steering gesture was dead. See tests/integration.test.mjs, which drives the

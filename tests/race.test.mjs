@@ -297,12 +297,15 @@ test('a corner is warned once, at the configured distance, and not repeated', ()
 
   const near = g.pointAt(g.normaliseS(hairpin.from - 90));
   items = d.update(navigationFacts(track, { x: near.x, z: near.z, heading: near.heading, speed: 30 }, {}), { lap: 1, totalLaps: 2, phase: 'racing' });
-  const warnings = items.filter((i) => i.tag === 'corner');
+  // Count only the warn.* items: the turn-in and straighten-up coaching lines
+  // also carry the corner tag and may share the frame with the warning.
+  const isWarn = (i) => String(i.key ?? '').startsWith('warn.');
+  const warnings = items.filter(isWarn);
   assert.equal(warnings.length, 1, 'one warning inside the warning distance');
   assert.match(warnings[0].text, /Hairpin/);
 
   items = d.update(navigationFacts(track, { x: near.x, z: near.z, heading: near.heading, speed: 30 }, {}), { lap: 1, totalLaps: 2, phase: 'racing' });
-  assert.equal(items.filter((i) => i.tag === 'corner').length, 0, 'the same corner is not warned twice');
+  assert.equal(items.filter(isWarn).length, 0, 'the same corner is not warned twice');
 });
 
 test('the warning distance setting moves the announcement', () => {
@@ -735,11 +738,11 @@ test('the grid briefing states the real lap count and every control', async () =
   for (const [what, re] of [
     ['how to accelerate', /Hold your finger/],
     ['how to coast', /[Rr]elease to coast/],
-    ['how to brake', /Tap once to brake/],
+    ['how to brake', /Tap once .*brake/],
     ['how to use the handbrake', /handbrake/i],
     ['how to steer', /Drag left or right/],
     ['how to turn around', /circle/i],
-    ['how to reverse', /Swipe down to reverse/],
+    ['how to reverse', /down to reverse/],
     ['how to leave the race', /leave the race/],
   ]) {
     assert.match(briefing, re, `the briefing must tell the player ${what}`);

@@ -8,14 +8,16 @@
  * sound is silent and the failure is reported - it is never quietly replaced by
  * something generated in the browser.
  *
- * The files come from two sources, both free of corporate/copyrighted audio:
+ * The files come from two sources, both royalty-free and free of corporate
+ * audio (see docs/AUDIO-CREDITS.md for the per-file evidence):
  *
- * 1. Third-party samples licensed CC0 1.0 (see docs/AUDIO-CREDITS.md).
- * 2. Original effects synthesised OFFLINE by `scripts/generate-sfx.mjs` and
- *    committed as ordinary .wav files - one per action the brief asked for
- *    (brake, handbrake, gear change, pause, resume, exit, crowd, ambience).
- *    Generated files are explicitly allowed by the brief ("generated AI is
- *    ok"); what is forbidden is generation in the browser, and none happens.
+ * 1. Short effects and music by Kenney, licensed CC0 1.0.
+ * 2. Field recordings from freesound.org under Creative Commons 0 (brakes,
+ *    handbrake, gear change, tyre squeal, rain, wipers, crowd, and the scene
+ *    beds) - real recordings of real things, one per action the brief asked
+ *    for. NO generated or AI sound effects are shipped: the brief allows AI
+ *    VOICES and forbids generated sound effects, and the voice cues in
+ *    assets/audio/voice are the only generated audio in the project.
  *
  * Engine and tyre audio are recorded loops whose playback rate and gain are
  * driven by rpm and slip. Changing the playback rate of a file is
@@ -34,9 +36,10 @@ export const AUDIO_MANIFEST = {
   'engine-loop-alt': `${A}/racing/engine-loop-alt.ogg`,
   'skid-loop': `${A}/racing/skid-loop.ogg`,
   'collision': `${A}/racing/impact.ogg`,
-  'brake': `${A}/racing/brake.wav`,
-  'handbrake': `${A}/racing/handbrake.wav`,
-  'gear-change': `${A}/racing/gear-change.wav`,
+  'brake': `${A}/racing/brake.mp3`,
+  'handbrake': `${A}/racing/handbrake.mp3`,
+  'gear-change': `${A}/racing/gear-change.mp3`,
+  'tire-squeal': `${A}/racing/tire-squeal.mp3`,
   // voice (real recordings, Kenney voiceover pack)
   'voice-ready': `${A}/voice/ready.ogg`,
   'voice-set': `${A}/voice/set.ogg`,
@@ -85,9 +88,11 @@ export const AUDIO_MANIFEST = {
   'ui-switch': `${A}/ui/switch.ogg`,
   'ui-glass': `${A}/ui/glass.ogg`,
   'ui-pluck': `${A}/ui/pluck.ogg`,
-  'ui-pause': `${A}/ui/pause.wav`,
-  'ui-resume': `${A}/ui/resume.wav`,
-  'ui-exit': `${A}/ui/exit.wav`,
+  // Pause, resume and exit use the CC0 Kenney interface recordings rather than
+  // anything generated: the brief asks for royalty-free recorded effects only.
+  'ui-pause': `${A}/ui/close.ogg`,
+  'ui-resume': `${A}/ui/open.ogg`,
+  'ui-exit': `${A}/ui/back.ogg`,
   // impact
   'barrier-heavy': `${A}/impact/barrier-heavy.ogg`,
   'barrier-medium': `${A}/impact/barrier-medium.ogg`,
@@ -114,11 +119,13 @@ export const AUDIO_MANIFEST = {
   'paper-place': `${A}/scene/paper-place.ogg`,
   'chips-stack': `${A}/scene/chips-stack.ogg`,
   'chips-handle': `${A}/scene/chips-handle.ogg`,
-  'crowd-cheer': `${A}/scene/crowd-cheer.wav`,
-  'city-ambience': `${A}/scene/city-ambience.wav`,
-  'home-ambience': `${A}/scene/home-ambience.wav`,
-  'workshop-ambience': `${A}/scene/workshop-ambience.wav`,
-  'pit-lane-ambience': `${A}/scene/pit-lane-ambience.wav`,
+  'crowd-cheer': `${A}/scene/crowd-cheer.mp3`,
+  'city-ambience': `${A}/scene/city-ambience.mp3`,
+  'home-ambience': `${A}/scene/home-ambience.mp3`,
+  'workshop-ambience': `${A}/scene/workshop-ambience.mp3`,
+  'pit-lane-ambience': `${A}/scene/pit-lane-ambience.mp3`,
+  'rain': `${A}/scene/rain.mp3`,
+  'wiper': `${A}/scene/wiper.mp3`,
   // music (short recorded stingers - see AUDIO_GAPS for the honest limitation)
   'music-warm': `${A}/music/stinger-warm.ogg`,
   'music-bright': `${A}/music/stinger-bright.ogg`,
@@ -162,6 +169,14 @@ export const LAZY_AUDIO = new Set([
   'music-story-tension',
   'music-race',
   'music-results',
+  // Field-recorded beds are long files; fetch them when a scene actually needs
+  // them instead of making the menu wait for eight megabytes of pit lane.
+  'rain',
+  'wiper',
+  'city-ambience',
+  'home-ambience',
+  'workshop-ambience',
+  'pit-lane-ambience',
 ]);
 
 /**
@@ -189,6 +204,16 @@ export const MUSIC_CREDITS = [
   { key: 'music-story-tension', title: 'Black Knight', artist: 'Rafael Krux', url: 'https://cinematicwaves.com/', licence: 'Public domain, released through FreePD', attributionRequired: false, year: 2014 },
   { key: 'music-race', title: 'Celebration', artist: 'Alexander Nakarada', url: 'https://alexandernakarada.bandcamp.com/', licence: 'Creative Commons: By Attribution 4.0', attributionRequired: true, year: 2017 },
   { key: 'music-results', title: 'Fanfare X', artist: 'Alexander Nakarada', url: 'https://alexandernakarada.bandcamp.com/', licence: 'Creative Commons: By Attribution 4.0', attributionRequired: true, year: 2017 },
+  // The long field-recorded scene beds are lazy-loaded like the music beds and
+  // are covered by the same "documented before shipping" rule. All six are
+  // Creative Commons 0 from freesound.org - real recordings, credited in
+  // docs/AUDIO-CREDITS.md with the sound ids that prove the licence.
+  { key: 'rain', title: 'Slowly Raining Loop', artist: 'unfa', url: 'https://freesound.org/people/unfa/sounds/177479/', licence: 'Creative Commons 0', attributionRequired: false },
+  { key: 'wiper', title: 'Windshield wiper', artist: 'itinerantmonk108', url: 'https://freesound.org/people/itinerantmonk108/sounds/787480/', licence: 'Creative Commons 0', attributionRequired: false },
+  { key: 'city-ambience', title: 'City ambience', artist: 'ivolipa', url: 'https://freesound.org/people/ivolipa/sounds/261472/', licence: 'Creative Commons 0', attributionRequired: false },
+  { key: 'home-ambience', title: 'Room tone', artist: 'leonelmail', url: 'https://freesound.org/people/leonelmail/sounds/329569/', licence: 'Creative Commons 0', attributionRequired: false },
+  { key: 'workshop-ambience', title: 'Tools Ratchet', artist: 'CapsLok', url: 'https://freesound.org/people/CapsLok/sounds/181634/', licence: 'Creative Commons 0', attributionRequired: false },
+  { key: 'pit-lane-ambience', title: 'ParkingGarage', artist: 'conleec', url: 'https://freesound.org/people/conleec/sounds/150004/', licence: 'Creative Commons 0', attributionRequired: false },
 ];
 
 /**
@@ -250,14 +275,15 @@ export function resolveSoundName(name) {
 }
 
 export const AUDIO_GAPS = [
-  { slot: 'crowd-cheer', want: 'Grandstand crowd cheering at the start and finish.', cueUsed: 'crowd-cheer (original, generated by scripts/generate-sfx.mjs)', status: 'filled' },
-  { slot: 'city-ambience', want: 'Anandapur street ambience for chapter one.', cueUsed: 'city-ambience (original, generated by scripts/generate-sfx.mjs)', status: 'filled' },
-  { slot: 'home-ambience', want: 'Family home room tone for the argument scenes.', cueUsed: 'home-ambience (original, generated by scripts/generate-sfx.mjs)', status: 'filled' },
-  { slot: 'workshop-ambience', want: 'Continuous workshop floor ambience.', cueUsed: 'workshop-ambience (original, generated by scripts/generate-sfx.mjs)', status: 'filled' },
-  { slot: 'pit-lane-ambience', want: 'Pit lane ambience with air guns and engines.', cueUsed: 'pit-lane-ambience (original, generated by scripts/generate-sfx.mjs)', status: 'filled' },
-  { slot: 'gear-change', want: 'A dedicated recorded gear-change clunk.', cueUsed: 'gear-change (original, generated by scripts/generate-sfx.mjs)', status: 'filled' },
-  { slot: 'brake', want: 'A pedal-tap brake sound for every brake press.', cueUsed: 'brake (original, generated by scripts/generate-sfx.mjs)', status: 'filled' },
-  { slot: 'handbrake', want: 'A ratchet-and-chirp handbrake sound for the drift input.', cueUsed: 'handbrake (original, generated by scripts/generate-sfx.mjs)', status: 'filled' },
+  { slot: 'crowd-cheer', want: 'Grandstand crowd cheering at the start and finish.', cueUsed: 'crowd-cheer (CC0 field recording, HowardV via freesound.org)', status: 'filled' },
+  { slot: 'city-ambience', want: 'Anandapur street ambience for chapter one.', cueUsed: 'city-ambience (CC0 field recording, ivolipa via freesound.org)', status: 'filled' },
+  { slot: 'home-ambience', want: 'Family home room tone for the argument scenes.', cueUsed: 'home-ambience (CC0 field recording, leonelmail via freesound.org)', status: 'filled' },
+  { slot: 'workshop-ambience', want: 'Continuous workshop floor ambience.', cueUsed: 'workshop-ambience (CC0 field recording, CapsLok via freesound.org)', status: 'filled' },
+  { slot: 'pit-lane-ambience', want: 'Pit lane ambience with air guns and engines.', cueUsed: 'pit-lane-ambience (CC0 field recording, conleec via freesound.org)', status: 'filled' },
+  { slot: 'gear-change', want: 'A dedicated gear-change clunk.', cueUsed: 'gear-change (CC0 field recording, greatsoundstube via freesound.org)', status: 'filled' },
+  { slot: 'brake', want: 'A brake sound for every brake press.', cueUsed: 'brake (CC0 field recording, WavJunction.com via freesound.org)', status: 'filled' },
+  { slot: 'handbrake', want: 'A handbrake sound for the drift input.', cueUsed: 'handbrake (CC0 field recording, ninebilly via freesound.org)', status: 'filled' },
+  { slot: 'rain-wipers', want: 'Rain and working wipers for wet races.', cueUsed: 'rain and wiper (CC0 field recordings, unfa and itinerantmonk108 via freesound.org)', status: 'filled' },
   { slot: 'background-music', want: 'Full-length looping background music.', cueUsed: 'six full-length CC0 recordings from freepd.com, lazily loaded', status: 'filled' },
   { slot: 'voice-acting', want: 'Recorded voice acting for story dialogue.', cueUsed: 'speech synthesis, labelled as synthesis', status: 'synthesised-not-recorded' },
 ];

@@ -792,19 +792,19 @@ const TUTORIAL_STEPS = [
   {
     id: 'brake',
     title: 'Brake: single tap',
-    text: 'Tap the driving surface once. That is the brake, held for a moment like a real pedal tap. The game talks back the press - you hear Brake - so you always know the car is slowing.',
+    text: 'Tap the driving surface once - or twice quickly - to brake. Either way the pedal is held for a moment like a real tap. The game talks back the press - you hear Brake - so you always know the car is slowing.',
     require: 'braked',
   },
   {
     id: 'handbrake',
-    title: 'Handbrake: double tap',
-    text: 'Tap twice quickly. That pulls the handbrake: the car slides and the tyres chirp. It is the drift control, deliberately separate from the brake, and three quick taps still cannot start a race.',
+    title: 'Handbrake: double tap and hold',
+    text: 'Tap twice, but hold the second tap down for a moment. That pulls the handbrake: the car slides and the tyres chirp. A quick double tap only brakes - the hold is what makes the drift. It is deliberately separate from the brake.',
     require: 'handbraked',
   },
   {
     id: 'steer',
     title: 'Steer: drag, gradually',
-    text: 'Drag left or right across the driving surface. The wheels turn gradually, never instantly, and the car cannot jump sideways. Full lock needs about a third of the screen width. Let go and the wheels self-centre.',
+    text: 'Drag left or right across the driving surface. The wheels turn gradually, never instantly, and the car cannot jump sideways. Full lock needs about a third of the screen width. After the corner, let go of the steering: the wheel straightens itself. Then accelerate.',
     require: 'steered',
   },
   {

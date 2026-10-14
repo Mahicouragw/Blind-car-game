@@ -27,7 +27,7 @@ Last run: **307 tests, 307 pass, 0 fail**, Node v22.22.3, ~20 s.
 | `tests/publish.test.mjs` | 37 | Deployment safety: relative asset paths, the module graph, what the staged artefact does and does not contain, the dev server's path guard over a real socket, and the post-deploy verifier in both directions |
 | `tests/audio.test.mjs` | 26 | The audio mix against a fake Web Audio graph: ducking held for a whole utterance, engine response to rpm, load and road speed, lazy loading of the music beds, and per-track licence and attribution obligations |
 | `tests/music.test.mjs` | 16 | The music director: scene and chapter to track mapping, deliberate silence, settings interaction, and teardown |
-| `tests/integration.test.mjs` | 22 | **No mocks**: real touch events through the real recognizer, onto the real bus, into the real driving input. Holding applies throttle, releasing cuts it, a double tap brakes, dragging steers gradually, the wheel self-centres, swiping down reverses, a circle asks for a U-turn, menu gestures never touch the car, and pressEnd follows pressStart exactly once for every kind of press |
+| `tests/integration.test.mjs` | 23 | **No mocks**: real touch events through the real recognizer, onto the real bus, into the real driving input. Holding applies throttle, releasing cuts it, a single tap and a quick double tap both brake, a double-tap-and-hold pulls the handbrake, dragging steers gradually, the wheel self-centres, swiping down reverses, a circle asks for a U-turn, menu gestures never touch the car, and pressEnd follows pressStart exactly once for every kind of press |
 | **Total** | **307** | |
 
 `npm run validate` reports **"Track geometry OK."** — the lap closes to 0.070 m

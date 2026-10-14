@@ -125,9 +125,20 @@ test('every audio manifest entry exists on disk', () => {
 
 test('audio manifest keys and paths are unique', () => {
   const keys = Object.keys(AUDIO_MANIFEST);
-  const paths = Object.values(AUDIO_MANIFEST);
   assert.equal(new Set(keys).size, keys.length, 'duplicate manifest keys');
-  assert.equal(new Set(paths).size, paths.length, 'two keys share one file');
+  // Three paths are shared ON PURPOSE: pause, resume and exit reuse the CC0
+  // Kenney interface recordings (close, open, back) exactly as documented in
+  // core/audio.js. Anything else sharing a file is a copy-paste mistake.
+  const ALIAS_OF = { 'ui-pause': 'ui-close', 'ui-resume': 'ui-open', 'ui-exit': 'ui-back' };
+  const byPath = new Map();
+  const shared = [];
+  for (const [key, url] of Object.entries(AUDIO_MANIFEST)) {
+    if (byPath.has(url)) {
+      const other = byPath.get(url);
+      if (ALIAS_OF[key] !== other && ALIAS_OF[other] !== key) shared.push(`${other} + ${key} -> ${url}`);
+    } else byPath.set(url, key);
+  }
+  assert.deepEqual(shared, [], 'two keys share one file');
 });
 
 // -------------------------------------------------------- module graph closes

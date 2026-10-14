@@ -167,6 +167,7 @@ export function navigationFacts(track, car, opts = {}) {
 export function createAnnouncementDirector(config = {}) {
   const state = {
     lastZoneId: null,
+    lastZoneKind: null,
     warnedCorners: new Set(),
     brakeCalledCorners: new Set(),
     lastPosition: null,
@@ -176,6 +177,7 @@ export function createAnnouncementDirector(config = {}) {
     recoveryStepCount: 0,
     lastSpeedBand: null,
     lastSpeedAnnounceAt: -Infinity,
+    lastCoachAt: -Infinity,
     opponentCooldownUntil: new Map(),
     started: false,
   };
@@ -211,6 +213,7 @@ export function createAnnouncementDirector(config = {}) {
     /** Reset between sessions so warnings are not carried over. */
     reset() {
       state.lastZoneId = null;
+      state.lastZoneKind = null;
       state.warnedCorners.clear();
       state.brakeCalledCorners.clear();
       state.lastPosition = null;
@@ -219,6 +222,7 @@ export function createAnnouncementDirector(config = {}) {
       state.offTrackAnnouncedAt = -Infinity;
       state.recoveryStepCount = 0;
       state.lastSpeedBand = null;
+      state.lastCoachAt = -Infinity;
       state.opponentCooldownUntil.clear();
       state.started = false;
     },
@@ -240,8 +244,26 @@ export function createAnnouncementDirector(config = {}) {
       // ---------------------------------------------------------- zone entry
       if (facts.zoneId !== state.lastZoneId) {
         const prev = state.lastZoneId;
+        const prevKind = state.lastZoneKind;
         state.lastZoneId = facts.zoneId;
+        state.lastZoneKind = facts.zone?.kind ?? null;
         const zone = facts.zone;
+
+        // LEAVING a corner is the moment a blind player most needs coaching:
+        // "what do I do after turning?" - let go, and the wheel straightens
+        // itself; then power out. Said on every corner exit, once.
+        if (prevKind === 'corner' || prevKind === 'chicane') {
+          out.push({
+            text: 'Straighten up. Let go of the steering and the car centres itself. Now accelerate.',
+            concise: 'Straighten up. Accelerate.',
+            priority: 3,
+            key: `exit.${prev ?? 'zone'}`,
+            cooldownMs: 1500,
+            interrupt: true,
+            tag: 'corner',
+          });
+        }
+
         if (zone.kind === 'grid' && zone.enterLine) {
           out.push({ text: zone.enterLine, priority: 2, key: 'zone.grid', cooldownMs: 4000 });
         } else if (zone.kind === 'straight' && zone.enterLine && prev !== null) {
@@ -263,6 +285,19 @@ export function createAnnouncementDirector(config = {}) {
               cooldownMs: 3000,
             });
           }
+        } else if (zone.kind === 'corner' || zone.kind === 'chicane') {
+          // TURN IN: the action call at the corner itself - not just "a corner
+          // is near" but "do this now".
+          const dir = zone.direction ?? facts.nextCorner?.direction ?? 'right';
+          out.push({
+            text: `Turn in. Steer ${dir} now and hold the drag through the corner.`,
+            concise: `Steer ${dir} now.`,
+            priority: 4,
+            key: `turnin.${zone.id}`,
+            cooldownMs: 0,
+            interrupt: true,
+            tag: 'corner',
+          });
         }
       }
 
@@ -293,8 +328,8 @@ export function createAnnouncementDirector(config = {}) {
         if (corner.distanceM <= brakeAt * (0.7 + ff * 0.3)) {
           state.brakeCalledCorners.add(corner.id);
           out.push({
-            text: `Brake now for ${corner.label}.`,
-            concise: 'Brake now.',
+            text: `Brake now for ${corner.label}. Then steer ${corner.direction}.`,
+            concise: `Brake now, then ${corner.direction}.`,
             priority: 4,
             key: `brakenow.${corner.id}`,
             cooldownMs: 0,
@@ -319,6 +354,36 @@ export function createAnnouncementDirector(config = {}) {
           key: 'tooFast',
           cooldownMs: 2600 * ff,
           interrupt: true,
+        });
+      }
+
+      // ------------------------------------------------- periodic status coach
+      // While nothing needs doing, a racing radio still keeps the driver
+      // oriented: which lap, which place, what is next, how fast. Every
+      // couple of announce intervals, only while actually racing.
+      const coachEvery = Math.max(6, s.announceIntervalMs / 1000 * 2);
+      const racingNow = race.phase === 'racing' || race.phase === 'RACING';
+      if (racingNow && t - state.lastCoachAt > coachEvery * 1000) {
+        state.lastCoachAt = t;
+        const parts = [];
+        if (race.lap && race.totalLaps) parts.push(`Lap ${race.lap} of ${race.totalLaps}`);
+        if (race.position && race.fieldSize) {
+          parts.push(`you are in place ${race.position} of ${race.fieldSize}`);
+        }
+        if (corner) {
+          parts.push(`next is ${corner.label}, ${corner.direction} hander, ${Math.round(corner.distanceM)} metres`);
+        } else {
+          parts.push('the road ahead is clear');
+        }
+        parts.push(`${Math.round(facts.speedKph)} kilometres per hour`);
+        out.push({
+          text: parts.join('. ') + '.',
+          concise: parts.slice(0, 2).join('. ') + '.',
+          priority: 1,
+          key: 'coach',
+          cooldownMs: 0,
+          nonInterrupt: true,
+          tag: 'coach',
         });
       }
 

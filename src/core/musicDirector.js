@@ -125,14 +125,25 @@ export function createMusicDirector(config = {}) {
   const offs = [];
 
   /** Start, swap or stop the scene bed. `null` means no bed. */
+  let bedToken = 0;
   function setBed(want) {
     if (!audio?.loop) return;
     if (want === ambience) return;
     audio.stopLoops?.(AMBIENCE_SLOTS);
     ambience = null;
+    const token = ++bedToken;
     if (!want || getSettings().sfx === false) return;
-    const handle = audio.loop(want, { volume: 0.16, group: 'sfx' });
-    if (handle) ambience = want;
+    // The field-recorded beds are long files and lazy-loaded, so make sure the
+    // sample is in memory before looping it. If the scene changes before the
+    // fetch returns, the stale start is discarded (token guard).
+    const start = () => {
+      if (token !== bedToken) return;
+      const handle = audio.loop(want, { volume: 0.16, group: 'sfx' });
+      if (handle) ambience = want;
+    };
+    const loaded = audio.ensureLoaded?.(want);
+    if (loaded?.then) loaded.then(start).catch(() => {});
+    else start();
   }
 
   /** Start, swap or stop the scene bed to sit under `track`. */
