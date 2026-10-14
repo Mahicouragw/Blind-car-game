@@ -36,6 +36,10 @@ import { CARS, carUnlockLevel } from '../vehicles/carCatalog.js';
  * quickest car is a few wins away.
  */
 export function carPrice(carId) {
+  // An id that is not in the catalogue has no price at all. Without this check
+  // carUnlockLevel() reports the fallback level of a starter car and an unknown
+  // id would look like a free car.
+  if (!CARS.some((c) => c.id === carId)) return null;
   const level = carUnlockLevel(carId);
   if (!Number.isFinite(level) || level >= 99) return null; // not obtainable
   if (level <= 1) return 0; // starter cars are free
@@ -183,6 +187,10 @@ export function purchase(profile = {}, itemId) {
       ...profile,
       coins: coins - car.cost,
       boughtCars: [...new Set([...(profile.boughtCars ?? []), car.id])],
+      // Added to the unlocked list as well, because car selection checks that
+      // list: a car you have just paid for has to be selectable immediately, not
+      // after some other code path catches up.
+      unlockedCars: [...new Set([...(profile.unlockedCars ?? []), car.id])],
     };
     return {
       ok: true,
@@ -193,12 +201,20 @@ export function purchase(profile = {}, itemId) {
 
   const tyre = catalogue.tyres.find((t) => t.id === itemId);
   if (tyre) {
-    if (tyre.owned) {
-      return { ok: false, profile, reason: 'already-owned', message: `You already have ${tyre.name}. You have ${coinsLeft(coins)}.` };
-    }
+    // Order matters. A player on slicks asking for sport tyres is asking for a
+    // downgrade, and saying "you already have that" would be untrue - they have
+    // something better. The more specific refusal is checked first.
     const current = tyreTier(profile.tyreTier);
     if (tyre.tier < current.tier) {
-      return { ok: false, profile, reason: 'downgrade', message: `${tyre.name} would be a downgrade from ${current.label}. Nothing was bought.` };
+      return {
+        ok: false,
+        profile,
+        reason: 'downgrade',
+        message: `${tyre.name} would be a downgrade from ${current.label}. Nothing was bought. You have ${coinsLeft(coins)}.`,
+      };
+    }
+    if (tyre.tier === current.tier) {
+      return { ok: false, profile, reason: 'already-owned', message: `You already have ${tyre.name}. You have ${coinsLeft(coins)}.` };
     }
     if (coins < tyre.cost) {
       return {
@@ -212,7 +228,7 @@ export function purchase(profile = {}, itemId) {
     return {
       ok: true,
       profile: next,
-      message: `${tyre.name} fitted for ${tyre.cost} coins. ${tyre.describe}. You have ${coinsLeft(next.coins)} left.`,
+      message: `${tyre.name} fitted for ${tyre.cost} coins. That is ${tyre.description}. You have ${coinsLeft(next.coins)} left.`,
     };
   }
 
@@ -237,7 +253,9 @@ export function purchase(profile = {}, itemId) {
     };
   }
 
-  return { ok: false, profile, reason: 'unknown-item', message: 'That is not something the garage sells.' };
+  // Unreachable from the garage screen, which only offers real items. Kept as a
+  // defensible answer rather than a crash if it is ever called with junk.
+  return { ok: false, profile, reason: 'unknown-item', message: `That is not something the garage sells. You have ${coinsLeft(coins)}.` };
 }
 
 /**

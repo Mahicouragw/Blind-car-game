@@ -505,6 +505,7 @@ export function bootApp(config = {}) {
       lapsCompleted: result.lapsCompleted,
       totalLaps: result.totalLaps,
       cleanLaps: result.cleanLaps,
+      grime: result.grime,
       bestLapTime: result.bestLapTime,
       totalTime: result.totalTime,
       levelId: level.id,

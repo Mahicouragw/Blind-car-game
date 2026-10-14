@@ -19,6 +19,7 @@ import {
 } from './save.js';
 import { coerceSettings, defaultSettings, setSetting } from '../a11y/settings.js';
 import { applyRewards, raceRewards, unlockedLevels } from '../race/levels.js';
+import { addGrime, garageCatalogue, purchase } from '../race/garage.js';
 import { CAR_IDS, carUnlockLevel, getCar } from '../vehicles/carCatalog.js';
 import { createStoryEngine, sanitizeName } from '../story/storyEngine.js';
 
@@ -135,6 +136,34 @@ export function createGameState(config = {}) {
      * Record a validated race result: rewards, level-ups, unlocks, best times.
      * The result must come from raceState.js, never from a guess.
      */
+    /**
+     * Spend coins in the garage. Prices, refusals and the spoken reply all come
+     * from the pure garage module; this only persists the outcome.
+     */
+    garagePurchase(itemId) {
+      const outcome = purchase(save, itemId);
+      if (outcome.ok) {
+        save = { ...outcome.profile };
+        api.persist();
+      }
+      bus.emit('garage:purchase', { itemId, ok: outcome.ok, reason: outcome.reason ?? null, message: outcome.message, save });
+      return outcome;
+    },
+
+    /** What the garage screen shows: everything for sale, and what is owned. */
+    garageView() {
+      return garageCatalogue(save);
+    },
+
+    /** Add the grime that off-track laps left on the car. Cosmetic, clamped. */
+    addGrime(amount) {
+      if (!(amount > 0)) return save;
+      save = addGrime(save, amount);
+      api.persist();
+      bus.emit('garage:grime', { grime: save.grime });
+      return save;
+    },
+
     recordRaceResult(result) {
       const rewards = raceRewards(result);
       const applied = applyRewards(save, rewards);
@@ -148,6 +177,8 @@ export function createGameState(config = {}) {
       }
       save.racesStarted = (save.racesStarted ?? 0) + 1;
       if (result.finished) save.racesFinished = (save.racesFinished ?? 0) + 1;
+      // Laps spent on the grass dirty the paint; the garage sells the wash.
+      if (result.grime > 0) save = addGrime(save, result.grime);
       save.raceResult = {
         position: result.position,
         laps: result.lapsCompleted,

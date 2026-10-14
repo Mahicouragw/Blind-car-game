@@ -39,6 +39,7 @@ import {
   toKph,
   withPace,
 } from '../vehicles/physics.js';
+import { tyreGrip } from './garage.js';
 import { intToWords, paceScale, raceLapsFor } from '../a11y/settings.js';
 import { createAiDriver, separateRacers, updateAiDriver } from '../vehicles/ai.js';
 import {
@@ -180,6 +181,7 @@ export function createRaceScreen(config) {
     finished: false,
     aborted: false,
     collisions: 0,
+    grime: 0,
     cleanLaps: 0,
     lapWasClean: true,
     started: false,
@@ -220,6 +222,9 @@ export function createRaceScreen(config) {
   const DIRECTION_ENTER_DEG = 30;
   const DIRECTION_EXIT_DEG = 18;
   const DIRECTION_COOLDOWN_MS = 2600;
+  /** Grime gained per second off the racing surface. Four seconds of grass is
+   *  roughly one noticeable step, so a couple of excursions per race shows. */
+  const GRIME_PER_SECOND = 0.045;
   const DIRECTION_MIN_SPEED_KPH = 8;
 
   // ------------------------------------------------------------- countdown
@@ -445,6 +450,13 @@ export function createRaceScreen(config) {
     const input = drivingInput.update(dt);
     const surf = resolveSurface(track, vehicle.x, vehicle.z);
 
+    // Grass and gravel are what actually dirty a car, so grime builds from real
+    // seconds spent off the racing surface. Kerbs do not count - clipping an apex
+    // is normal racing. Bounded so a long race cannot fill the bar in one go.
+    if (surf.surface === 'grass' || surf.surface === 'gravel') {
+      S.grime = Math.min(0.34, S.grime + dt * GRIME_PER_SECOND);
+    }
+
     // U-turn request: only where the track allows it. Never a teleport - it is
     // a real steering input held for a moment.
     let steer = input.steer;
@@ -468,7 +480,10 @@ export function createRaceScreen(config) {
 
     stepVehicle(vehicle, { throttle: input.throttle, brake: input.brake, steer }, pacedCar, dt, {
       surface: surf.surface,
-      gripMultiplier: level.gripMultiplier ?? 1,
+      // The level's grip, times the grip of the tyres actually fitted. Tyres are
+      // bought in the garage, so this is the one place where spending coins
+      // changes how the car drives. Opponents keep the level's grip alone.
+      gripMultiplier: (level.gripMultiplier ?? 1) * tyreGrip(config.gameState?.save),
       steeringAssist: level.steeringAssist ?? 0,
     });
 
@@ -745,6 +760,7 @@ export function createRaceScreen(config) {
         levelId: level.id,
         collisions: S.collisions,
         cleanLaps: S.cleanLaps,
+        grime: S.grime,
       });
     }, 2200);
   }
