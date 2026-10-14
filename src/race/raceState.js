@@ -130,6 +130,11 @@ export function updateRacer(race, id, pose) {
   // crossing it backwards: both look like a wrap. Heading settles it, which is
   // why reversing over the line cannot bank a lap.
   const headingError = pose.heading === undefined ? 0 : wrapPi(pose.heading - near.heading);
+  // Exposed so the race screen can tell the player which way the car is actually
+  // pointing. It is the signed angle between the car's heading and the track's
+  // direction, so positive means left of the racing line (increasing heading is
+  // left in this model) and negative means right.
+  racer.headingError = headingError;
   const facingTrackWay = Math.cos(headingError) > 0;
   racer.wrongWay = !facingTrackWay || delta < -0.05;
   if (!facingTrackWay) {

@@ -514,6 +514,44 @@ export function createAudio(config = {}) {
     },
 
     /**
+     * A crash, built by LAYERING several recorded files.
+     *
+     * The single Kenney impact samples are short thuds: they read as a knock, not
+     * as a car hitting a barrier, and a player cannot reliably tell "I have hit
+     * something" from them at racing volume over an engine. Layering is not
+     * synthesis - every layer here is a real recording, played at its own rate and
+     * gain on a small delay - and it produces the two-part sound a real impact
+     * makes: a low body thud followed by the sharp brittle sound of glass and
+     * metal. That two-part shape is what makes impact recognisable by ear.
+     *
+     * @param {number} severity 0..1, from the impact speed
+     */
+    crash(severity = 0.5) {
+      const s = clamp(severity, 0, 1);
+      const jitter = () => 0.94 + Math.random() * 0.12;
+      // Body: the heavy thud. Always present.
+      api.play(s > 0.55 ? 'barrier-heavy' : 'barrier-medium', {
+        group: 'sfx',
+        volume: 0.55 + s * 0.45,
+        rate: jitter(),
+      });
+      // Debris: brittle, sharp, slightly late. This is the layer that makes it a
+      // crash rather than a bump.
+      if (s > 0.25) {
+        api.play('glass-light', { group: 'sfx', volume: 0.3 + s * 0.5, rate: 0.9 * jitter(), delay: 0.035 });
+      }
+      // Metal on metal, a touch later again.
+      if (s > 0.4) {
+        api.play('metal-click', { group: 'sfx', volume: 0.25 + s * 0.35, rate: 0.82 * jitter(), delay: 0.075 });
+      }
+      // A very heavy hit gets a second, darker thud underneath for weight.
+      if (s > 0.75) {
+        api.play('barrier-heavy', { group: 'sfx', volume: 0.5, rate: 0.7 * jitter(), delay: 0.02 });
+      }
+      return true;
+    },
+
+    /**
      * Full-length music beds, crossfaded.
      *
      * One track at a time on the `music` bus, so the settings volume and the

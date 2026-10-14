@@ -190,6 +190,14 @@ export const SETTINGS_SCHEMA = {
     help: 'How many laps a race runs. Race default keeps the distance each race was designed for. The race start announcement always says the true number of laps, whichever you choose.',
     announce: (v) => RACE_LENGTH.find((f) => f.id === v)?.label ?? v,
   },
+  speakDirection: {
+    type: 'boolean',
+    default: true,
+    label: 'Spoken direction',
+    options: ON_OFF,
+    help: 'Says Going forward, Going left or Going right as the car turns, so you can tell which way you are pointing without looking. It only speaks when the direction changes, not continuously.',
+    announce: (v) => (v ? 'On' : 'Off'),
+  },
   speakThrottle: {
     type: 'boolean',
     default: true,

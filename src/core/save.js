@@ -14,6 +14,7 @@ import { DEFAULT_STORY_STATE, sanitizeName } from '../story/storyEngine.js';
 import { coerceSettings, defaultSettings } from '../a11y/settings.js';
 import { levelForXp, XP_THRESHOLDS } from '../race/levels.js';
 import { CAR_IDS as _IDS, carUnlockLevel as _unlockLevel } from '../vehicles/carCatalog.js';
+import { TYRE_TIERS } from '../race/garage.js';
 
 /** Unlock level for a car id; unknown cars are treated as unobtainable. */
 function carUnlockLevel(id) {
@@ -84,8 +85,24 @@ export function coerceSave(raw) {
   // Only cars that exist AND whose unlock level has genuinely been reached are
   // kept, so an edited save cannot grant a locked vehicle.
   const earned = asStringArray(raw.unlockedCars, CAR_IDS.length).filter((id) => CAR_IDS.includes(id) && carUnlockLevel(id) <= level);
-  const unlockedCars = earned.length ? earned : ['kestrel', 'metro-gt'];
+
+  // Cars bought with coins. Validated the same way as unlocked ones: only ids
+  // that exist are kept, so a hand-edited save cannot conjure a car that is not
+  // in the catalogue. Unlike level unlocks they are NOT filtered by level - the
+  // whole point of buying is to get a car sooner than the level would allow.
+  const boughtCars = asStringArray(raw.boughtCars, CAR_IDS.length).filter((id) => CAR_IDS.includes(id));
+  const owned = [...new Set([...earned, ...boughtCars])];
+
+  const unlockedCars = owned.length ? owned : ['kestrel', 'metro-gt'];
   const carId = CAR_IDS.includes(raw.carId) && unlockedCars.includes(raw.carId) ? raw.carId : unlockedCars[0];
+
+  // Tyre tier: an integer inside the catalogue's range, never a multiplier read
+  // straight from the file. A save claiming tier 99 must not turn the car into a
+  // machine with impossible grip.
+  const tyreTierStored = clampInt(raw.tyreTier, 0, TYRE_TIERS.length - 1, 0);
+
+  // Grime is cosmetic, so it is simply clamped.
+  const grime = Number.isFinite(raw.grime) ? Math.max(0, Math.min(1, raw.grime)) : 0;
   const achievements = asStringArray(raw.achievements, 200);
   const chaptersCompleted = [...new Set(asIntArray(raw.chaptersCompleted, 40, 1, 20))].sort((x, y) => x - y);
 
@@ -147,6 +164,9 @@ export function coerceSave(raw) {
     level,
     carId,
     unlockedCars,
+    boughtCars,
+    tyreTier: tyreTierStored,
+    grime,
     achievements,
     chaptersCompleted,
     currentNode: typeof raw.currentNode === 'string' && raw.currentNode.length <= 64 ? raw.currentNode : null,

@@ -29,6 +29,7 @@ import {
 } from '../world/trackside.js';
 import { buildCarMesh } from '../vehicles/carMesh.js';
 import {
+  clamp01,
   applyCollision,
   barrierDistance,
   createVehicleState,
@@ -159,6 +160,10 @@ export function createRaceScreen(config) {
     lastHolding: false,
     lastReversing: false,
     lastThrottleSay: -99,
+    direction: null,
+    lastDirectionSay: -99,
+    recoverIn: 0,
+    recoveries: 0,
     countdown: 3.999,
     countdownStep: 3,
     running: false,
@@ -197,9 +202,67 @@ export function createRaceScreen(config) {
   const GRID_MIN_WAIT = 0.8;
   const GRID_MAX_WAIT = 26;
 
+  /**
+   * Spoken direction.
+   *
+   * The car is "going forward" when it is pointing along the racing line, "going
+   * left" or "going right" when it is meaningfully angled off it, and "going
+   * backward" when it is reversed. Derived from `race.player.headingError`, the
+   * signed angle between the car's heading and the track direction that the
+   * wrong-way guard already computes - so this reports real geometry, never a
+   * guess, and can never claim a turn the car did not make.
+   *
+   * Hysteresis matters: without it, a car drifting across the threshold in a
+   * corner would announce its direction over and over. LEAVING a direction needs
+   * a smaller angle than ENTERING one, so the state can only change on a real
+   * change of direction, and a hard cooldown stops any remaining chatter.
+   */
+  const DIRECTION_ENTER_DEG = 30;
+  const DIRECTION_EXIT_DEG = 18;
+  const DIRECTION_COOLDOWN_MS = 2600;
+  const DIRECTION_MIN_SPEED_KPH = 8;
+
   // ------------------------------------------------------------- countdown
   function say(text, opts = {}) {
     speech?.say(text, opts);
+  }
+
+  /**
+   * Deliver a short cue EXACTLY ONCE.
+   *
+   * Where a recorded human sample exists - the countdown numbers, Ready, Go, the
+   * finish lines - it is used INSTEAD of device speech synthesis rather than as
+   * well as it. Playing both is what made every count number audible twice in two
+   * different voices; a listener cannot tell that the two voices are meant to be
+   * one announcement, so it reads as the game repeating itself.
+   *
+   * The recorded sample wins because it is a real recording and it cannot fail to
+   * load the way a device voice can; synthesis is the fallback, so guidance still
+   * arrives on a device with no audio support. The text is mirrored to the caption
+   * area either way.
+   *
+   * @param {string} text what to say if the sample is unavailable
+   * @param {string|null} voiceName manifest key of the recorded sample
+   * @param {object} [opts] speech options
+   */
+  function cue(text, voiceName, opts = {}) {
+    const settings = gameState?.settings ?? {};
+    const speechWouldSpeak = settings.talkback !== false || opts.essential;
+    if (!speechWouldSpeak) return false;
+
+    const volume = Number.isFinite(settings.speechVolume) ? settings.speechVolume : 1;
+    const hasSample = !!voiceName && audio?.ready && audio.buffers?.has(voiceName);
+    if (hasSample && volume > 0) {
+      speech?.mirror?.(text);
+      audio.play(voiceName, { group: 'voice', volume: clamp01(volume) });
+      return true;
+    }
+    if (volume <= 0) {
+      speech?.mirror?.(text);
+      return false;
+    }
+    say(text, opts);
+    return true;
   }
 
   /**
@@ -232,7 +295,7 @@ export function createRaceScreen(config) {
     S.countdown = 3.999;
     S.countdownStep = 4;
     setStartLights(gantry.lights, 0, false);
-    audio?.play('voice-ready', { group: 'voice' });
+    cue('Ready.', 'voice-ready', { priority: SPEECH_PRIORITY.CRITICAL, essential: true, cooldownMs: 0 });
     updateHud();
   }
 
@@ -245,17 +308,20 @@ export function createRaceScreen(config) {
       // event, so the audio and visual start can never drift apart.
       setStartLights(gantry.lights, step === 0 ? 5 : 3 - step + 1, step === 0);
       if (step > 0) {
-        say(step === 3 ? 'Three' : step === 2 ? 'Two' : 'One', {
+        cue(step === 3 ? 'Three' : step === 2 ? 'Two' : 'One', `voice-${step}`, {
           priority: SPEECH_PRIORITY.CRITICAL,
           cooldownMs: 0,
           interrupt: true,
           essential: true,
           key: `count.${step}`,
         });
-        audio?.play(`voice-${step}`, { group: 'voice' });
       } else {
-        say('Go!', { priority: SPEECH_PRIORITY.CRITICAL, cooldownMs: 0, interrupt: true, essential: true });
-        audio?.play('voice-go', { group: 'voice' });
+        cue('Go!', 'voice-go', {
+          priority: SPEECH_PRIORITY.CRITICAL,
+          cooldownMs: 0,
+          interrupt: true,
+          essential: true,
+        });
       }
       hud.countdownEl.textContent = step === 0 ? 'GO' : String(step);
       hud.countdownEl.hidden = false;
@@ -321,6 +387,60 @@ export function createRaceScreen(config) {
     });
   }
 
+  /**
+   * Announce the direction the car is pointing, once per real change.
+   *
+   * Positive headingError is left of the racing line, negative is right, because
+   * increasing heading is left in this model. Reversed counts as backward before
+   * any angle is considered - a car travelling backwards is going backwards no
+   * matter which way its nose points.
+   */
+  function announceDirection() {
+    if (gameState?.settings?.speakDirection === false) return;
+    const speedKph = Math.abs(toKph(vehicle.speed));
+    const reversing = !!drivingInput?.state?.reversing || vehicle.speed < -0.5;
+    const errDeg = ((race.player.headingError ?? 0) * 180) / Math.PI;
+
+    const previous = S.direction;
+    let next;
+    if (reversing) {
+      next = 'backward';
+    } else if (previous === 'left') {
+      next = errDeg > DIRECTION_EXIT_DEG ? 'left' : errDeg < -DIRECTION_ENTER_DEG ? 'right' : 'forward';
+    } else if (previous === 'right') {
+      next = errDeg < -DIRECTION_EXIT_DEG ? 'right' : errDeg > DIRECTION_ENTER_DEG ? 'left' : 'forward';
+    } else if (errDeg > DIRECTION_ENTER_DEG) {
+      next = 'left';
+    } else if (errDeg < -DIRECTION_ENTER_DEG) {
+      next = 'right';
+    } else {
+      next = 'forward';
+    }
+
+    if (next === previous) return;
+    // A stationary car has no useful direction to report, and the car is jostled
+    // around on the grid and while being respawned.
+    if (speedKph < DIRECTION_MIN_SPEED_KPH && next !== 'backward') {
+      S.direction = next;
+      return;
+    }
+    if (S.elapsed - S.lastDirectionSay < DIRECTION_COOLDOWN_MS / 1000) return;
+
+    S.direction = next;
+    S.lastDirectionSay = S.elapsed;
+    const words = {
+      forward: 'Going forward.',
+      left: 'You are going left.',
+      right: 'You are going right.',
+      backward: 'Going backward.',
+    };
+    say(words[next], {
+      priority: SPEECH_PRIORITY.NORMAL,
+      key: 'direction',
+      cooldownMs: DIRECTION_COOLDOWN_MS,
+    });
+  }
+
   function stepPlayer(dt) {
     const input = drivingInput.update(dt);
     const surf = resolveSurface(track, vehicle.x, vehicle.z);
@@ -362,10 +482,20 @@ export function createRaceScreen(config) {
         S.collisions++;
         S.lapWasClean = false;
         const hard = res.impactSpeed > 14;
-        audio?.play(hard ? 'barrier-heavy' : res.impactSpeed > 7 ? 'barrier-medium' : 'barrier-light', {
-          group: 'sfx',
-          volume: Math.min(1, res.impactSpeed / 18),
-        });
+        const severity = Math.min(1, res.impactSpeed / 18);
+        // A layered crash - body thud plus brittle debris - reads as a car hitting
+        // a barrier. A single short impact sample read as a knock and was easy to
+        // miss over the engine.
+        if (audio?.crash) audio.crash(severity);
+        else audio?.play('barrier-medium', { group: 'sfx', volume: severity });
+
+        // Come back automatically. Leaving a player stopped against a barrier with
+        // no visible cue is a dead end, so a solid hit schedules a return to the
+        // racing line: announced, at a modest speed, with the car in full working
+        // order. The delay lets the crash be felt before the car is moved.
+        if (res.impactSpeed > 9 && S.phase === RACE_PHASE.RACING) {
+          S.recoverIn = Math.min(S.recoverIn > 0 ? S.recoverIn : 1.1, 1.1);
+        }
         navigator.vibrate?.(gameState?.settings?.haptics ? (hard ? [60, 30, 90] : 45) : 0);
         say(hard ? 'Heavy barrier contact. Check your speed.' : 'Barrier contact.', {
           priority: SPEECH_PRIORITY.CRITICAL,
@@ -399,7 +529,10 @@ export function createRaceScreen(config) {
         if (res.impacted && res.impactSpeed > 2.5) {
           S.collisions++;
           S.lapWasClean = false;
-          audio?.play('barrier-light', { group: 'sfx', volume: 0.7 });
+          // A lighter version of the same layered crash, so a car-to-car hit is
+          // recognisable as a hit without being as loud as the barrier.
+          if (audio?.crash) audio.crash(Math.min(0.5, res.impactSpeed / 14));
+          else audio?.play('barrier-light', { group: 'sfx', volume: 0.7 });
           navigator.vibrate?.(gameState?.settings?.haptics ? 30 : 0);
           say(`Contact with ${other.name}.`, { priority: SPEECH_PRIORITY.HIGH, key: 'carContact', cooldownMs: 2200, interrupt: true });
         }
@@ -407,6 +540,32 @@ export function createRaceScreen(config) {
     }
 
     // --- off-track recovery ---
+    // ------------------------------------------------- automatic post-crash return
+    // A car left wedged against a barrier cannot be recovered by a player who
+    // cannot see where the wall is, so a significant hit returns it to the racing
+    // line by itself. This is deliberately generous: it is a recovery, not a
+    // penalty, and the car comes back fully working.
+    if (S.recoverIn > 0 && S.phase === RACE_PHASE.RACING) {
+      S.recoverIn -= dt;
+      if (S.recoverIn <= 0) {
+        S.recoverIn = 0;
+        S.recoveries += 1;
+        respawnOnTrack(vehicle, track, surf.near.s, { speed: 10 });
+        drivingInput?.reset?.();
+        S.direction = null;
+        S.offTrackTimer = 0;
+        S.recoveryOffered = false;
+        say('Repaired and back on the racing line. Carry on.', {
+          priority: SPEECH_PRIORITY.CRITICAL,
+          interrupt: true,
+          essential: true,
+          key: 'repaired',
+          cooldownMs: 1500,
+        });
+        audio?.play('ui-confirm', { group: 'sfx', volume: 0.5 });
+      }
+    }
+
     if (surf.offTrack) {
       S.offTrackTimer += dt;
       const limit = level.respawnGraceS ?? 3.5;
@@ -539,13 +698,39 @@ export function createRaceScreen(config) {
     const results = buildResults(race);
     const mine = results.find((r) => r.isPlayer);
     const pos = mine?.position ?? race.player.position;
-    audio?.play(pos === 1 ? 'voice-you-win' : 'voice-congratulations', { group: 'voice' });
-    say(director.finished(pos, results.length, formatTimeSpoken(race.player.finishTime)).text, {
-      priority: SPEECH_PRIORITY.CRITICAL,
-      interrupt: true,
-      essential: true,
-      cooldownMs: 0,
-    });
+    // The recorded victory line and the placed result are BOTH wanted - one is
+    // the human voice the brief asked for, the other is the information - but
+    // playing them together is the same duplication bug as the countdown. So they
+    // are sequenced: the sample first, then the result once it has finished. The
+    // sample's real decoded duration is used rather than a guessed delay.
+    const resultText = director.finished(pos, results.length, formatTimeSpoken(race.player.finishTime)).text;
+    const victorySample = pos === 1 ? 'voice-you-win' : 'voice-congratulations';
+    const sampleSeconds = audio?.buffers?.get?.(victorySample)?.duration ?? 0;
+    const speakResult = (delayMs = 0) => {
+      if (delayMs <= 0) {
+        say(resultText, { priority: SPEECH_PRIORITY.CRITICAL, interrupt: true, essential: true, cooldownMs: 0 });
+        return;
+      }
+      // Guarded on S.running: a player who leaves during the sample must not have
+      // the result announced over the menu.
+      setTimeout(() => {
+        if (!S.running) return;
+        say(resultText, { priority: SPEECH_PRIORITY.CRITICAL, interrupt: true, essential: true, cooldownMs: 0 });
+      }, delayMs);
+    };
+    const canPlaySample =
+      gameState?.settings?.talkback !== false &&
+      (gameState?.settings?.speechVolume ?? 1) > 0 &&
+      audio?.ready &&
+      audio.buffers?.has(victorySample) &&
+      sampleSeconds > 0;
+    if (canPlaySample) {
+      speech?.mirror?.(resultText);
+      audio.play(victorySample, { group: 'voice', volume: clamp01(gameState.settings.speechVolume ?? 1) });
+      speakResult(Math.min(5000, Math.round(sampleSeconds * 1000) + 300));
+    } else {
+      speakResult(0);
+    }
     setTimeout(() => {
       onFinish?.({
         results,
@@ -682,6 +867,7 @@ export function createRaceScreen(config) {
     });
     audio.skid.update(vehicle.skidLevel ?? 0);
     announceDriveInput();
+    announceDirection();
     if (S.phase === RACE_PHASE.RACING && S.frames % 90 === 0 && vehicle.gear !== S.lastGear) {
       // No dedicated gear-change recording exists; a recorded metal click is
       // used instead and that substitution is listed in docs/AUDIO-CREDITS.md.

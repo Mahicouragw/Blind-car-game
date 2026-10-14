@@ -234,6 +234,21 @@ export function createSpeech(config = {}) {
      * @param {string} text
      * @param {object} [opts] priority, key, cooldownMs, interrupt, essential, concise
      */
+    /**
+     * Show a line in the caption area WITHOUT speaking it.
+     *
+     * Some cues are delivered as recorded human samples rather than synthesis -
+     * the countdown numbers, Ready, Go and the finish lines. Those used to be
+     * spoken as well, which made every count number audible twice in two different
+     * voices. When the sample is the delivery, this keeps the text visible and
+     * available to assistive technology without a second voice saying it.
+     */
+    mirror(text) {
+      if (!text) return false;
+      pushToLiveRegion(text);
+      return true;
+    },
+
     say(text, opts = {}) {
       if (!text) return false;
       const chunks = splitForSpeech(text);

@@ -129,17 +129,81 @@ export function buildCarMesh(car, opts = {}) {
   const body = new THREE.Group();
   body.name = 'body';
 
-  const tub = new THREE.Mesh(new THREE.BoxGeometry(W, baseY + 0.34, L), bodyMat);
+  /**
+   * Build a frustum with independent top/bottom width AND length, which the
+   * cylinder primitive cannot express on its own: it is a single radius per end.
+   * Scaling x and z after construction gives the two independent tapers.
+   */
+  function buildTaperedBox(bodyW, bodyL, height, topScaleW, topScaleL, mat = bodyMat) {
+    const geo = new THREE.CylinderGeometry(1, 1, 1, 4, 1);
+    geo.rotateY(Math.PI / 4);
+    const pos = geo.attributes.position;
+    for (let i = 0; i < pos.count; i += 1) {
+      const y = pos.getY(i);
+      const top = y > 0;
+      const sx = top ? topScaleW : 1;
+      const sz = top ? topScaleL : 1;
+      pos.setX(i, pos.getX(i) * (bodyW / 2) * Math.SQRT2 * sx);
+      pos.setZ(i, pos.getZ(i) * (bodyL / 2) * Math.SQRT2 * sz);
+      pos.setY(i, y * height);
+    }
+    pos.needsUpdate = true;
+    geo.computeVertexNormals();
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.castShadow = shadows;
+    mesh.receiveShadow = shadows;
+    return mesh;
+  }
+
+  // Lower hull, very slightly narrower at the top.
+  const tub = buildTaperedBox(W, L, baseY + 0.34, 0.99, 0.99);
   tub.position.set(0, (baseY + 0.34) / 2 + 0.16, 0);
-  tub.castShadow = shadows;
-  tub.receiveShadow = shadows;
   body.add(tub);
 
+  // Nose cone: tapers forward and downward, which is the single strongest cue
+  // that this is a car rather than a crate.
+  const noseLength = L * 0.16;
+  const nose = buildTaperedBox(W * 0.86, noseLength, baseY + 0.3, 0.72, 0.55);
+  nose.position.set(0, (baseY + 0.3) / 2 + 0.12, -L / 2 - noseLength / 2 + 0.02);
+  body.add(nose);
+
+  // Tail: a shorter, blunter taper, like a boot lid.
+  const tailLength = L * 0.11;
+  const tail = buildTaperedBox(W * 0.9, tailLength, baseY + 0.3, 0.86, 0.7);
+  tail.position.set(0, (baseY + 0.3) / 2 + 0.12, L / 2 + tailLength / 2 - 0.02);
+  body.add(tail);
+
   const shoulderY = baseY + 0.5 + 0.24 - shape.bonnetDrop * 0.5;
-  const shoulder = new THREE.Mesh(new THREE.BoxGeometry(W * 0.98, 0.48, L * 0.94), bodyMat);
+  const shoulder = buildTaperedBox(W * 0.98, L * 0.94, 0.48, 0.94, 0.9);
   shoulder.position.set(0, shoulderY, -L * 0.01);
-  shoulder.castShadow = shadows;
   body.add(shoulder);
+
+  // Wheel arches: four flared guards over the wheels. Without these the wheels
+  // look bolted to the outside of a box.
+  const archFlare = shape.wheels.width * 0.5;
+  for (const [ax, az] of [
+    [-shape.wheels.track / 2, -shape.wheels.wheelbase / 2],
+    [shape.wheels.track / 2, -shape.wheels.wheelbase / 2],
+    [-shape.wheels.track / 2, shape.wheels.wheelbase / 2],
+    [shape.wheels.track / 2, shape.wheels.wheelbase / 2],
+  ]) {
+    const arch = new THREE.Mesh(
+      new THREE.BoxGeometry(archFlare, 0.22, shape.wheels.radius * 2.5),
+      trimMat
+    );
+    arch.position.set(ax + Math.sign(ax) * (archFlare * 0.18), baseY + 0.1, az);
+    arch.castShadow = shadows;
+    body.add(arch);
+  }
+
+  // Side sills along the bottom of both flanks, which close the gap between the
+  // arches and stop the profile reading as a floating slab.
+  for (const side of [-1, 1]) {
+    const sill = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.16, L * 0.56), trimMat);
+    sill.position.set(side * (W / 2 + 0.03), baseY + 0.06, 0);
+    sill.castShadow = shadows;
+    body.add(sill);
+  }
 
   // Bonnet and deck, dropped slightly to give a real three-box or two-box read.
   const bonnet = new THREE.Mesh(new THREE.BoxGeometry(W * 0.92, 0.16, L * 0.3), bodyMat);
@@ -157,6 +221,36 @@ export function buildCarMesh(car, opts = {}) {
   cabin.castShadow = shadows;
   cabin.name = 'cabin';
   body.add(cabin);
+
+  // Raked windscreen and rear window. A vertical box for the greenhouse is the
+  // other half of why the cars read as boxes; real glass leans. These are thin
+  // panes laid over the front and back faces at an angle.
+  const cabinTopY = cabinY + shape.cabinHeight / 2;
+  const cabinBottomY = cabinY - shape.cabinHeight / 2;
+  const halfCabLen = shape.cabinLength / 2;
+  for (const [dir, scale] of [[-1, 0.72], [1, 0.55]]) {
+    const paneLen = shape.cabinLength * 0.55;
+    const pane = new THREE.Mesh(
+      new THREE.BoxGeometry(W - shape.cabinInset * 2 - 0.04, 0.05, paneLen),
+      glassMat
+    );
+    const lean = dir * (1 - scale) * shape.cabinHeight * 0.9;
+    pane.position.set(0, (cabinTopY + cabinBottomY) / 2, shape.cabinOffset + dir * (halfCabLen - paneLen / 2 + 0.02));
+    pane.rotation.x = dir * 0.62;
+    pane.translateZ(lean * 0.35);
+    pane.castShadow = shadows;
+    body.add(pane);
+  }
+
+  // Wing mirrors, one per side. Small, but their absence is noticeable.
+  for (const side of [-1, 1]) {
+    const stalk = new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.04, 0.05), trimMat);
+    stalk.position.set(side * (W / 2 - 0.02), cabinY - shape.cabinHeight * 0.22, shape.cabinOffset - halfCabLen * 0.5);
+    body.add(stalk);
+    const glass = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.1, 0.15), glassMat);
+    glass.position.set(side * (W / 2 + 0.06), cabinY - shape.cabinHeight * 0.1, shape.cabinOffset - halfCabLen * 0.5);
+    body.add(glass);
+  }
 
   const roof = new THREE.Mesh(new THREE.BoxGeometry(W - shape.cabinInset * 2 - 0.06, 0.1, shape.cabinLength * 0.92), bodyMat);
   roof.position.set(0, cabinY + shape.cabinHeight / 2 + 0.03, shape.cabinOffset);
