@@ -206,11 +206,22 @@ export function createScreenManager(config) {
     const title = screen.title ?? 'Screen';
     const summary = screen.summary ? ` ${screen.summary}` : '';
     const count = screen.focusRing?.count;
-    const howMany = count ? ` ${count} options. Swipe up or down to move between them, single tap to activate.` : '';
+    // Say how to leave, using the screen's own labels so this can never claim a
+    // Back option that is not there. "I do not know how to get back" is the one
+    // thing a player must never have to guess.
+    const items = screen.focusItems ?? [];
+    const backItem = items.find((i) => /^back/i.test(String(i.label ?? '').trim()));
+    const howMany = count
+      ? ` ${count} options. Swipe up or down to move between them, single tap to activate.${
+          backItem ? ` To leave, swipe to ${backItem.label.split('.')[0]}, or press Escape.` : ' Press Escape to leave.'
+        }`
+      : '';
     // The screen's own description is always spoken, and it is marked essential
     // so a player who has turned Game TalkBack off still learns where they are
     // and how to turn it back on.
-    speech?.say(`${title}.${summary}${howMany}`, { priority: 3, essential: true, cooldownMs: 0, interrupt: true });
+    // hardInterrupt: arriving on a screen must always be heard. Without it the
+    // announcement queued behind whatever the previous screen was still saying.
+    speech?.say(`${title}.${summary}${howMany}`, { priority: 3, essential: true, cooldownMs: 0, interrupt: true, hardInterrupt: true });
   }
 
   const api = {
@@ -225,6 +236,10 @@ export function createScreenManager(config) {
     },
 
     mount(screen, opts = {}) {
+      // NOTE: the queue is deliberately NOT cleared here. A screen speaks as it
+      // is BUILT, before it is mounted, so clearing at mount time threw away the
+      // new screen's own opening lines. Ending the previous screen's narration is
+      // the caller's job and happens in main.js before the screen is built.
       if (current && !opts.replace) {
         current.suspend?.();
         stack.push(current);
@@ -249,6 +264,7 @@ export function createScreenManager(config) {
         speech?.say('There is nothing to go back to.', { priority: 2, essential: true });
         return null;
       }
+      speech?.stop?.();
       current?.destroy?.();
       host.textContent = '';
       current = prev;

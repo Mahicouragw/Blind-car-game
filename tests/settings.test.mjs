@@ -173,6 +173,108 @@ test('equal priority is spoken oldest first', () => {
   assert.equal(q.take().text, 'first');
 });
 
+test('a repeated state announcement queues once, not sixty times', () => {
+  // The bug this exists for: a driving announcement is offered every animation
+  // frame, and the per-key cooldown only knew about messages already SPOKEN.
+  // Sixty frames of "You are going left" queued twelve identical copies, and the
+  // player then heard the car going left for half a minute while it was going
+  // right. Latest wins now.
+  const { q, tick } = queue();
+  for (let frame = 0; frame < 60; frame++) {
+    q.offer({ text: 'You are going left.', priority: SPEECH_PRIORITY.NORMAL, key: 'direction', cooldownMs: 2600, ttlMs: 3000 });
+    tick(16);
+  }
+  assert.equal(q.pendingCount, 1, 'sixty frames of the same call must leave one message, not a backlog');
+
+  // And the newest state wins: the car turned right, so that is what is said.
+  tick(100);
+  q.offer({ text: 'You are going right.', priority: SPEECH_PRIORITY.NORMAL, key: 'direction', cooldownMs: 0, ttlMs: 3000 });
+  assert.equal(q.pendingCount, 1);
+  assert.equal(q.take().text, 'You are going right.', 'the stale direction must be replaced, not queued behind');
+  assert.ok(q.stats.replaced >= 1, 'the replacement is counted');
+});
+
+test('different keys are not collapsed into each other', () => {
+  const { q } = queue();
+  q.offer({ text: 'corner warning', priority: 3, key: 'corner' });
+  q.offer({ text: 'car alongside', priority: 3, key: 'opponent' });
+  q.offer({ text: 'corner warning', priority: 3, key: 'corner' });
+  assert.equal(q.pendingCount, 2, 'only messages sharing a key replace each other');
+});
+
+test('a message that waited too long is dropped instead of spoken late', () => {
+  const { q, tick } = queue();
+  q.offer({ text: 'You are going left.', priority: 2, key: 'direction', ttlMs: 1000 });
+  // Something long plays first; by the time the queue is free the moment passed.
+  q.offer({ text: 'a very long story passage', priority: 4, essential: true });
+  assert.equal(q.take().text, 'a very long story passage');
+  tick(5000);
+  q.finish();
+  assert.equal(q.take(), null, 'the stale direction must not be delivered five seconds late');
+  assert.equal(q.stats.droppedStale, 1, 'and it is counted as stale, not as spoken');
+});
+
+test('the shelf life defaults by priority: state expires long before safety', () => {
+  const { q, tick } = queue();
+  q.offer({ text: 'going left', priority: SPEECH_PRIORITY.NORMAL, key: 'dir' });
+  q.offer({ text: 'you are off the track', priority: SPEECH_PRIORITY.CRITICAL, key: 'off', essential: true });
+  assert.equal(q.take().text, 'you are off the track');
+  tick(6000);
+  q.finish();
+  assert.equal(q.take(), null, 'a NORMAL driving line is stale after six seconds');
+
+  const b = queue();
+  b.q.offer({ text: 'you are off the track', priority: SPEECH_PRIORITY.CRITICAL, key: 'off', essential: true });
+  b.q.offer({ text: 'blocker', priority: SPEECH_PRIORITY.CRITICAL });
+  assert.equal(b.q.take().text.length > 0, true);
+  b.tick(6000);
+  b.q.finish();
+  assert.ok(b.q.take(), 'a CRITICAL safety message is still worth saying after six seconds');
+});
+
+test('a hard interrupt is reported regardless of priority', () => {
+  const { q } = queue();
+  assert.equal(q.shouldHardInterrupt(), false, 'nothing queued');
+  // Equal priority: shouldInterrupt() says no, shouldHardInterrupt() says yes.
+  // This is the difference between a story passage queueing behind the last one
+  // and a story passage cutting it off.
+  q.offer({ text: 'first passage', priority: 4, essential: true });
+  q.take();
+  q.offer({ text: 'second passage', priority: 4, essential: true, interrupt: true });
+  assert.equal(q.shouldInterrupt(), false, 'priority 4 cannot preempt priority 4');
+  assert.equal(q.shouldHardInterrupt(), false, 'and plain interrupt does not change that');
+  // hardInterrupt is the explicit escape hatch that does.
+  q.offer({ text: 'third passage', priority: 4, essential: true, hardInterrupt: true });
+  assert.equal(q.shouldHardInterrupt(), true, 'a hard interrupt cuts through whatever is speaking');
+  assert.equal(q.pendingCount, 2, 'different keys are still separate messages');
+
+  // With a key it replaces instead, which is what keeps a story passage from
+  // stacking up behind the one the player has already moved past.
+  const p = queue();
+  p.q.offer({ text: 'beat one', priority: 4, essential: true, key: 'storyBeat', cooldownMs: 0 });
+  p.q.offer({ text: 'beat two', priority: 4, essential: true, key: 'storyBeat', cooldownMs: 0 });
+  p.q.offer({ text: 'beat three', priority: 4, essential: true, key: 'storyBeat', cooldownMs: 0 });
+  assert.equal(p.q.pendingCount, 1, 'three taps leave one beat to read, not three');
+  assert.equal(p.q.take().text, 'beat three', 'and it is the beat being looked at');
+});
+
+test('the chunks of one passage never replace each other', () => {
+  // A long passage is spoken sentence by sentence, all sharing one group. An
+  // earlier version of the replacement rule matched on the group alone, so each
+  // sentence removed the one before it and a six-sentence paragraph collapsed to
+  // its last sentence. Only a DIFFERENT reading of the group may replace.
+  const { q } = queue();
+  for (let i = 1; i <= 6; i++) {
+    q.offer({ text: `sentence ${i}`, priority: 4, essential: true, group: 'key:storyBeat', passageId: 1 });
+  }
+  assert.equal(q.pendingCount, 6, 'all six sentences of the passage survive');
+
+  // A new reading of the same key supersedes all six.
+  q.offer({ text: 'new beat', priority: 4, essential: true, key: 'storyBeat', group: 'key:storyBeat', passageId: 2 });
+  assert.equal(q.pendingCount, 1, 'the whole previous passage is replaced');
+  assert.equal(q.take().text, 'new beat');
+});
+
 test('nothing is taken while something is being spoken', () => {
   const { q } = queue();
   q.offer({ text: 'a' });

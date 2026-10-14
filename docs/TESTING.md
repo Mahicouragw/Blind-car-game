@@ -9,34 +9,34 @@ Where something could not be run in this environment, it is listed under
 ## Executed
 
 ```bash
-npm test          # 299 tests, 299 passing
+npm test          # 307 tests, 307 passing
 npm run validate  # track geometry gate
 npm run map       # regenerates docs/circuit-map.svg
 ```
 
-Last run: **299 tests, 299 pass, 0 fail**, Node v22.22.3, ~20 s.
+Last run: **307 tests, 307 pass, 0 fail**, Node v22.22.3, ~20 s.
 
 | File | Tests | Covers |
 | --- | --- | --- |
 | `tests/gestures.test.mjs` | 26 | Gesture recognizer, rules R1–R8 |
-| `tests/settings.test.mjs` | 38 | Settings state, coercion, the speech queue, speech chunking, Car pace, Race length |
+| `tests/settings.test.mjs` | 44 | Settings state, coercion, the speech queue, speech chunking, Car pace, Race length |
 | `tests/race.test.mjs` | 44 | Lap counting, checkpoints, race completion, positions, navigation, physics, AI, pace-scaled vehicle specs |
 | `tests/story.test.mjs` | 47 | Story branching, interview scoring, negotiation, saving, progression |
-| `tests/dom.smoke.test.mjs` | 22 | Boots the real game in jsdom and drives it with gesture events |
+| `tests/dom.smoke.test.mjs` | 24 | Boots the real game in jsdom and drives it with gesture events |
 | `tests/garage.test.mjs` | 21 | Pricing and every refusal path, tyre grip measured through the real physics step, save round-trip and tamper rejection, and grime reaching the car's materials |
 | `tests/publish.test.mjs` | 37 | Deployment safety: relative asset paths, the module graph, what the staged artefact does and does not contain, the dev server's path guard over a real socket, and the post-deploy verifier in both directions |
 | `tests/audio.test.mjs` | 26 | The audio mix against a fake Web Audio graph: ducking held for a whole utterance, engine response to rpm, load and road speed, lazy loading of the music beds, and per-track licence and attribution obligations |
 | `tests/music.test.mjs` | 16 | The music director: scene and chapter to track mapping, deliberate silence, settings interaction, and teardown |
 | `tests/integration.test.mjs` | 22 | **No mocks**: real touch events through the real recognizer, onto the real bus, into the real driving input. Holding applies throttle, releasing cuts it, a double tap brakes, dragging steers gradually, the wheel self-centres, swiping down reverses, a circle asks for a U-turn, menu gestures never touch the car, and pressEnd follows pressStart exactly once for every kind of press |
-| **Total** | **299** | |
+| **Total** | **307** | |
 
 `npm run validate` reports **"Track geometry OK."** — the lap closes to 0.070 m
 with exactly −360° of total turn, has no self-intersection, and keeps every pair
 of non-adjacent centre-line points at least 27 m apart.
 
 All logic modules are pure ES modules with no DOM, WebGL or Web Audio access at
-import time, which is why 277 of these tests run headless in Node with no
-browser. The remaining 22 run in **jsdom** (dev-only dependency).
+import time, which is why 283 of these tests run headless in Node with no
+browser. The remaining 24 run in **jsdom** (dev-only dependency).
 
 ---
 
@@ -206,6 +206,33 @@ car with its price, **charges the coins and makes the bought car selectable
 without a reload**, **refuses a purchase the player cannot afford without
 changing anything**, and never offers a car already owned or a wash with nothing
 to clean.
+
+### Announcement discipline — the queue — `tests/settings.test.mjs`
+
+The bug this exists for: a driving announcement is offered every animation frame,
+and the per-key cooldown only knew about messages already SPOKEN — pending copies
+were invisible to it. Sixty frames of "You are going left" queued **twelve
+identical copies**, and the player then heard the car going left for half a
+minute while it was actually going right. Now:
+
+- **Latest wins.** A newer message with the same key replaces the waiting one
+  instead of joining it. Sixty frames leave one message, and turning right
+  replaces a stale "going left".
+- **Different keys are not collapsed.** A corner warning and an opponent callout
+  both survive.
+- **Messages have a shelf life by priority.** A queued NORMAL driving line is
+  dropped after roughly five seconds rather than delivered late and wrong; a
+  CRITICAL safety message is still worth saying much later. A dropped-late
+  message is counted as stale, never as spoken.
+- **A hard interrupt cuts through regardless of priority.** Priority 4 cannot
+  preempt priority 4, which is how every story passage a player tapped past
+  stayed queued and was read out afterwards. `hardInterrupt` is the explicit
+  exception, and the check scans the whole queue rather than the head, because a
+  hard interrupt can be sitting behind an equal-priority item.
+- **The chunks of one passage never replace each other.** A passage is spoken
+  sentence by sentence sharing one group; only a DIFFERENT reading of that group
+  may replace. Getting this wrong collapsed a six-sentence paragraph to its last
+  sentence, which a test caught.
 
 ### The garage — `tests/garage.test.mjs`
 

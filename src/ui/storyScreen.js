@@ -64,6 +64,27 @@ export function buildStoryScreen(config) {
   choicesWrap.setAttribute('aria-label', 'Dialogue choices');
   root.appendChild(choicesWrap);
 
+  // A way out, on every story screen.
+  //
+  // The story screen had NO back control at all: it offered only the scene's own
+  // choices, so on a touch device a player who wanted to leave the story could
+  // not, and nothing told them how. Escape worked on a keyboard and that was it.
+  // This is always the last option, always announced, and leaving keeps progress.
+  const leaveBtn = makeButton({
+    label: 'Back to the menu',
+    hint: 'Leaves the story where it is. Your place and progress are kept.',
+    onActivate: () => {
+      audio?.play('ui-back', { group: 'sfx', volume: 0.55 });
+      speech?.say('Left the story. Your progress is saved. Back at the menu.', { priority: 3, essential: true, hardInterrupt: true });
+      screens.back();
+    },
+  });
+  function addLeaveButton() {
+    if (storyButtons.includes(leaveBtn)) return;
+    choicesWrap.appendChild(leaveBtn.element);
+    storyButtons.push(leaveBtn);
+  }
+
   const controls = el('div', 'story-controls');
   const repeatBtn = makeButton({
     label: 'Read this again',
@@ -146,12 +167,12 @@ export function buildStoryScreen(config) {
         return;
       case 'tutorial':
         renderChoices([]);
-        speech?.say(node.text, { priority: 4, essential: true, interrupt: true, cooldownMs: 0 });
+        speech?.say(node.text, { priority: 4, essential: true, interrupt: true, hardInterrupt: true, cooldownMs: 0 });
         screens.openTutorial({ returnToStory: true });
         return;
       case 'race':
         renderChoices([]);
-        speech?.say(node.text, { priority: 4, essential: true, interrupt: true, cooldownMs: 0 });
+        speech?.say(node.text, { priority: 4, essential: true, interrupt: true, hardInterrupt: true, cooldownMs: 0 });
         screens.startRaceFromStory(chapterId);
         return;
       case 'chapter_end':
@@ -186,6 +207,7 @@ export function buildStoryScreen(config) {
       });
       choicesWrap.appendChild(next.element);
       storyButtons.push(next);
+      addLeaveButton();
       return;
     }
     choices.forEach((choice, i) => {
@@ -204,6 +226,7 @@ export function buildStoryScreen(config) {
       choicesWrap.appendChild(b.element);
       storyButtons.push(b);
     });
+    addLeaveButton();
   }
 
   const storyButtons = [];
@@ -245,7 +268,22 @@ export function buildStoryScreen(config) {
     const followUps = node.interviewMode === 'followups';
     const questions = followUps ? FOLLOW_UPS : INTERVIEW_QUESTIONS;
     interviewState = { questions, answers: [], index: 0, followUps, result: null };
-    speech?.say(node.text, { priority: 4, essential: true, interrupt: true, cooldownMs: 0 });
+    // Tapping on must REPLACE the beat, not queue behind it.
+    //
+    // Two things were wrong. Every passage was priority 4, and priority 4 can
+    // never interrupt priority 4, so tapping four times read out all four
+    // passages in a row while the player looked at the fourth. And with no key
+    // there was nothing to replace, so the backlog only grew. The key makes the
+    // newest beat supersede the queued one; hardInterrupt cuts the one already
+    // being spoken.
+    speech?.say(node.text, {
+      priority: 4,
+      essential: true,
+      interrupt: true,
+      hardInterrupt: true,
+      key: 'storyBeat',
+      cooldownMs: 0,
+    });
     renderInterviewQuestion();
   }
 

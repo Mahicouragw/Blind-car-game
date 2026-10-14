@@ -394,6 +394,10 @@ export function createRaceScreen(config) {
       priority: SPEECH_PRIORITY.NORMAL,
       key: 'throttle',
       cooldownMs: 400,
+      // Worth saying now, worthless in three seconds. This is feedback about
+      // what the player's finger is doing, so if it could not be said promptly
+      // it is dropped rather than delivered late and wrong.
+      ttlMs: 2600,
     });
   }
 
@@ -448,6 +452,7 @@ export function createRaceScreen(config) {
       priority: SPEECH_PRIORITY.NORMAL,
       key: 'direction',
       cooldownMs: DIRECTION_COOLDOWN_MS,
+      ttlMs: 3000,
     });
   }
 
@@ -551,10 +556,18 @@ export function createRaceScreen(config) {
           S.lapWasClean = false;
           // A lighter version of the same layered crash, so a car-to-car hit is
           // recognisable as a hit without being as loud as the barrier.
-          if (audio?.crash) audio.crash(Math.min(0.5, res.impactSpeed / 14));
-          else audio?.play('barrier-light', { group: 'sfx', volume: 0.7 });
+          // Louder than the first version, which capped at half severity and
+          // was easy to miss under the engine and a corner warning.
+          const hit = Math.min(0.85, 0.25 + res.impactSpeed / 16);
+          if (audio?.crash) audio.crash(hit);
+          else audio?.play('barrier-medium', { group: 'sfx', volume: hit });
           navigator.vibrate?.(gameState?.settings?.haptics ? 30 : 0);
           say(`Contact with ${other.name}.`, { priority: SPEECH_PRIORITY.HIGH, key: 'carContact', cooldownMs: 2200, interrupt: true });
+          // A hard hit on another car schedules the same automatic repair as a
+          // barrier, so being wedged against an opponent is not a dead end.
+          if (res.impactSpeed > 9 && S.phase === RACE_PHASE.RACING) {
+            S.recoverIn = Math.min(S.recoverIn > 0 ? S.recoverIn : 1.1, 1.1);
+          }
         }
       }
     }

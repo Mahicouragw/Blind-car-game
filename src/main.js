@@ -257,6 +257,19 @@ export function bootApp(config = {}) {
   // ------------------------------------------------------------- screen API
   // NOTE: spreading `screens` would copy its `current` GETTER as a frozen
   // value (null at construction time), so the live properties are re-declared.
+  /**
+   * End the previous screen's narration before building the next one.
+   *
+   * A screen speaks as it is built, so this has to happen BEFORE the builder runs
+   * or it would throw away the new screen's own opening lines. Without it, a
+   * story passage still queued when the player moved on kept playing over the
+   * next screen - the game announcing the previous thing while you are already
+   * doing the next one.
+   */
+  function endPreviousSpeech() {
+    speech?.stop?.();
+  }
+
   const screensApi = {
     get current() {
       return screens.current;
@@ -269,6 +282,7 @@ export function bootApp(config = {}) {
     remeasure: () => screens.remeasure(),
     clearStack: () => screens.clearStack(),
     gotoMenu() {
+      endPreviousSpeech();
       stopPreview();
       screens.clearStack();
       mountMenu();
@@ -280,6 +294,7 @@ export function bootApp(config = {}) {
       return prev;
     },
     openStory(chapterId) {
+      endPreviousSpeech();
       stopPreview();
       storyReturnChapter = chapterId;
       const screen = buildStoryScreen({ gameState, screens: screensApi, speech, audio, chapterId });
@@ -287,10 +302,12 @@ export function bootApp(config = {}) {
       return screen;
     },
     openChapterList() {
+      endPreviousSpeech();
       stopPreview();
       mount(buildChapterScreen({ gameState, screens: screensApi }));
     },
     openGarage(keepId) {
+      endPreviousSpeech();
       const screen = buildGarageScreen({ gameState, screens: screensApi, speech, audio, keepId });
       // The first open stacks on top of wherever the player came from, so Back
       // returns there. A rebuild after a purchase REPLACES the previous garage
@@ -299,12 +316,14 @@ export function bootApp(config = {}) {
       return screen;
     },
     openCarSelect() {
+      endPreviousSpeech();
       const screen = buildCarSelectScreen({ gameState, screens: screensApi, speech, audio });
       mount(screen);
       startPreview(screen);
       return screen;
     },
     openSettings() {
+      endPreviousSpeech();
       const screen = buildSettingsScreen({
         gameState,
         screens: screensApi,
@@ -323,24 +342,29 @@ export function bootApp(config = {}) {
       return screen;
     },
     openTutorial(opts = {}) {
+      endPreviousSpeech();
       const screen = buildTutorialScreen({ gameState, screens: screensApi, speech, audio, tutorialHarness });
       mount(screen);
       if (opts.returnToStory) storyReturnChapter = storyReturnChapter;
       return screen;
     },
     openLevelSelect() {
+      endPreviousSpeech();
       stopPreview();
       mount(buildLevelScreen({ gameState, screens: screensApi }));
     },
     openMap() {
+      endPreviousSpeech();
       stopPreview();
       mount(buildMapScreen({ screens: screensApi, speech, track }));
     },
     openRecap() {
+      endPreviousSpeech();
       stopPreview();
       mount(buildRecapScreen({ gameState, screens: screensApi, speech }));
     },
     openAudioStatus() {
+      endPreviousSpeech();
       stopPreview();
       mount(buildAudioStatusScreen({ screens: screensApi, speech, audio }));
     },

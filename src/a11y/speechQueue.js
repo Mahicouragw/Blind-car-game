@@ -30,6 +30,25 @@ export const DEFAULT_COOLDOWN = {
   4: 0,
 };
 
+/**
+ * How long a queued message is still worth saying, in ms, by priority.
+ *
+ * Without this the queue was a tape delay: a state announcement that sat behind
+ * a story passage was still delivered twenty seconds later, describing a moment
+ * that had passed. "You are going left" is worthless once the car is going
+ * right, so anything that has waited too long is dropped rather than spoken.
+ *
+ * Safety and navigation messages keep a long life because they stay true; live
+ * state has a short one. Callers can override per message.
+ */
+export const STALE_MS = {
+  0: 12000, // AMBIENT
+  1: 8000, // LOW
+  2: 5000, // NORMAL - lap, position, driving state
+  3: 10000, // HIGH - warnings
+  4: 20000, // CRITICAL - safety, countdown, finish
+};
+
 export const QUEUE_LIMITS = {
   // A long passage (the welcome, story narration) is queued sentence by
   // sentence, so the queue has to hold a whole passage plus whatever arrives
@@ -59,7 +78,7 @@ export function createSpeechQueue(config = {}) {
     pending: [],
     speaking: null,
     lastSpokenAt: new Map(),
-    stats: { offered: 0, spoken: 0, droppedCooldown: 0, droppedDisabled: 0, droppedFull: 0, interrupted: 0 },
+    stats: { offered: 0, spoken: 0, droppedCooldown: 0, droppedDisabled: 0, droppedFull: 0, droppedStale: 0, replaced: 0, interrupted: 0 },
   };
 
   function textFor(item) {
@@ -160,6 +179,37 @@ export function createSpeechQueue(config = {}) {
       const preempts =
         state.speaking && item.interrupt && priority > state.speaking.priority;
 
+      // Latest wins: a newer message with the same key REPLACES the one still
+      // waiting, rather than joining it.
+      //
+      // This was the worst bug in the whole speech system. A driving
+      // announcement is offered every animation frame, and the per-key cooldown
+      // only knew about messages that had already been SPOKEN - pending copies
+      // were invisible to it. Sixty frames of "You are going left" queued twelve
+      // identical copies, and the player then heard the car going left for the
+      // next thirty seconds while it was actually going right.
+      // Replace what this message supersedes - and be careful to replace only
+      // the PREVIOUS saying of it.
+      //
+      // A passage arrives as several chunks sharing one group. Chunks of the same
+      // passage must NOT replace each other, or a six-chunk paragraph collapses
+      // down to its last sentence. So group matching also requires a different
+      // passage: same key always supersedes, same group supersedes only across
+      // passages. `passageId` is what tells those apart.
+      let replaced = null;
+      if (item.key || item.group) {
+        for (let i = state.pending.length - 1; i >= 0; i--) {
+          const p = state.pending[i];
+          const sameKey = !!item.key && p.key === item.key;
+          const sameGroupNewPassage =
+            !!item.group && p.group === item.group && item.passageId !== undefined && p.passageId !== item.passageId;
+          if (sameKey || sameGroupNewPassage) {
+            replaced = state.pending.splice(i, 1)[0];
+            state.stats.replaced++;
+          }
+        }
+      }
+
       const record = {
         seq: ++seq,
         id: item.id ?? `msg.${seq}`,
@@ -172,6 +222,14 @@ export function createSpeechQueue(config = {}) {
         group: item.group ?? null,
         offeredAt: t,
         preempts: !!preempts,
+        // A screen change or a story beat can demand the line immediately. This
+        // ignores priority entirely, because equal-priority speech could never
+        // interrupt equal-priority speech: every passage the player tapped past
+        // stayed in the queue and was read out afterwards.
+        hardInterrupt: !!item.hardInterrupt,
+        // Which reading of this group it belongs to. See the replacement rule.
+        passageId: item.passageId ?? null,
+        expiresAt: t + (Number.isFinite(item.ttlMs) ? item.ttlMs : STALE_MS[priority] ?? 6000),
         tag: item.tag ?? null,
       };
 
@@ -191,7 +249,20 @@ export function createSpeechQueue(config = {}) {
       }
 
       state.pending.push(record);
-      return { accepted: true, reason: preempts ? 'preempt' : 'queued', dropped, record };
+      return { accepted: true, reason: replaced ? 'replaced' : preempts ? 'preempt' : 'queued', dropped, replaced, record };
+    },
+
+    /**
+     * Is any queued message demanding the line immediately, whatever is speaking?
+     *
+     * This scans the whole queue rather than peeking at the head. A hard
+     * interrupt can be sitting behind an equal-priority item - the head is picked
+     * by priority then arrival order, so a screen announcement can be behind a
+     * line queued a moment earlier - and peeking would miss it, leaving the
+     * announcement stuck behind speech that should have been cut.
+     */
+    shouldHardInterrupt() {
+      return state.pending.some((p) => p.hardInterrupt);
     },
 
     /** Should the adapter cancel what it is currently saying right now? */
@@ -215,6 +286,11 @@ export function createSpeechQueue(config = {}) {
       const idx = pickIndex();
       const item = state.pending.splice(idx, 1)[0];
       const t = now();
+      // Too late to be true any more. Say nothing rather than something wrong.
+      if (item.expiresAt !== undefined && t > item.expiresAt) {
+        state.stats.droppedStale++;
+        return api.take();
+      }
       // Re-check the cooldown at delivery time: the item may have sat queued.
       if (item.key && isBlockedByKey(item, t)) {
         state.stats.droppedCooldown++;

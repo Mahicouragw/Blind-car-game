@@ -176,7 +176,11 @@ export function createSpeech(config = {}) {
     queue.setConcise(!!settings.conciseSpeech);
 
     if (queue.isSpeaking) {
-      if (queue.shouldInterrupt()) {
+      // A hard interrupt ignores priority. Equal-priority speech could never
+      // interrupt equal-priority speech, which is how every story passage the
+      // player tapped past stayed in the queue and was read out afterwards, and
+      // how a screen announcement ended up behind the previous screen's backlog.
+      if (queue.shouldHardInterrupt() || queue.shouldInterrupt()) {
         // A CRITICAL warning outranks what is currently being said.
         try {
           synth?.cancel();
@@ -257,13 +261,19 @@ export function createSpeech(config = {}) {
         if (res.accepted) pump();
         return res.accepted;
       }
-      const group = `passage.${++passageSeq}`;
+      // A keyed passage shares one group named after its key, so a later passage
+      // with the same key supersedes every chunk of the earlier one. Story beats
+      // are keyed for exactly this reason: tapping on must replace the beat, not
+      // queue behind it. `passageId` separates one reading from the next.
+      const passageId = ++passageSeq;
+      const group = opts.key ? `key:${opts.key}` : `passage.${passageId}`;
       let accepted = false;
       chunks.forEach((chunk, i) => {
         const res = queue.offer({
           ...opts,
           text: chunk,
           group,
+          passageId,
           // Only the first chunk carries the caller's cooldown key, otherwise
           // every following sentence would be swallowed as a duplicate.
           key: i === 0 ? opts.key : null,

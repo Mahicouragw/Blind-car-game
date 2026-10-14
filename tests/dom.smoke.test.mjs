@@ -394,6 +394,54 @@ test('car selection opens without WebGL and explains the missing preview', () =>
   app.destroy();
 });
 
+test('the story screen always offers a way back to the menu', () => {
+  // There was no way out of the story on a touch device: the screen offered only
+  // the scene's own choices, so a player who wanted to leave was stuck, and
+  // nothing told them otherwise.
+  bus.clear();
+  const app = boot();
+  app.gameState.save.chaptersCompleted = [1, 2, 3, 4, 5, 6];
+  app.screens.openStory(7);
+  assert.equal(app.screens.current.id, 'story');
+  const leave = buttons().find((b) => /back to the menu/i.test(b.textContent));
+  assert.ok(leave, 'a way out is on screen');
+  assert.match(leave.textContent, /progress/i, 'and it says progress is kept');
+  // It must be reachable by the focus ring too, not just present in the DOM.
+  assert.ok(
+    app.screens.current.focusItems.some((i) => i.element === leave),
+    'the way out is in the focus order',
+  );
+  app.destroy();
+});
+
+test('arriving on a new screen is heard even while a long passage is still being read', () => {
+  bus.clear();
+  const app = boot();
+  const synth = window.speechSynthesis;
+  const realSpeak = synth.speak;
+  // Hold the utterance open: a real long passage does not finish instantly, and
+  // this is exactly the state that used to swallow the next screen's welcome.
+  synth.speak = (u) => {
+    window.speechSynthesis.spoken.push(u.text);
+  };
+  app.speech.say('A very long passage about the city and the family and the rent notice.', {
+    priority: 4,
+    essential: true,
+    interrupt: true,
+    cooldownMs: 0,
+  });
+  assert.equal(app.speech.queue.isSpeaking, true, 'something is mid-sentence');
+
+  window.speechSynthesis.spoken.length = 0;
+  app.screens.openSettings();
+  const said = window.speechSynthesis.spoken.join(' ');
+  assert.match(said, /Settings/i, 'the new screen announces itself instead of waiting behind the old speech');
+
+  synth.speak = realSpeak;
+  app.speech.stop();
+  app.destroy();
+});
+
 test.after(() => {
   // Screens own timers (the tutorial polls for demonstrated gestures), so every
   // app has to be torn down or the test process never exits.
