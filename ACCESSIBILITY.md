@@ -134,12 +134,12 @@ Full rules, thresholds and conflict resolution are in
 | Gesture | Where | Action |
 | --- | --- | --- |
 | Single tap | menu / list | Activate the focused control |
-| Single tap | driving surface | Nothing (reserved — see rule R2) |
+| Single tap | driving surface | **Brake** (a pedal tap, held ~620 ms) |
 | Swipe up / down | menus | Move between options |
 | Swipe left / right | car selection | Previous / next car |
 | Swipe up / down | garage | Move between cars, tyres and the wash |
 | **Press and hold** | driving surface | **Accelerate**; release coasts |
-| **Double tap** | driving surface | **Brake** |
+| **Double tap** | driving surface | **Handbrake / drift** — the rears lock and the car slides |
 | Drag left / right | driving surface | **Steer, gradually** |
 | Circular drag | driving surface | Request a U-turn (only where the track allows) |
 | **Double tap and hold** | settings area | **Open Game TalkBack settings** |
@@ -210,13 +210,14 @@ is a safety problem, not a preference.
 | Key | Action |
 | --- | --- |
 | W / ↑ | Accelerate (hold) |
-| S / ↓ / Space | Brake or reverse |
+| S / ↓ | Brake or reverse |
+| Space | Handbrake (hold) — makes the car slide |
 | A / ← , D / → | Steer left / right, gradually |
 | U | Request a U-turn |
 | R | Recover onto the track |
 | Enter | Activate the focused control |
 | Tab / arrows | Move between controls |
-| Escape | Back (or pause while racing) |
+| Escape | Back (pause while racing; resume while paused) |
 | H | Repeat the last announcement |
 | M | Toggle Game TalkBack |
 | **F1** | **Open voice settings from anywhere** |

@@ -137,26 +137,42 @@ test('the car actually moves when the throttle is held', () => {
 
 // ------------------------------------------------------------------- braking
 
-test('a double tap on the driving surface brakes', () => {
+test('a single tap on the driving surface brakes', () => {
   withRig((r) => {
     r.down(200, 400);
     r.up(200, 400);
-    r.advance(80);
-    r.down(200, 400);
-    r.up(200, 400);
-    assert.equal(r.drivingInput.state.brake, 1, 'the second tap inside the window is a brake');
+    // A single tap waits out the double-tap window (R2) so the handbrake can
+    // win; once that window passes with no second tap, it is the brake.
+    r.advance(GESTURE_DEFAULTS.doubleTapWindowMs + 50);
+    assert.equal(r.drivingInput.state.brake, 1, 'one tap is the brake pedal');
     assert.equal(r.drivingInput.state.braking, true);
+    assert.equal(r.drivingInput.state.handbrake, false, 'a single tap is not the handbrake');
   });
 });
 
-test('a double tap on a menu zone does not brake', () => {
+test('a double tap on the driving surface pulls the handbrake', () => {
+  withRig((r) => {
+    r.down(200, 400);
+    r.up(200, 400);
+    r.advance(80);
+    r.down(200, 400);
+    r.up(200, 400);
+    assert.equal(r.drivingInput.state.handbrake, true, 'the second tap inside the window pulls the handbrake');
+    assert.equal(r.drivingInput.state.braking, true);
+    assert.ok(r.drivingInput.state.brake > 0, 'the handbrake also retards the car');
+  });
+});
+
+test('a double tap on a menu zone does not brake or handbrake', () => {
   withRig((r) => {
     r.down(200, 400, MENU_ZONE);
     r.up(200, 400);
     r.advance(80);
     r.down(200, 400, MENU_ZONE);
     r.up(200, 400);
+    r.advance(GESTURE_DEFAULTS.doubleTapWindowMs + 50);
     assert.equal(r.drivingInput.state.brake, 0, 'menus must not touch the brakes');
+    assert.equal(r.drivingInput.state.handbrake, false, 'menus must not touch the handbrake');
   });
 });
 

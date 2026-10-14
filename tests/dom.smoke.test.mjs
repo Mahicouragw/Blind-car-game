@@ -79,7 +79,8 @@ test('the welcome explanation covers the gestures before any race', () => {
   window.__app.announceWelcome();
   const spoken = window.speechSynthesis.spoken.join(' \n ');
   assert.match(spoken, /Press and hold/i);
-  assert.match(spoken, /Tap it twice quickly to brake|twice quickly to brake/);
+  assert.match(spoken, /Tap once to brake/);
+  assert.match(spoken, /handbrake/i);
   assert.match(spoken, /circle/i);
   assert.match(spoken, /Three quick taps never start a race/);
 });
@@ -117,14 +118,14 @@ test('a tap on a menu zone activates the real button underneath', () => {
 test('the tutorial lists every gesture and refuses to finish early', () => {
   const app = window.__app;
   const screen = app.screens.current;
-  assert.equal(screen.steps.length, 10);
+  assert.equal(screen.steps.length, 11);
   // Only the current step is on screen, so check the step content itself: every
   // gesture must be taught somewhere in the lesson, not just on step one.
   const taught = screen.steps.map((s) => `${s.title} ${s.text}`).join(' ').toLowerCase();
-  for (const phrase of ['press and hold', 'tap the driving surface twice', 'drag left or right', 'circular drag', 'f1', 'gradually', 'self-centre', 'recovery']) {
+  for (const phrase of ['press and hold', 'tap the driving surface once', 'tap twice quickly', 'handbrake', 'drag left or right', 'circular drag', 'f1', 'gradually', 'self-centre', 'recovery']) {
     assert.ok(taught.includes(phrase.toLowerCase()), `tutorial should teach "${phrase}"`);
   }
-  assert.ok(document.body.textContent.includes('Step 1 of 10'), 'the on-screen step is labelled with its position');
+  assert.ok(document.body.textContent.includes('Step 1 of 11'), 'the on-screen step is labelled with its position');
   // Nothing has been demonstrated yet, so finishing must be refused.
   const finish = buttons().find((b) => b.textContent.includes('Finish the tutorial'));
   window.speechSynthesis.spoken.length = 0;
@@ -139,7 +140,10 @@ test('demonstrating a gesture is what unlocks the tutorial step', () => {
   harness.reset();
   bus.emit('gesture:pressStart', { zone: { role: 'driving' } });
   bus.emit('gesture:pressEnd', { zone: { role: 'driving' } });
-  bus.emit('gesture:doubleTap', { zone: { role: 'driving' } });
+  // A tap is the brake; the dummy element stops the tap handler activating a
+  // menu button behind the tutorial, which is not what is under test here.
+  bus.emit('gesture:tap', { zone: { role: 'driving', element: { click() {} } } });
+  bus.emit('gesture:doubleTap', { zone: { role: 'driving', element: { click() {} } } });
   // `dx`, not `totalDx`: this test used to hand-write a field the recognizer
   // never emits, which is precisely why the suite stayed green while the real
   // steering gesture was dead. See tests/integration.test.mjs, which drives the
@@ -147,7 +151,7 @@ test('demonstrating a gesture is what unlocks the tutorial step', () => {
   bus.emit('gesture:dragEnd', { zone: { role: 'driving', id: 'drivingSurface' }, dx: -140 });
   bus.emit('gesture:circle', { zone: { role: 'driving' } });
   const report = harness.report();
-  for (const key of ['accelerated', 'coasted', 'braked', 'steered', 'uturned']) {
+  for (const key of ['accelerated', 'coasted', 'braked', 'handbraked', 'steered', 'uturned']) {
     assert.ok(report[key], `${key} should be recorded once performed`);
   }
 });

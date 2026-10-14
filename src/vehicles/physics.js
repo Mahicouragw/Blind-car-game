@@ -53,6 +53,7 @@ export function createVehicleState(init) {
     gear: 1,
     throttle: 0,
     brake: 0,
+    handbrake: false,
     surface: 'track',
     offTrack: false,
     distanceTravelled: 0,
@@ -175,11 +176,16 @@ function substep(state, input, carIn, dt, opts) {
   const throttle = clamp01(input.throttle ?? 0);
   const brakeInput = clamp01(input.brake ?? 0);
   const steerTarget = Math.max(-1, Math.min(1, input.steer ?? 0));
+  // The handbrake is a real input now (it was documented and ignored before):
+  // it locks the rears, kills rear grip and makes the car slide. The double tap
+  // pulls it; see input/drivingInput.js.
+  const handbrake = !!input.handbrake;
   const surface = surfaceById(opts.surface ?? state.surface ?? 'track');
   const gripMul = (opts.gripMultiplier ?? 1) * surface.grip;
   state.surface = surface.id;
   state.throttle = throttle;
   state.brake = brakeInput;
+  state.handbrake = handbrake;
 
   const speed = state.speed;
   const absSpeed = Math.abs(speed);
@@ -200,7 +206,11 @@ function substep(state, input, carIn, dt, opts) {
   const normalLoad = car.mass * G;
   // Downforce grows with speed and buys extra grip.
   const downforce = car.downforceCoeff * speed * speed;
-  const maxLatAccel = (mu * (normalLoad + downforce)) / car.mass;
+  // A pulled handbrake takes grip away from the rear: the same steering input
+  // saturates the tyres sooner, the car rotates more than the line asks for,
+  // and that difference IS the drift. Bounded so it is a slide, not ice.
+  const latGripFactor = handbrake ? 0.58 : 1;
+  const maxLatAccel = ((mu * (normalLoad + downforce)) / car.mass) * latGripFactor;
 
   // --------------------------------------------- 3. longitudinal forces
   const gear = selectGear(car, speed, throttle);
@@ -242,6 +252,13 @@ function substep(state, input, carIn, dt, opts) {
     }
     brakeForce *= Math.sign(speed) || 1;
   }
+  // The handbrake locks the rears on top of any pedal braking: strong retard,
+  // and a locked axle is a sliding axle.
+  if (handbrake) {
+    const ebrakeLimit = mu * normalLoad * 0.6;
+    brakeForce += ebrakeLimit * Math.sign(speed) || 0;
+    state.longitudinalSlip = Math.max(state.longitudinalSlip, Math.min(1, 0.5 + 0.4 * Math.min(1, absSpeed / 12)));
+  }
 
   const netForce = driveForce - dragForce - rollingForce - engineBrake - brakeForce;
   let accel = netForce / car.mass;
@@ -272,8 +289,10 @@ function substep(state, input, carIn, dt, opts) {
   const targetYaw = saturated ? Math.sign(idealYaw) * achievableYaw : idealYaw;
 
   // Yaw inertia: the car rotates towards the target rather than instantly.
-  const yawResponse = 1 - Math.exp(-dt / car.yawTimeConstant);
-  state.yawRate += (targetYaw - state.yawRate) * yawResponse;
+  // A sliding car with the handbrake on rotates a little more freely than the
+  // grip model alone says - the tail is already loose, so let it come round.
+  const yawResponse = 1 - Math.exp(-dt / (car.yawTimeConstant * (handbrake ? 0.8 : 1)));
+  state.yawRate += (targetYaw * (handbrake ? 1.12 : 1) - state.yawRate) * yawResponse;
 
   const assist = clamp01(opts.steeringAssist ?? 0);
   if (assist > 0) state.yawRate *= 1 - assist * 0.25;
@@ -281,6 +300,12 @@ function substep(state, input, carIn, dt, opts) {
   state.lateralSlip = saturated
     ? Math.min(1, (Math.abs(idealYaw) - achievableYaw) / Math.max(0.05, achievableYaw))
     : Math.max(0, state.lateralSlip - dt * 2.5);
+  // Sliding on the handbrake is audible and visible even before the tyres are
+  // fully saturated: hold a floor of slip so the skid loop tells the player the
+  // car is sideways.
+  if (handbrake && absSpeed > 1.5) {
+    state.lateralSlip = Math.max(state.lateralSlip, Math.min(1, 0.3 + Math.min(0.5, absSpeed * 0.04)));
+  }
 
   // Grip saturation scrubs speed - this is what makes cornering fast
   // require slowing down, rather than being free.

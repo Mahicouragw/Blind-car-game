@@ -77,6 +77,38 @@ export function trackForScreen(screenId) {
 }
 
 /**
+ * Quiet scene beds played UNDER the music, one per story mood.
+ *
+ * These are the ambience slots the audio credits used to list as gaps; each is
+ * now an original generated loop (see core/audio.js AUDIO_GAPS). They run at
+ * low volume on the sfx bus so announcements duck them like every other sound.
+ */
+export const AMBIENCE_FOR_TRACK = {
+  'music-story-family': 'home-ambience',
+  'music-story-city': 'city-ambience',
+  'music-story-tension': 'city-ambience',
+  'music-race': 'pit-lane-ambience',
+};
+
+/** Every ambience slot, so they can all be stopped as one group. */
+export const AMBIENCE_SLOTS = ['city-ambience', 'home-ambience', 'workshop-ambience', 'pit-lane-ambience'];
+
+/**
+ * Story scenes name their own bed (`story:ambience` with the scene kind), which
+ * is finer-grained than the chapter's music: an office scene inside a city
+ * chapter still sounds like a room, and the workshop floor sounds like a
+ * workshop.
+ */
+export const AMBIENCE_FOR_STORY = {
+  city: 'city-ambience',
+  home: 'home-ambience',
+  office: 'home-ambience',
+  workshop: 'workshop-ambience',
+  circuit: 'pit-lane-ambience',
+  pit: 'pit-lane-ambience',
+};
+
+/**
  * @param {object} config
  * @param {object} config.audio       the audio subsystem (needs `.music`)
  * @param {object} [config.events]    an event bus; defaults to the app bus
@@ -89,7 +121,24 @@ export function createMusicDirector(config = {}) {
 
   let scene = null;
   let wanted = null;
+  let ambience = null;
   const offs = [];
+
+  /** Start, swap or stop the scene bed. `null` means no bed. */
+  function setBed(want) {
+    if (!audio?.loop) return;
+    if (want === ambience) return;
+    audio.stopLoops?.(AMBIENCE_SLOTS);
+    ambience = null;
+    if (!want || getSettings().sfx === false) return;
+    const handle = audio.loop(want, { volume: 0.16, group: 'sfx' });
+    if (handle) ambience = want;
+  }
+
+  /** Start, swap or stop the scene bed to sit under `track`. */
+  function applyAmbience(track) {
+    setBed(AMBIENCE_FOR_TRACK[track] ?? null);
+  }
 
   /**
    * Ask for a track. `null` means silence. Music that is switched off in
@@ -98,6 +147,7 @@ export function createMusicDirector(config = {}) {
    */
   function apply(track) {
     wanted = track ?? null;
+    applyAmbience(wanted);
     if (!audio?.music) return false;
     if (getSettings().music === false || !track) {
       audio.music.stop(0.8);
@@ -127,10 +177,22 @@ export function createMusicDirector(config = {}) {
       }),
     );
     offs.push(
+      events.on('story:ambience', (payload) => {
+        // The story node names its scene; play the matching bed if one exists.
+        setBed(AMBIENCE_FOR_STORY[payload?.ambience] ?? null);
+      }),
+    );
+    offs.push(
       events.on('settings:applied', ({ key } = {}) => {
         // Turning music off must take effect immediately, and turning it back on
         // must restore the current scene rather than waiting for a screen change.
         if (key === 'music' || key === 'musicVolume') apply(wanted);
+        // The same for the scene beds under the effects switch.
+        if (key === 'sfx') {
+          audio?.stopLoops?.(AMBIENCE_SLOTS);
+          ambience = null;
+          applyAmbience(wanted);
+        }
       }),
     );
   }

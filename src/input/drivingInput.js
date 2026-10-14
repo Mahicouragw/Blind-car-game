@@ -52,6 +52,22 @@ export const STEER_TARGET_RATE = 2.6;
  */
 export const REVERSE_BURST_SECONDS = 1.8;
 
+/**
+ * How long one brake tap holds the pedal, in ms. A tap, not a hold: the finger
+ * is wanted for steering, so braking is a deliberate tap-tap rhythm like a real
+ * pedal tap.
+ */
+export const BRAKE_TAP_MS = 620;
+
+/**
+ * How long one double tap holds the handbrake, in seconds.
+ *
+ * A burst for the same reason as reverse: the e-brake is pulled and released.
+ * Inside that window the physics lose rear grip and the car slides, which is
+ * what makes the double tap a DRIFT input rather than a second brake.
+ */
+export const HANDBRAKE_BURST_SECONDS = 0.9;
+
 export function createDrivingInput(config = {}) {
   const state = {
     throttle: 0,
@@ -92,17 +108,48 @@ export function createDrivingInput(config = {}) {
     state.throttle = 0;
   });
 
-  // ---- double tap on the driving surface brakes ----
+  // ---- double tap on the driving surface is the HANDBRAKE ----
+  //
+  // The brief changed the mapping: one tap is the brake, two quick taps pull the
+  // handbrake and make the car slide (see HANDBRAKE_BURST_SECONDS). The
+  // recognizer already resolves the two gestures apart - a single tap on this
+  // zone waits out the double-tap window exactly so the second tap can win - so
+  // neither gesture can ever fire twice for one intention.
   on('gesture:doubleTap', (d) => {
     if (d.zone?.role !== DRIVING_ROLE) return;
+    startHandbrake();
+    bus.emit('race:handbrakeStarted', { seconds: HANDBRAKE_BURST_SECONDS });
+  });
+
+  // ---- single tap on the driving surface is the brake ----
+  on('gesture:tap', (d) => {
+    if (d.zone?.role !== DRIVING_ROLE) return;
+    startBrake();
+    bus.emit('race:brakePressed', {});
+  });
+
+  /** Brake pedal tap: held briefly, then released, exactly like tapping a pedal. */
+  function startBrake() {
     state.braking = true;
     state.brake = 1;
-    // Held for a moment, then released, exactly like tapping a brake pedal.
     setTimeout(() => {
+      if (state.handbrake) return; // the handbrake owns the pedal right now
       state.braking = false;
       state.brake = 0;
-    }, 620);
-  });
+    }, BRAKE_TAP_MS);
+  }
+
+  /** Handbrake pull: strong, brief, and it engages the drift physics. */
+  function startHandbrake() {
+    state.handbrake = true;
+    state.braking = true;
+    state.brake = Math.max(state.brake, 0.55);
+    setTimeout(() => {
+      state.handbrake = false;
+      state.braking = false;
+      state.brake = 0;
+    }, Math.round(HANDBRAKE_BURST_SECONDS * 1000));
+  }
 
   // ---- gradual steering by drag ----
   // The recognizer emits `drag` for continuous movement (with `dragStart` and
@@ -156,6 +203,10 @@ export function createDrivingInput(config = {}) {
     } else if (d.action === 'brake') {
       state.braking = true;
       state.brake = 1;
+    } else if (d.action === 'handbrake') {
+      state.handbrake = true;
+      state.braking = true;
+      state.brake = Math.max(state.brake, 0.55);
     } else if (d.action === 'steerLeft') dragSteer = Math.min(maxSteerFromSwipe, dragSteer + 0.55);
     else if (d.action === 'steerRight') dragSteer = Math.max(-maxSteerFromSwipe, dragSteer - 0.55);
     else if (d.action === 'requestUturn') state.uturnRequest = 1.4;
@@ -166,16 +217,23 @@ export function createDrivingInput(config = {}) {
       state.holding = false;
       state.throttle = 0;
     } else if (d.action === 'brake') {
+      if (!state.handbrake) {
+        state.braking = false;
+        state.brake = 0;
+      }
+    } else if (d.action === 'handbrake') {
+      state.handbrake = false;
       state.braking = false;
       state.brake = 0;
     } else if (d.action === 'steerLeft' || d.action === 'steerRight') dragSteer = 0;
   });
-  // Losing window focus must never leave the throttle open.
+  // Losing window focus must never leave the throttle or the handbrake on.
   on('key:up', (d) => {
     if (d.code === 'blur') {
       state.throttle = 0;
       state.brake = 0;
       state.holding = false;
+      state.handbrake = false;
       dragSteer = 0;
     }
   });
@@ -228,6 +286,7 @@ export function createDrivingInput(config = {}) {
       state.respawnRequest = false;
       state.holding = false;
       state.braking = false;
+      state.handbrake = false;
       dragSteer = 0;
       dragActive = false;
     },

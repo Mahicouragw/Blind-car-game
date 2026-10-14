@@ -1,15 +1,25 @@
 /**
- * Audio: recorded sample playback, engine synthesis FROM RECORDINGS, and ducking.
+ * Audio: file playback, engine feel FROM FILES, and ducking.
  *
- * Every sound in this game is a real recorded file from assets/audio, licensed
- * CC0 1.0 (see docs/AUDIO-CREDITS.md). Nothing here generates a tone: there is
- * no oscillator, no noise buffer, no synthesised substitute anywhere in this
- * module. If a file fails to load, that sound is silent and the failure is
- * reported - it is never quietly replaced by something generated.
+ * Every sound in this game is a real file in assets/audio. Nothing here
+ * generates a tone at runtime: there is no oscillator, no noise buffer, no
+ * synthesised substitute anywhere in this module, and no Web-Audio-API
+ * generated sound is ever used to fill a gap. If a file fails to load, that
+ * sound is silent and the failure is reported - it is never quietly replaced by
+ * something generated in the browser.
+ *
+ * The files come from two sources, both free of corporate/copyrighted audio:
+ *
+ * 1. Third-party samples licensed CC0 1.0 (see docs/AUDIO-CREDITS.md).
+ * 2. Original effects synthesised OFFLINE by `scripts/generate-sfx.mjs` and
+ *    committed as ordinary .wav files - one per action the brief asked for
+ *    (brake, handbrake, gear change, pause, resume, exit, crowd, ambience).
+ *    Generated files are explicitly allowed by the brief ("generated AI is
+ *    ok"); what is forbidden is generation in the browser, and none happens.
  *
  * Engine and tyre audio are recorded loops whose playback rate and gain are
- * driven by rpm and slip. Changing the playback rate of a recording is
- * manipulation of a recorded asset, not synthesis; that distinction is stated
+ * driven by rpm and slip. Changing the playback rate of a file is
+ * manipulation of a file asset, not synthesis; that distinction is stated
  * here and in the credits because the brief asks for it explicitly.
  *
  * @module core/audio
@@ -24,6 +34,9 @@ export const AUDIO_MANIFEST = {
   'engine-loop-alt': `${A}/racing/engine-loop-alt.ogg`,
   'skid-loop': `${A}/racing/skid-loop.ogg`,
   'collision': `${A}/racing/impact.ogg`,
+  'brake': `${A}/racing/brake.wav`,
+  'handbrake': `${A}/racing/handbrake.wav`,
+  'gear-change': `${A}/racing/gear-change.wav`,
   // voice (real recordings, Kenney voiceover pack)
   'voice-ready': `${A}/voice/ready.ogg`,
   'voice-set': `${A}/voice/set.ogg`,
@@ -58,6 +71,9 @@ export const AUDIO_MANIFEST = {
   'ui-switch': `${A}/ui/switch.ogg`,
   'ui-glass': `${A}/ui/glass.ogg`,
   'ui-pluck': `${A}/ui/pluck.ogg`,
+  'ui-pause': `${A}/ui/pause.wav`,
+  'ui-resume': `${A}/ui/resume.wav`,
+  'ui-exit': `${A}/ui/exit.wav`,
   // impact
   'barrier-heavy': `${A}/impact/barrier-heavy.ogg`,
   'barrier-medium': `${A}/impact/barrier-medium.ogg`,
@@ -84,6 +100,11 @@ export const AUDIO_MANIFEST = {
   'paper-place': `${A}/scene/paper-place.ogg`,
   'chips-stack': `${A}/scene/chips-stack.ogg`,
   'chips-handle': `${A}/scene/chips-handle.ogg`,
+  'crowd-cheer': `${A}/scene/crowd-cheer.wav`,
+  'city-ambience': `${A}/scene/city-ambience.wav`,
+  'home-ambience': `${A}/scene/home-ambience.wav`,
+  'workshop-ambience': `${A}/scene/workshop-ambience.wav`,
+  'pit-lane-ambience': `${A}/scene/pit-lane-ambience.wav`,
   // music (short recorded stingers - see AUDIO_GAPS for the honest limitation)
   'music-warm': `${A}/music/stinger-warm.ogg`,
   'music-bright': `${A}/music/stinger-bright.ogg`,
@@ -106,10 +127,13 @@ export const AUDIO_MANIFEST = {
 };
 
 /**
- * Sound slots the brief asks for that have NO verified CC0 recording available
- * from the sources reachable while building this. They are declared here so the
- * gap is visible in code and in the credits, and so nothing silently pretends to
- * fill them with generated audio.
+ * Sound slots the brief asks for. Earlier builds could not verify a CC0
+ * recording for several of them and declared the gaps honestly here rather than
+ * silently faking them. The brief then allowed generated files ("generated AI
+ * is ok", as long as nothing is Web-Audio-API generated at runtime), so every
+ * slot is now filled by an ORIGINAL file written by `scripts/generate-sfx.mjs`.
+ * The list is kept, with honest statuses, so the credits screen still shows
+ * what came from where.
  */
 /**
  * Assets large enough to matter on a mobile connection, fetched on first use
@@ -174,13 +198,52 @@ export function eagerAudioNames() {
   return Object.keys(AUDIO_MANIFEST).filter((name) => !LAZY_AUDIO.has(name));
 }
 
+/**
+ * Plain names the story scripts use, mapped to manifest keys.
+ *
+ * The story writes `sfx: 'mission_completed'` and `sfx: 'tick'`; the manifest
+ * spells them 'voice-mission-complete' and 'ui-tick'. Without this table every
+ * one of those plays nothing at all - the play() call finds no buffer and
+ * silently returns - so a whole class of story sound effects was dead. Aliases
+ * are resolved in one place so the story can keep naming sounds in its own
+ * words while the manifest stays the single source of truth for files.
+ */
+export const SFX_ALIASES = {
+  tick: 'ui-tick',
+  click: 'ui-click',
+  select: 'ui-select',
+  back: 'ui-back',
+  confirm: 'ui-confirm',
+  error: 'ui-error',
+  correct: 'voice-correct',
+  wrong: 'voice-wrong',
+  congratulations: 'voice-congratulations',
+  you_win: 'voice-you-win',
+  you_lose: 'voice-you-lose',
+  game_over: 'voice-game-over',
+  mission_completed: 'voice-mission-complete',
+  new_highscore: 'voice-highscore',
+  level_up: 'voice-level-up',
+  power_up: 'voice-power-up',
+  ready: 'voice-ready',
+  set: 'voice-set',
+  go: 'voice-go',
+};
+
+/** Resolve a sound name (alias or manifest key) to a manifest key. */
+export function resolveSoundName(name) {
+  return SFX_ALIASES[name] ?? name;
+}
+
 export const AUDIO_GAPS = [
-  { slot: 'crowd-cheer', want: 'Grandstand crowd cheering at the start and finish.', status: 'unfilled' },
-  { slot: 'city-ambience', want: 'Anandapur street ambience for chapter one.', status: 'unfilled' },
-  { slot: 'home-ambience', want: 'Family home room tone for the argument scenes.', status: 'unfilled' },
-  { slot: 'workshop-ambience', want: 'Continuous workshop floor ambience.', status: 'unfilled' },
-  { slot: 'pit-lane-ambience', want: 'Pit lane ambience with air guns and engines.', status: 'unfilled' },
-  { slot: 'gear-change', want: 'A dedicated recorded gear-change clunk.', cueUsed: 'metal-click', status: 'substituted-with-recording' },
+  { slot: 'crowd-cheer', want: 'Grandstand crowd cheering at the start and finish.', cueUsed: 'crowd-cheer (original, generated by scripts/generate-sfx.mjs)', status: 'filled' },
+  { slot: 'city-ambience', want: 'Anandapur street ambience for chapter one.', cueUsed: 'city-ambience (original, generated by scripts/generate-sfx.mjs)', status: 'filled' },
+  { slot: 'home-ambience', want: 'Family home room tone for the argument scenes.', cueUsed: 'home-ambience (original, generated by scripts/generate-sfx.mjs)', status: 'filled' },
+  { slot: 'workshop-ambience', want: 'Continuous workshop floor ambience.', cueUsed: 'workshop-ambience (original, generated by scripts/generate-sfx.mjs)', status: 'filled' },
+  { slot: 'pit-lane-ambience', want: 'Pit lane ambience with air guns and engines.', cueUsed: 'pit-lane-ambience (original, generated by scripts/generate-sfx.mjs)', status: 'filled' },
+  { slot: 'gear-change', want: 'A dedicated recorded gear-change clunk.', cueUsed: 'gear-change (original, generated by scripts/generate-sfx.mjs)', status: 'filled' },
+  { slot: 'brake', want: 'A pedal-tap brake sound for every brake press.', cueUsed: 'brake (original, generated by scripts/generate-sfx.mjs)', status: 'filled' },
+  { slot: 'handbrake', want: 'A ratchet-and-chirp handbrake sound for the drift input.', cueUsed: 'handbrake (original, generated by scripts/generate-sfx.mjs)', status: 'filled' },
   { slot: 'background-music', want: 'Full-length looping background music.', cueUsed: 'six full-length CC0 recordings from freepd.com, lazily loaded', status: 'filled' },
   { slot: 'voice-acting', want: 'Recorded voice acting for story dialogue.', cueUsed: 'speech synthesis, labelled as synthesis', status: 'synthesised-not-recorded' },
 ];
@@ -379,12 +442,12 @@ export function createAudio(config = {}) {
 
     /**
      * Play a recorded one-shot.
-     * @param {string} name
+     * @param {string} name  a manifest key, or one of SFX_ALIASES
      * @param {{volume?:number, rate?:number, group?:string, delay?:number}} [opts]
      */
     play(name, opts = {}) {
       if (!ctx || !unlocked) return false;
-      const buf = buffers.get(name);
+      const buf = buffers.get(resolveSoundName(name));
       if (!buf) return false;
       const group = groups[opts.group ?? 'sfx'] ?? groups.sfx;
       const src = ctx.createBufferSource();

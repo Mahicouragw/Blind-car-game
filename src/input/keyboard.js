@@ -21,7 +21,7 @@ export const KEYBOARD_MAP = {
   KeyW: 'accelerate',
   ArrowDown: 'brake',
   KeyS: 'brake',
-  Space: 'brake',
+  Space: 'handbrake',
   ArrowLeft: 'steerLeft',
   KeyA: 'steerLeft',
   ArrowRight: 'steerRight',
@@ -48,7 +48,8 @@ export const KEYBOARD_MAP = {
 export function keyboardHelpLines() {
   return [
     'Keyboard controls. Accelerate: W or the up arrow, and it accelerates only while you hold it.',
-    'Brake or reverse: S, the down arrow, or the space bar.',
+    'Brake: S or the down arrow, held.',
+    'Handbrake: the space bar, held. The handbrake makes the car slide, the same as a double tap on the driving surface.',
     'Steer gradually: A and D, or the left and right arrows. Steering is never instant.',
     'Request a U-turn: U. It only turns where the track allows it.',
     'Recover onto the track: R.',

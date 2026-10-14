@@ -1022,7 +1022,7 @@ export const STORY_NODES = {
     kind: 'dialogue',
     speaker: 'Ms. Leela Varma, race official',
     ambience: 'circuit',
-    text: 'Leela: You drive with your hands, on the screen. Press and hold anywhere on the driving surface and the car accelerates. Let go and it coasts. Tap the driving surface twice quickly and it brakes. Steering is not instant: you drag left or right and the wheels turn gradually, like a real car, because a real car cannot teleport sideways. A circular drag asks for a U-turn, and the game will only do it where the track allows. In menus, one tap activates, and swiping up and down moves between options.',
+    text: 'Leela: You drive with your hands, on the screen. Press and hold anywhere on the driving surface and the car accelerates. Let go and it coasts. Tap the driving surface once and it brakes. Tap twice quickly and the handbrake makes it slide. Steering is not instant: you drag left or right and the wheels turn gradually, like a real car, because a real car cannot teleport sideways. A circular drag asks for a U-turn, and the game will only do it where the track allows. In menus, one tap activates, and swiping up and down moves between options.',
     next: 'ch5_controls_settings',
     effects: { flags: { learnedGestures: true } },
   },
@@ -1220,7 +1220,7 @@ export const STORY_NODES = {
     kind: 'scene',
     ambience: 'circuit',
     sfx: 'tick',
-    text: 'Above the line there is a gantry with five red lights, and a marshal walks across your view and is gone. The voice in your headset says the lights will count down and you will hear each one. Hold to accelerate. Tap twice to brake. Drag to steer. The lights come on one at a time, and there is a gap at the end which is the longest second of your life, and then they all go out at once.',
+    text: 'Above the line there is a gantry with five red lights, and a marshal walks across your view and is gone. The voice in your headset says the lights will count down and you will hear each one. Hold to accelerate. Tap once to brake, twice quickly for the handbrake. Drag to steer. The lights come on one at a time, and there is a gap at the end which is the longest second of your life, and then they all go out at once.',
     next: 'ch7_race',
   },
   ch7_race: {

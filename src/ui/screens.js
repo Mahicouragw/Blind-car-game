@@ -79,8 +79,16 @@ export function createZoneMap(container, defaultZone) {
  * Focus management for a screen: an ordered list of controls, a current index,
  * and announcements on every move. Swiping up/down in a menu moves through this
  * list, which is the keyboard-equivalent of Tab.
+ *
+ * The announcement rule here is the one the brief calls "only talk back the
+ * current present announcement". Focus lines all share ONE speech key, so a
+ * newer focus REPLACES whatever is still waiting instead of queueing behind it:
+ * swiping quickly through a menu used to leave a backlog of "3 of 12... 4 of
+ * 12..." lines describing buttons the player had already left, and the player
+ * heard stale options for the next half a minute. Now the only line that can
+ * survive a swipe is the button under the finger right now.
  */
-export function createFocusRing(items, { speech, announceOnMove = true, loop = true } = {}) {
+export function createFocusRing(items, { speech, audio, announceOnMove = true, loop = true } = {}) {
   let index = Math.max(0, items.findIndex((i) => i.focused));
   if (index < 0) index = 0;
 
@@ -102,6 +110,17 @@ export function createFocusRing(items, { speech, announceOnMove = true, loop = t
     });
   }
 
+  /** Speak ONLY the newly focused control. Shared key: latest wins. */
+  function announceFocus(text, opts = {}) {
+    speech?.say(text, {
+      priority: 2,
+      key: 'focus',
+      cooldownMs: 0,
+      ttlMs: 2200,
+      ...opts,
+    });
+  }
+
   const api = {
     get index() {
       return index;
@@ -119,12 +138,11 @@ export function createFocusRing(items, { speech, announceOnMove = true, loop = t
       else if (next >= items.length) index = loop ? 0 : items.length - 1;
       else index = next;
       apply();
+      // A tick under every focus move: sound effects for every action, even the
+      // ones that also speak. The spoken line below is the one that matters.
+      audio?.play('ui-tick', { group: 'sfx', volume: 0.35 });
       if (announceOnMove && !opts.silent) {
-        speech?.say(`${describe(api.current)} ${index + 1} of ${items.length}.`, {
-          priority: 2,
-          key: `focus.${index}`,
-          cooldownMs: 0,
-        });
+        announceFocus(`${describe(api.current)} ${index + 1} of ${items.length}.`);
       }
       bus.emit('focus:move', { index, label: describe(api.current) });
       return api.current;
@@ -132,18 +150,23 @@ export function createFocusRing(items, { speech, announceOnMove = true, loop = t
     focusAt(i, opts = {}) {
       index = Math.max(0, Math.min(items.length - 1, i));
       apply();
-      if (!opts.silent) speech?.say(describe(api.current), { priority: 2, cooldownMs: 0 });
+      if (!opts.silent) announceFocus(describe(api.current));
       return api.current;
     },
     activate() {
       const item = api.current;
       if (!item) return false;
-      item.activate?.();
-      item.element?.click?.();
+      // Activate EXACTLY ONCE. This used to call `item.activate()` and then
+      // `item.element.click()`, which fired every button's handler twice: two
+      // announcements of the same action ("repeated announcements"), and
+      // confirmable actions asked twice. Prefer the item's own handler; fall
+      // back to a real click for items that only have an element.
+      if (typeof item.activate === 'function') item.activate();
+      else item.element?.click?.();
       return true;
     },
     announceCurrent() {
-      speech?.say(describe(api.current), { priority: 3, cooldownMs: 0, essential: true });
+      announceFocus(describe(api.current), { priority: 3, essential: true });
     },
     apply,
     describe,
@@ -168,16 +191,23 @@ export function makeButton({ label, hint, onActivate, className = '', disabled =
   el.disabled = disabled;
   el.setAttribute('data-zone', `btn-${label.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`);
   el.setAttribute('data-zone-role', ZONE_ROLE.MENU);
-  el.addEventListener('click', (e) => {
-    e.preventDefault();
+  // One path for every activation, whether it came from a tap, a click or the
+  // focus ring, so the handler runs EXACTLY ONCE per press. Press feedback
+  // (sound + spoken label) is wired globally in main.js: a real click is caught
+  // there in the capture phase, and a focus-ring activation passes no event, so
+  // it announces itself here - exactly once either way.
+  const run = (e) => {
+    e?.preventDefault?.();
+    if (!e) bus.emit('ui:press', { label, hint });
     onActivate?.(e);
-  });
+  };
+  el.addEventListener('click', run);
   return {
     element: el,
     label,
     focused: false,
     announce: announce ?? (() => `${label}. ${hint ?? ''}`.trim()),
-    activate: onActivate,
+    activate: () => run(),
     setLabel(text) {
       label = text;
       el.querySelector('.ui-button-label').textContent = text;

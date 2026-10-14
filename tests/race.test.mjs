@@ -735,7 +735,8 @@ test('the grid briefing states the real lap count and every control', async () =
   for (const [what, re] of [
     ['how to accelerate', /Hold your finger/],
     ['how to coast', /[Rr]elease to coast/],
-    ['how to brake', /Tap twice/],
+    ['how to brake', /Tap once to brake/],
+    ['how to use the handbrake', /handbrake/i],
     ['how to steer', /Drag left or right/],
     ['how to turn around', /circle/i],
     ['how to reverse', /Swipe down to reverse/],

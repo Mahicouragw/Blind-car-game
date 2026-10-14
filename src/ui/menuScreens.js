@@ -198,6 +198,14 @@ export function buildMenuScreen({ gameState, screens, speech, audio }) {
     })
   );
 
+  buttons.push(
+    makeButton({
+      label: 'Exit game',
+      hint: 'Closes the session and says goodbye',
+      onActivate: () => screens.openExit(),
+    })
+  );
+
   for (const b of buttons) list.appendChild(b.element);
 
   const foot = el('footer', 'screen-foot');
@@ -221,6 +229,45 @@ export function buildMenuScreen({ gameState, screens, speech, audio }) {
       root.remove();
     },
     announceText: `${save.heroName}. Driver level ${save.level}.`,
+  };
+}
+
+// -------------------------------------------------------------- exit game
+
+/**
+ * The goodbye screen, reached by the Exit game button on the menu and in the
+ * pause panel. A web page cannot silently close its own tab, so the honest
+ * exit is: say goodbye, explain the tab, and always leave a way back.
+ */
+export function buildExitScreen({ gameState, screens, audio }) {
+  const { root, h1 } = screenShell('Exit game', 'Thanks for playing Vettaru');
+  const body = makeReaderBlock('Goodbye', [
+    `${gameState.save.heroName}, thank you for driving with us. Your progress is already saved in this browser, so nothing is lost.`,
+    'A web game cannot close the tab for you. Close the tab or the browser whenever you like, or use the button below to come back to the main menu.',
+  ]);
+  root.appendChild(body.element);
+  const list = el('div', 'menu-list');
+  const backBtn = makeButton({
+    label: 'Return to the main menu',
+    hint: 'Nothing is lost',
+    className: 'ui-button-primary',
+    onActivate: () => screens.gotoMenu(),
+  });
+  list.appendChild(backBtn.element);
+  root.appendChild(list);
+  audio?.play('ui-exit', { group: 'sfx', volume: 0.7 });
+  return {
+    id: 'exit',
+    title: 'Exit game',
+    summary: 'The game has said goodbye. Close the tab whenever you like, or return to the main menu.',
+    element: root,
+    focusItems: [backBtn],
+    onMount() {
+      h1.focus?.();
+    },
+    destroy() {
+      root.remove();
+    },
   };
 }
 
@@ -357,7 +404,17 @@ export function buildCarSelectScreen({ gameState, screens, speech, audio, previe
     else selectBtn.setLabel(`Select ${entry.name}`);
     stage.setAttribute('aria-label', `${entry.name}. Car ${index + 1} of ${cars.length}.`);
     if (announce) {
-      speech?.say(carAnnouncement(entry, index, cars.length, entry.locked), { priority: 3, cooldownMs: 0 });
+      // Shared key, short life: swiping quickly through the garage must leave
+      // ONLY the current car being announced. Without it, every swipe queued
+      // another car and the player heard a backlog of cars they had already
+      // passed - the game repeating itself instead of talking back the present.
+      speech?.say(carAnnouncement(entry, index, cars.length, entry.locked), {
+        priority: 3,
+        key: 'carBrowse',
+        cooldownMs: 0,
+        ttlMs: 2600,
+        interrupt: true,
+      });
     }
     bus.emit('carSelect:index', { index, carId: entry.id });
   }
@@ -365,7 +422,7 @@ export function buildCarSelectScreen({ gameState, screens, speech, audio, previe
   function browse(delta) {
     const next = index + delta;
     if (next < 0 || next >= cars.length) {
-      speech?.say(delta < 0 ? 'That is the first car.' : 'That is the last car.', { priority: 2, cooldownMs: 400 });
+      speech?.say(delta < 0 ? 'That is the first car.' : 'That is the last car.', { priority: 2, key: 'carBrowseEnd', cooldownMs: 400 });
       audio?.play('ui-error', { group: 'sfx', volume: 0.4 });
       return;
     }
@@ -377,12 +434,12 @@ export function buildCarSelectScreen({ gameState, screens, speech, audio, previe
   function confirm() {
     const entry = cars[index];
     if (entry.locked) {
-      speech?.say(`${entry.name} is locked. ${entry.lockReason ?? 'Not available yet.'}`, { priority: 3, essential: true });
+      speech?.say(`${entry.name} is locked. ${entry.lockReason ?? 'Not available yet.'}`, { priority: 3, essential: true, key: 'carSelect' });
       return;
     }
     const res = gameState.selectCar(entry.id);
     if (!res.ok) {
-      speech?.say(res.reason, { priority: 3, essential: true });
+      speech?.say(res.reason, { priority: 3, essential: true, key: 'carSelect' });
       return;
     }
     audio?.play('ui-confirm', { group: 'sfx', volume: 0.8 });
@@ -641,7 +698,7 @@ export function buildSettingsScreen({ gameState, screens, speech, audio, onSetti
   function change(fn) {
     const result = fn();
     if (!result) {
-      speech?.sayEssential('That setting cannot be changed here.');
+      speech?.sayEssential('That setting cannot be changed here.', { key: 'setting', cooldownMs: 0 });
       return;
     }
     // `result.settings` holds the NEW coerced value. Passing the current one
@@ -649,11 +706,14 @@ export function buildSettingsScreen({ gameState, screens, speech, audio, onSetti
     gameState.setSettingValue(result.key, result.settings[result.key]);
     refreshRow(result.key);
     audio?.play(result.key === 'talkback' ? 'ui-toggle' : 'ui-switch', { group: 'sfx', volume: 0.6 });
-    speech?.sayEssential(result.announcement);
+    // One shared key: a player tapping through rows fast hears the LAST change
+    // only - the current present announcement - not a queue of the last five.
+    speech?.sayEssential(result.announcement, { key: 'setting', cooldownMs: 0, interrupt: true });
     if (result.key === 'talkback' && !gameState.settings.talkback) {
       // Say goodbye through the essential channel, then explain how to return.
       speech?.sayEssential(
-        'Game TalkBack is now off. Game announcements have stopped. This settings screen will keep speaking so you are never stuck in silence. Press F1 on a keyboard, or use the Game TalkBack settings button on the menu, to turn it back on.'
+        'Game TalkBack is now off. Game announcements have stopped. This settings screen will keep speaking so you are never stuck in silence. Press F1 on a keyboard, or use the Game TalkBack settings button on the menu, to turn it back on.',
+        { key: 'settingOff', cooldownMs: 0, interrupt: true }
       );
     }
     onSettingsChanged?.(result.key, gameState.settings[result.key]);
@@ -731,9 +791,15 @@ const TUTORIAL_STEPS = [
   },
   {
     id: 'brake',
-    title: 'Brake: double tap',
-    text: 'Tap the driving surface twice quickly. That is the brake. It is deliberately different from a single tap so that a stray tap can never brake you, and so that three quick taps cannot start a race.',
+    title: 'Brake: single tap',
+    text: 'Tap the driving surface once. That is the brake, held for a moment like a real pedal tap. The game talks back the press - you hear Brake - so you always know the car is slowing.',
     require: 'braked',
+  },
+  {
+    id: 'handbrake',
+    title: 'Handbrake: double tap',
+    text: 'Tap twice quickly. That pulls the handbrake: the car slides and the tyres chirp. It is the drift control, deliberately separate from the brake, and three quick taps still cannot start a race.',
+    require: 'handbraked',
   },
   {
     id: 'steer',

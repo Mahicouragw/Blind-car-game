@@ -165,6 +165,9 @@ export function createRaceScreen(config) {
     awaitingBriefing: false,
     lastHolding: false,
     lastReversing: false,
+    lastBraking: false,
+    lastHandbraking: false,
+    lastGear: null,
     lastThrottleSay: -99,
     direction: null,
     lastDirectionSay: -99,
@@ -291,7 +294,8 @@ export function createRaceScreen(config) {
     return [
       `On the grid, position ${race.player.gridPosition} of ${race.racers.length}, for ${intToWords(laps)} ${laps === 1 ? 'lap' : 'laps'} of the Vettaru circuit.`,
       'Hold your finger anywhere on the screen to accelerate. Release to coast.',
-      'Tap twice quickly to brake.',
+      'Tap once to brake.',
+      'Tap twice quickly for the handbrake, which makes the car slide.',
       'Drag left or right to steer. The car turns gradually, so hold the drag through the corner.',
       'Draw a circle with your finger to turn around.',
       'Swipe down to reverse.',
@@ -355,6 +359,8 @@ export function createRaceScreen(config) {
         interrupt: true,
         essential: true,
       });
+      // The grandstand, at the moment the lights go out.
+      audio?.play('crowd-cheer', { group: 'sfx', volume: 0.55 });
       audio?.engine?.start();
       audio?.skid?.start();
       for (const r of race.racers) r.lapStartTime = S.elapsed;
@@ -363,16 +369,23 @@ export function createRaceScreen(config) {
 
   // ---------------------------------------------------------------- physics
   /**
-   * Tell the player whether their finger is actually on the throttle.
+   * Tell the player whether their finger is actually on the controls.
    *
    * Holding the screen is the accelerator, and with no visible needle and an
    * engine note that is already loud, "am I holding it?" is a fair question. This
-   * announces the two edges - pressed and released - rather than a continuous
+   * announces the edges - pressed and released - rather than a continuous
    * stream, so it cannot become chatter, and it is governed by its own setting.
+   *
+   * Brake and handbrake follow the same rule: the moment the player presses one
+   * is the "current present announcement", said once, immediately, and replaced
+   * by anything newer. Every press also gets its own recorded sound effect,
+   * whether or not speech is on.
    */
   function announceDriveInput() {
     const holding = !!drivingInput?.state?.holding;
     const reversing = !!drivingInput?.state?.reversing;
+    const braking = !!drivingInput?.state?.braking;
+    const handbraking = !!drivingInput?.state?.handbrake;
     if (reversing && !S.lastReversing) {
       say('Reversing.', {
         priority: SPEECH_PRIORITY.CRITICAL,
@@ -382,6 +395,30 @@ export function createRaceScreen(config) {
       });
     }
     S.lastReversing = reversing;
+    // Brake and handbrake: sound effect on EVERY press, spoken line on the edge.
+    const brakeEdge = braking && !S.lastBraking;
+    const handbrakeEdge = handbraking && !S.lastHandbraking;
+    if (handbrakeEdge) {
+      // A handbrake press is its own control, even if it upgrades a brake press
+      // that is already in progress: the player must hear the difference at once.
+      audio?.play('handbrake', { group: 'sfx', volume: 0.75 });
+      cue('Handbrake.', 'voice-handbrake', {
+        priority: SPEECH_PRIORITY.HIGH,
+        key: 'handbrakeCmd',
+        cooldownMs: 700,
+        ttlMs: 1800,
+      });
+    } else if (brakeEdge) {
+      audio?.play('brake', { group: 'sfx', volume: 0.75 });
+      cue('Brake.', 'voice-brake', {
+        priority: SPEECH_PRIORITY.HIGH,
+        key: 'brakeCmd',
+        cooldownMs: 700,
+        ttlMs: 1800,
+      });
+    }
+    S.lastBraking = braking;
+    S.lastHandbraking = handbraking;
     if (holding === S.lastHolding) return;
     S.lastHolding = holding;
     if (gameState?.settings?.speakThrottle === false) return;
@@ -488,7 +525,7 @@ export function createRaceScreen(config) {
       }
     }
 
-    stepVehicle(vehicle, { throttle: input.throttle, brake: input.brake, steer }, pacedCar, dt, {
+    stepVehicle(vehicle, { throttle: input.throttle, brake: input.brake, steer, handbrake: !!input.handbrake }, pacedCar, dt, {
       surface: surf.surface,
       // The level's grip, times the grip of the tyres actually fitted. Tyres are
       // bought in the garage, so this is the one place where spending coins
@@ -728,6 +765,8 @@ export function createRaceScreen(config) {
     recomputePositions(race);
     audio?.engine?.stop();
     audio?.skid?.stop();
+    // The grandstand, at the line.
+    audio?.play('crowd-cheer', { group: 'sfx', volume: 0.55 });
     const results = buildResults(race);
     const mine = results.find((r) => r.isPlayer);
     const pos = mine?.position ?? race.player.position;
@@ -890,6 +929,10 @@ export function createRaceScreen(config) {
   }
 
   function updateAudio() {
+    // Guidance never depends on the sound mix: the spoken control feedback is
+    // the accessibility surface and runs whether or not audio unlocked.
+    announceDriveInput();
+    announceDirection();
     if (!audio?.ready) return;
     audio.engine.update({
       rpm: vehicle.rpm,
@@ -900,12 +943,10 @@ export function createRaceScreen(config) {
       speedNorm: Math.min(1, Math.abs(vehicle.speed) / 60),
     });
     audio.skid.update(vehicle.skidLevel ?? 0);
-    announceDriveInput();
-    announceDirection();
     if (S.phase === RACE_PHASE.RACING && S.frames % 90 === 0 && vehicle.gear !== S.lastGear) {
-      // No dedicated gear-change recording exists; a recorded metal click is
-      // used instead and that substitution is listed in docs/AUDIO-CREDITS.md.
-      audio.play('metal-click', { group: 'sfx', volume: 0.4, rate: 0.9 + Math.random() * 0.25 });
+      // A dedicated generated gear-change clunk now exists (it used to be
+      // substituted with metal-click; see docs/AUDIO-CREDITS.md).
+      audio.play('gear-change', { group: 'sfx', volume: 0.45, rate: 0.94 + Math.random() * 0.12 });
       S.lastGear = vehicle.gear;
     }
   }

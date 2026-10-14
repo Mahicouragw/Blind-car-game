@@ -16,7 +16,8 @@ Wiring lives in `src/input/pointerBus.js` (real pointer events → recognizer),
 | Gesture | Zone | Emits | Game action |
 | --- | --- | --- | --- |
 | Press and hold | driving surface | `pressStart` on contact, `pressEnd` on lift | **Accelerate** while held; release **coasts** |
-| Tap twice quickly | driving surface | `doubleTap` | **Brake** (held ~620 ms, like a pedal tap) |
+| Single tap | driving surface | `tap` | **Brake** (held ~620 ms, like a pedal tap) |
+| Tap twice quickly | driving surface | `doubleTap` | **Handbrake / drift** (0.9 s burst; the rears lock and the car slides) |
 | Drag left / right | driving surface | `dragStart`, `drag`, `dragEnd` | **Steer gradually** toward the drag offset |
 | Circular drag | driving surface | `circle` | **Request a U-turn** where the track allows it |
 | Swipe down | driving surface | `swipe` (`direction: 'down'`) | **Reverse** for 1.8 s, then stop on its own |
@@ -30,11 +31,20 @@ Wiring lives in `src/input/pointerBus.js` (real pointer events → recognizer),
 Every gesture has a keyboard equivalent in `src/input/keyboard.js`; see
 [ACCESSIBILITY.md](../ACCESSIBILITY.md#keyboard-map).
 
+**Brake and handbrake are two different controls.** One tap is the brake - a
+pedal tap, held briefly and released. Two quick taps pull the handbrake: the
+physics lose rear grip and the car slides, so the double tap is the drift input.
+Each press is talked back ("Brake", "Handbrake") and has its own recorded sound
+effect, so the player always hears which control they just used. The recognizer
+separates the two (R2/R3): a single tap waits out the double-tap window exactly
+so the second tap can win, and neither gesture ever fires twice for one
+intention.
+
 **Reverse is a swipe, not a held control.** The physics model already reverses
 when throttle and brake are applied together below the standstill threshold, but
-no thumb can hold the screen for throttle and perform a double tap for the brake
-at the same time, so reverse was unreachable on a touch device. A downward swipe
-applies that combination for 1.8 seconds and then releases it, so the car cannot
+no thumb can hold the screen for throttle and tap the brake at the same time, so
+reverse would be unreachable on a touch device. A downward swipe applies that
+combination for 1.8 seconds and then releases it, so the car cannot
 be left stuck in reverse. It is announced once, and steering keeps working while
 it runs so the car can be aimed.
 

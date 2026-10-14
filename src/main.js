@@ -23,12 +23,13 @@ import { webglAvailable } from './world/scene3d.js';
 import { getTrack } from './world/trackData.js';
 import { getCar } from './vehicles/carCatalog.js';
 import { getLevel, LEVELS, PRACTICE_LEVEL, nextLevel } from './race/levels.js';
-import { createScreenManager, createFocusRing, ZONE_ROLE } from './ui/screens.js';
+import { createScreenManager, createFocusRing, makeButton, ZONE_ROLE } from './ui/screens.js';
 import {
   buildAudioStatusScreen,
   buildCarSelectScreen,
   buildChapterScreen,
   buildConfirmScreen,
+  buildExitScreen,
   buildGarageScreen,
   buildLevelScreen,
   buildMapScreen,
@@ -99,6 +100,7 @@ export function bootApp(config = {}) {
   });
 
   let focusRing = null;
+  let pauseRing = null;
   let raceScreen = null;
   let carPreview = null;
   let previewRaf = null;
@@ -142,14 +144,79 @@ export function bootApp(config = {}) {
     );
   }
 
+  // --------------------------------------------------- press feedback (every button)
+  //
+  // The brief asks for a sound effect for every action and for the game to talk
+  // back the button that was actually pressed - "exit game, main menu, settings
+  // like that, where I am to press that button" - and only that: the current
+  // present announcement, never a queue of old ones.
+  //
+  // ONE delegated listener covers every button in the game (menus, settings
+  // rows, the pause panel, the HUD) however it was pressed: tap, click or
+  // Enter. It runs in the capture phase so the label is spoken BEFORE the
+  // button's own action speaks; whatever the action then says supersedes it,
+  // which is exactly the "only the present" rule.
+  document.addEventListener(
+    'click',
+    (e) => {
+      const btn = e.target?.closest?.('button');
+      if (!btn || btn.disabled) return;
+      const label = (
+        btn.querySelector('.ui-button-label')?.textContent ||
+        btn.dataset.announceLabel ||
+        btn.textContent ||
+        ''
+      )
+        .trim()
+        .slice(0, 80);
+      if (!label) return;
+      bus.emit('ui:press', { label });
+    },
+    true,
+  );
+
+  bus.on('ui:press', ({ label } = {}) => {
+    if (!label) return;
+    audio.play('ui-click', { group: 'sfx', volume: 0.5 });
+    const line = /[.!?]$/.test(label) ? label : `${label}.`;
+    // Essential: pressing a button is the accessibility surface itself, so the
+    // label is spoken even with game chatter off - a blind player must always
+    // hear where they just pressed. Shared key: pressing quickly speaks only
+    // the latest press.
+    speech.say(line, {
+      priority: SPEECH_PRIORITY.HIGH,
+      essential: true,
+      key: 'uiPress',
+      cooldownMs: 250,
+      ttlMs: 2500,
+      interrupt: true,
+    });
+  });
+
   // ------------------------------------------------------------ gesture map
+  //
+  // The focus ring that gestures and keys should drive right now:
+  // - racing: nothing (the pause panel is its own ring, and the menu behind the
+  //   race MUST NOT be reachable - it used to announce menu options mid-race);
+  // - paused: the pause panel's ring;
+  // - otherwise: the mounted screen's ring.
+  function activeRing() {
+    if (raceScreen) return raceScreen.state.paused ? pauseRing : null;
+    return focusRing;
+  }
+
   bus.on('gesture:tap', (d) => {
     unlockAudio();
     if (d.zone?.element) {
       d.zone.element.click();
       return;
     }
-    if (raceScreen) return;
+    if (raceScreen) {
+      // A tap outside the pause panel while paused activates the focused pause
+      // option - the same "single tap activates" rule every menu follows.
+      if (raceScreen.state.paused) pauseRing?.activate();
+      return;
+    }
     focusRing?.activate();
   });
 
@@ -177,24 +244,31 @@ export function bootApp(config = {}) {
       }
       return;
     }
-    if (raceScreen) return;
-    if (d.direction === 'up') focusRing?.move(-1);
-    else if (d.direction === 'down') focusRing?.move(1);
-    else if (d.direction === 'left') focusRing?.move(-1);
-    else if (d.direction === 'right') focusRing?.move(1);
+    const ring = activeRing();
+    if (!ring) return;
+    if (d.direction === 'up') ring.move(-1);
+    else if (d.direction === 'down') ring.move(1);
+    else if (d.direction === 'left') ring.move(-1);
+    else if (d.direction === 'right') ring.move(1);
     tutorialHarness.record('menuNavigated');
   });
 
   bus.on('gesture:doubleTapHold', (d) => {
     unlockAudio();
     // The documented way into Game TalkBack settings from anywhere, and the
-    // accessible alternative is F1 (see input/keyboard.js).
+    // accessible alternative is F1 (see input/keyboard.js). Mid-race it pauses
+    // first: opening a settings screen over a running race would leave the car
+    // driving itself while the player is reading.
+    if (raceScreen && !raceScreen.state.paused) {
+      pauseRace();
+      return;
+    }
     if (d.zone?.doubleTapHoldTarget || d.zone?.role === ZONE_ROLE.SETTINGS_HOTSPOT || d.zone?.role === ZONE_ROLE.DRIVING) {
       screens.openSettings();
       tutorialHarness.record('openedSettings');
       return;
     }
-    if (!raceScreen) {
+    if (!raceScreen || raceScreen.state.paused) {
       screens.openSettings();
       tutorialHarness.record('openedSettings');
     }
@@ -213,8 +287,13 @@ export function bootApp(config = {}) {
   bus.on('gesture:circle', () => tutorialHarness.record('uturned'));
   bus.on('gesture:pressStart', () => tutorialHarness.record('accelerated'));
   bus.on('gesture:pressEnd', () => tutorialHarness.record('coasted'));
-  bus.on('gesture:doubleTap', (d) => {
+  bus.on('gesture:tap', (d) => {
+    // A single tap on the driving surface is the brake (the brief's mapping).
     if (d.zone?.role === ZONE_ROLE.DRIVING) tutorialHarness.record('braked');
+  });
+  bus.on('gesture:doubleTap', (d) => {
+    // Two quick taps pull the handbrake.
+    if (d.zone?.role === ZONE_ROLE.DRIVING) tutorialHarness.record('handbraked');
   });
   bus.on('gesture:dragEnd', (d) => {
     // `dragEnd` carries `dx`, not `totalDx`. Reading a field that does not exist
@@ -224,11 +303,18 @@ export function bootApp(config = {}) {
   });
 
   // ---------------------------------------------------------- keyboard map
-  bus.on('key:activate', () => focusRing?.activate());
-  bus.on('key:nextFocus', () => focusRing?.move(1));
+  bus.on('key:activate', () => activeRing()?.activate());
+  bus.on('key:nextFocus', () => activeRing()?.move(1));
   bus.on('key:back', () => {
-    if (raceScreen) pauseRace();
-    else screens.back();
+    if (raceScreen) {
+      // Escape is the "get me out of here" key: it pauses while racing, and
+      // while paused it goes back to driving. It used to dead-end: pauseRace()
+      // early-returns when already paused, so Escape did nothing at all.
+      if (raceScreen.state.paused) resumeRace();
+      else pauseRace();
+      return;
+    }
+    screens.back();
   });
   bus.on('key:repeatLastAnnouncement', () => speech.repeat());
   bus.on('key:openVoiceSettings', () => screens.openSettings());
@@ -368,6 +454,11 @@ export function bootApp(config = {}) {
       stopPreview();
       mount(buildAudioStatusScreen({ screens: screensApi, speech, audio }));
     },
+    openExit() {
+      endPreviousSpeech();
+      stopPreview();
+      mount(buildExitScreen({ gameState, screens: screensApi, speech, audio }));
+    },
     editHeroName() {
       mount(buildNameScreen({ screens: screensApi, speech, gameState }));
     },
@@ -469,56 +560,73 @@ export function bootApp(config = {}) {
   function pauseRace() {
     if (!raceScreen || raceScreen.state.paused) return;
     raceScreen.pause();
+    audio.play('ui-pause', { group: 'sfx', volume: 0.6 });
     const panel = document.createElement('div');
     panel.className = 'pause-panel';
     panel.id = 'pause-panel';
     panel.innerHTML = '<h2 class="pause-title">Paused</h2>';
-    const items = [
-      {
+    // Every pause option is a real, announced, focus-ring-navigable button.
+    // Swiping up or down moves between them exactly like in the menus - the
+    // pause panel used to be tap-only, which is not usable without sight.
+    const buttons = [
+      makeButton({
         label: 'Resume the race',
+        hint: 'Back to driving',
         className: 'ui-button-primary',
-        run: () => {
-          panel.remove();
-          raceScreen.resume();
-          speech.say('Resumed.', { priority: 4, essential: true, interrupt: true });
-        },
-      },
-      {
+        onActivate: () => resumeRace(),
+      }),
+      makeButton({
         label: 'Where am I on the track',
-        run: () => {
+        hint: 'Lap, position and race time',
+        onActivate: () => {
           const facts = raceScreen.state;
           void facts;
-          speech.sayEssential(describeRacePosition());
+          speech.sayEssential(describeRacePosition(), { key: 'whereAmI', cooldownMs: 0 });
         },
-      },
-      { label: 'Game TalkBack settings', run: () => screensApi.openSettings() },
-      { label: 'Repeat the controls', run: () => speech.sayEssential(controlsSummary()) },
-      {
-        label: 'Abandon the race',
+      }),
+      makeButton({ label: 'Game TalkBack settings', hint: 'Speech and announcement settings', onActivate: () => screensApi.openSettings() }),
+      makeButton({ label: 'Repeat the controls', hint: 'Every driving control, spoken again', onActivate: () => speech.sayEssential(controlsSummary(), { key: 'controls', cooldownMs: 0 }) }),
+      makeButton({
+        label: 'Main menu',
+        hint: 'Abandons the race and returns to the menu',
         className: 'ui-button-danger',
-        run: () => {
+        onActivate: () => {
           panel.remove();
+          pauseRing = null;
           raceScreen.abort('player');
         },
-      },
+      }),
+      makeButton({
+        label: 'Exit game',
+        hint: 'Says goodbye and closes the session',
+        onActivate: () => {
+          panel.remove();
+          pauseRing = null;
+          raceScreen.abort('player');
+          screensApi.openExit();
+        },
+      }),
     ];
-    for (const it of items) {
-      const b = document.createElement('button');
-      b.type = 'button';
-      b.className = `ui-button ${it.className ?? ''}`.trim();
-      b.textContent = it.label;
-      b.setAttribute('data-zone', `pause-${it.label.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`);
-      b.setAttribute('data-zone-role', ZONE_ROLE.MENU);
-      b.addEventListener('click', (e) => {
-        e.preventDefault();
-        it.run();
-      });
-      panel.appendChild(b);
-    }
+    for (const b of buttons) panel.appendChild(b.element);
     overlay.appendChild(panel);
     screens.remeasure();
-    speech.say('Paused. Five options. Resume the race is first.', { priority: 4, essential: true, interrupt: true });
+    pauseRing = createFocusRing(buttons, { speech, audio });
+    const first = buttons[0].label;
+    speech.say(
+      `Paused. ${buttons.length} options. ${first} is first. Swipe up or down to move between them, single tap to activate.`,
+      { priority: 4, essential: true, interrupt: true }
+    );
     panel.querySelector('button')?.focus();
+  }
+
+  /** Leave the pause panel and go back to driving. */
+  function resumeRace() {
+    if (!raceScreen || !raceScreen.state.paused) return;
+    document.getElementById('pause-panel')?.remove();
+    pauseRing = null;
+    raceScreen.resume();
+    audio.play('ui-resume', { group: 'sfx', volume: 0.6 });
+    speech.say('Resumed.', { priority: 4, essential: true, interrupt: true });
   }
 
   function describeRacePosition() {
@@ -529,7 +637,7 @@ export function bootApp(config = {}) {
   }
 
   function controlsSummary() {
-    return 'Press and hold to accelerate, release to coast. Tap the driving surface twice to brake. Drag left or right to steer gradually. Draw a circle to ask for a U-turn where the track allows it. Press R or use the recovery option to be placed back on the racing line. Press Escape or P to pause.';
+    return 'Press and hold to accelerate, release to coast. Tap the driving surface once to brake. Tap twice quickly for the handbrake, which makes the car slide. Drag left or right to steer gradually. Draw a circle to ask for a U-turn where the track allows it. Press R or use the recovery option to be placed back on the racing line. Press Escape or P to pause.';
   }
 
   function endRace(result, level, opts) {
@@ -662,7 +770,7 @@ export function bootApp(config = {}) {
 
   function rebuildFocus(screen) {
     const items = screen.focusItems ?? screen.focusButtons ?? [];
-    focusRing = createFocusRing(items, { speech });
+    focusRing = createFocusRing(items, { speech, audio });
     screen.focusRing = focusRing;
     screens.remeasure();
   }
@@ -693,7 +801,7 @@ export function bootApp(config = {}) {
       'Welcome to Vettaru, The Blind Driver.',
       'This game has its own spoken guidance called Game TalkBack. It does not need TalkBack or any screen reader on your phone to be switched on.',
       speech.explainStatus(),
-      'Controls. Press and hold anywhere on the driving surface to accelerate, and release to coast. Tap it twice quickly to brake. Drag left or right to steer, and the steering is gradual, never instant. Draw a circle to ask for a U-turn, which the game only performs where the track allows it.',
+      'Controls. Press and hold anywhere on the driving surface to accelerate, and release to coast. Tap once to brake. Tap twice quickly for the handbrake, which makes the car slide. Drag left or right to steer, and the steering is gradual, never instant. Draw a circle to ask for a U-turn, which the game only performs where the track allows it.',
       'In menus, a single tap activates the focused control, and swiping up or down moves between options. Swipe left and right to browse cars.',
       'Tap twice and hold on the settings area, or press F1 on a keyboard, to open the voice settings at any time. There is also always a button on the menu.',
       'Three quick taps never start a race. That is deliberate.',
@@ -790,6 +898,7 @@ export function createTutorialHarness() {
         accelerated: seen.has('accelerated'),
         coasted: seen.has('coasted'),
         braked: seen.has('braked'),
+        handbraked: seen.has('handbraked'),
         steered: seen.has('steered'),
         uturned: seen.has('uturned'),
         openedSettings: seen.has('openedSettings'),
