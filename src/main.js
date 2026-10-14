@@ -156,6 +156,37 @@ export function bootApp(config = {}) {
   // Enter. It runs in the capture phase so the label is spoken BEFORE the
   // button's own action speaks; whatever the action then says supersedes it,
   // which is exactly the "only the present" rule.
+
+  /**
+   * Speak a fixed phrase through its AI voice FILE when one exists; device
+   * speech synthesis is only the fallback. The brief prefers real files over
+   * Web-API-generated speech, and playing both would say every line twice -
+   * so exactly one of the two ever runs.
+   */
+  function speakCue(text, voiceName, opts = {}) {
+    const volume = Number.isFinite(gameState.settings.speechVolume) ? gameState.settings.speechVolume : 1;
+    const hasSample = !!voiceName && audio.ready && audio.buffers?.has(voiceName);
+    if (hasSample && volume > 0) {
+      speech.mirror?.(text);
+      audio.play(voiceName, { group: 'voice', volume: Math.max(0, Math.min(1, volume)) });
+      return true;
+    }
+    if (volume <= 0) {
+      speech.mirror?.(text);
+      return true;
+    }
+    return speech.say(text, opts);
+  }
+
+  /** Fixed phrases that have their own AI voice clip. */
+  const PHRASE_SAMPLES = {
+    'Main menu': 'voice-main-menu',
+    'Exit game': 'voice-exit-game',
+    Settings: 'voice-settings',
+    'Game TalkBack settings': 'voice-settings',
+    'Resume the race': 'voice-resumed',
+  };
+
   document.addEventListener(
     'click',
     (e) => {
@@ -180,17 +211,19 @@ export function bootApp(config = {}) {
     audio.play('ui-click', { group: 'sfx', volume: 0.5 });
     const line = /[.!?]$/.test(label) ? label : `${label}.`;
     // Essential: pressing a button is the accessibility surface itself, so the
-    // label is spoken even with game chatter off - a blind player must always
-    // hear where they just pressed. Shared key: pressing quickly speaks only
-    // the latest press.
-    speech.say(line, {
+    // label is heard even with game chatter off - a blind player must always
+    // know where they just pressed.
+    const opts = {
       priority: SPEECH_PRIORITY.HIGH,
       essential: true,
       key: 'uiPress',
       cooldownMs: 250,
       ttlMs: 2500,
       interrupt: true,
-    });
+    };
+    const sample = PHRASE_SAMPLES[label];
+    if (sample && speakCue(line, sample, opts)) return;
+    speech.say(line, opts);
   });
 
   // ------------------------------------------------------------ gesture map
@@ -612,10 +645,14 @@ export function bootApp(config = {}) {
     screens.remeasure();
     pauseRing = createFocusRing(buttons, { speech, audio });
     const first = buttons[0].label;
-    speech.say(
-      `Paused. ${buttons.length} options. ${first} is first. Swipe up or down to move between them, single tap to activate.`,
-      { priority: 4, essential: true, interrupt: true }
-    );
+    // "Paused." comes from its AI voice clip when available; the options list is
+    // dynamic text and is always synthesised. One clip, one line, no doubles.
+    speakCue('Paused.', 'voice-paused', { priority: 4, essential: true, interrupt: true });
+    speech.say(`${buttons.length} options. ${first} is first. Swipe up or down to move between them, single tap to activate.`, {
+      priority: 2,
+      essential: true,
+      cooldownMs: 0,
+    });
     panel.querySelector('button')?.focus();
   }
 
@@ -626,7 +663,7 @@ export function bootApp(config = {}) {
     pauseRing = null;
     raceScreen.resume();
     audio.play('ui-resume', { group: 'sfx', volume: 0.6 });
-    speech.say('Resumed.', { priority: 4, essential: true, interrupt: true });
+    speakCue('Resumed.', 'voice-resumed', { priority: 4, essential: true, interrupt: true });
   }
 
   function describeRacePosition() {

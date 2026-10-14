@@ -387,7 +387,7 @@ export function createRaceScreen(config) {
     const braking = !!drivingInput?.state?.braking;
     const handbraking = !!drivingInput?.state?.handbrake;
     if (reversing && !S.lastReversing) {
-      say('Reversing.', {
+      cue('Reversing.', 'voice-reversing', {
         priority: SPEECH_PRIORITY.CRITICAL,
         key: 'reverse',
         cooldownMs: 900,
@@ -427,7 +427,7 @@ export function createRaceScreen(config) {
     S.lastThrottleSay = now;
     // NORMAL, not CRITICAL: this is feedback about the player's own finger, and it
     // must never outrank a corner warning or a collision callout.
-    say(holding ? 'Accelerating.' : 'Coasting.', {
+    cue(holding ? 'Accelerating.' : 'Coasting.', holding ? 'voice-accelerating' : 'voice-coasting', {
       priority: SPEECH_PRIORITY.NORMAL,
       key: 'throttle',
       cooldownMs: 400,

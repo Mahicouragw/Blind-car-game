@@ -56,6 +56,20 @@ export const AUDIO_MANIFEST = {
   'voice-power-up': `${A}/voice/power_up.ogg`,
   'voice-hurry': `${A}/voice/hurry_up.ogg`,
   'voice-objective': `${A}/voice/objective_achieved.ogg`,
+  // AI voice clips: short spoken cues generated as real files (see
+  // docs/AUDIO-CREDITS.md). Preferred over device speech synthesis whenever the
+  // phrase is one of these - the sample wins, synthesis is only the fallback -
+  // so the player hears ONE voice saying the line, never two.
+  'voice-brake': `${A}/voice/brake.mp3`,
+  'voice-handbrake': `${A}/voice/handbrake.mp3`,
+  'voice-main-menu': `${A}/voice/main-menu.mp3`,
+  'voice-settings': `${A}/voice/settings.mp3`,
+  'voice-exit-game': `${A}/voice/exit-game.mp3`,
+  'voice-paused': `${A}/voice/paused.mp3`,
+  'voice-resumed': `${A}/voice/resumed.mp3`,
+  'voice-accelerating': `${A}/voice/accelerating.mp3`,
+  'voice-coasting': `${A}/voice/coasting.mp3`,
+  'voice-reversing': `${A}/voice/reversing.mp3`,
   // ui
   'ui-click': `${A}/ui/click.ogg`,
   'ui-select': `${A}/ui/select.ogg`,
