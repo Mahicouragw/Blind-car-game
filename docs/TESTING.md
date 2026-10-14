@@ -9,12 +9,12 @@ Where something could not be run in this environment, it is listed under
 ## Executed
 
 ```bash
-npm test          # 273 tests, 273 passing
+npm test          # 299 tests, 299 passing
 npm run validate  # track geometry gate
 npm run map       # regenerates docs/circuit-map.svg
 ```
 
-Last run: **273 tests, 273 pass, 0 fail**, Node v22.22.3, ~20 s.
+Last run: **299 tests, 299 pass, 0 fail**, Node v22.22.3, ~20 s.
 
 | File | Tests | Covers |
 | --- | --- | --- |
@@ -22,20 +22,21 @@ Last run: **273 tests, 273 pass, 0 fail**, Node v22.22.3, ~20 s.
 | `tests/settings.test.mjs` | 38 | Settings state, coercion, the speech queue, speech chunking, Car pace, Race length |
 | `tests/race.test.mjs` | 44 | Lap counting, checkpoints, race completion, positions, navigation, physics, AI, pace-scaled vehicle specs |
 | `tests/story.test.mjs` | 47 | Story branching, interview scoring, negotiation, saving, progression |
-| `tests/dom.smoke.test.mjs` | 17 | Boots the real game in jsdom and drives it with gesture events |
+| `tests/dom.smoke.test.mjs` | 22 | Boots the real game in jsdom and drives it with gesture events |
+| `tests/garage.test.mjs` | 21 | Pricing and every refusal path, tyre grip measured through the real physics step, save round-trip and tamper rejection, and grime reaching the car's materials |
 | `tests/publish.test.mjs` | 37 | Deployment safety: relative asset paths, the module graph, what the staged artefact does and does not contain, the dev server's path guard over a real socket, and the post-deploy verifier in both directions |
 | `tests/audio.test.mjs` | 26 | The audio mix against a fake Web Audio graph: ducking held for a whole utterance, engine response to rpm, load and road speed, lazy loading of the music beds, and per-track licence and attribution obligations |
 | `tests/music.test.mjs` | 16 | The music director: scene and chapter to track mapping, deliberate silence, settings interaction, and teardown |
 | `tests/integration.test.mjs` | 22 | **No mocks**: real touch events through the real recognizer, onto the real bus, into the real driving input. Holding applies throttle, releasing cuts it, a double tap brakes, dragging steers gradually, the wheel self-centres, swiping down reverses, a circle asks for a U-turn, menu gestures never touch the car, and pressEnd follows pressStart exactly once for every kind of press |
-| **Total** | **273** | |
+| **Total** | **299** | |
 
 `npm run validate` reports **"Track geometry OK."** — the lap closes to 0.070 m
 with exactly −360° of total turn, has no self-intersection, and keeps every pair
 of non-adjacent centre-line points at least 27 m apart.
 
 All logic modules are pure ES modules with no DOM, WebGL or Web Audio access at
-import time, which is why 256 of these tests run headless in Node with no
-browser. The remaining 17 run in **jsdom** (dev-only dependency).
+import time, which is why 277 of these tests run headless in Node with no
+browser. The remaining 22 run in **jsdom** (dev-only dependency).
 
 ---
 
@@ -197,8 +198,31 @@ screen** — non-essential speech is refused while essential speech still gets
 through. A saved setting survives a reload. **Unplayable chapters are labelled and
 cannot be entered.** Story chapter 1 renders and branches on a real choice. The
 hero name is sanitised before it reaches speech or the DOM. The car preview
-degrades when WebGL is unavailable. **Starting a race without WebGL explains the
-limitation instead of white-screening.**
+degrades when WebGL is unavailable, and **opening car selection without WebGL no
+longer throws**: it opens, says why there is no picture, and stays fully operable
+by button and by swipe. **Starting a race without WebGL explains the limitation
+instead of white-screening.** The garage is reachable from the menu, lists every
+car with its price, **charges the coins and makes the bought car selectable
+without a reload**, **refuses a purchase the player cannot afford without
+changing anything**, and never offers a car already owned or a wash with nothing
+to clean.
+
+### The garage — `tests/garage.test.mjs`
+
+Prices are derived from the unlock level, and a car that is not in the catalogue
+has **no price rather than being free**. Buying deducts the coins, adds the car to
+the selectable list and leaves the original profile untouched. Buying early works
+**and the level route is not taken away**. Refusals — already owned, too
+expensive, a downgrade, an unnecessary wash, an unknown item — each change nothing
+and **every spoken reply is a finished sentence naming the balance**, with no
+`undefined` in it anywhere. Tyres are proved to be real rather than cosmetic by
+**measuring through the physics step**: the same manoeuvre on slicks holds 44.4
+kph against 42.4 kph on standard tyres, and a 60 m corner has a higher maximum
+speed. Bought cars, tyre tier and grime survive a save and a reload, and an edited
+save **cannot conjure a car, an impossible grip value or a negative or oversized
+grime figure**. Grime reaches the car's materials — the paint dulls and roughens,
+the tyres, rims and lights are untouched — and a wash restores the original finish
+exactly.
 
 ### Deployment safety — `tests/publish.test.mjs`
 

@@ -466,12 +466,13 @@ export function createCarPreview(canvas, { quality = 'medium' } = {}) {
   let current = null;
   let angle = 0;
 
-  function setCar(car) {
+  function setCar(car, opts = {}) {
     if (current) {
       scene.remove(current.group);
       current.dispose();
     }
-    current = buildCarMesh(car, { shadows: false, number: 3 });
+    // `dirt` lets the preview show the car as it actually is, grime and all.
+    current = buildCarMesh(car, { shadows: false, number: 3, dirt: opts.dirt ?? 0 });
     scene.add(current.group);
     angle = 0.6;
   }

@@ -39,7 +39,7 @@ import {
   toKph,
   withPace,
 } from '../vehicles/physics.js';
-import { tyreGrip } from './garage.js';
+import { dirtLevel, tyreGrip } from './garage.js';
 import { intToWords, paceScale, raceLapsFor } from '../a11y/settings.js';
 import { createAiDriver, separateRacers, updateAiDriver } from '../vehicles/ai.js';
 import {
@@ -123,7 +123,12 @@ export function createRaceScreen(config) {
 
   const vehicle = createVehicleState({ x: race.player.x, z: race.player.z, heading: race.player.heading });
   const carMeshes = new Map();
-  const playerMesh = buildCarMesh(playerCar, { shadows: q.shadows, number: entrants[0].gridPosition });
+  const playerMesh = buildCarMesh(playerCar, {
+    shadows: q.shadows,
+    number: entrants[0].gridPosition,
+    // The car being raced looks as grubby as the player has left it.
+    dirt: dirtLevel(config.gameState?.save),
+  });
   carMeshes.set('player', playerMesh);
   scene.add(playerMesh.group);
 

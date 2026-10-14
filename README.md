@@ -95,6 +95,13 @@ cannot be entered. There are no fake buttons anywhere in this game.
 measurably different physics, opponents that drive the same physics model as the
 player (not rails), lap and checkpoint validation, XP/coins/unlocks and level-ups.
 
+**The garage:** coins are won by racing and spent on cars, tyres or a wash. A car
+can be bought early instead of waiting for the level that unlocks it, and the
+level route still works for free. Tyres are a real handling upgrade: the tier
+multiplies the grip the physics step uses, so slicks change how the car drives.
+Laps spent on the grass leave grime on the paint, and the wash removes it. Every
+price, refusal and confirmation is announced, including the balance left.
+
 ---
 
 ## The circuit

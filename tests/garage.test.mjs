@@ -25,10 +25,10 @@ import {
   TYRE_TIERS,
   WASH_COST,
 } from '../src/race/garage.js';
-import { CARS, carUnlockLevel } from '../src/vehicles/carCatalog.js';
+import { CARS, carUnlockLevel, getCar } from '../src/vehicles/carCatalog.js';
 import { coerceSave, freshSave } from '../src/core/save.js';
 import { cornerSpeed, createVehicleState, fromKph, stepVehicle, toKph } from '../src/vehicles/physics.js';
-import { getCar } from '../src/vehicles/carCatalog.js';
+import { buildCarMesh } from '../src/vehicles/carMesh.js';
 import { LEVELS } from '../src/race/levels.js';
 
 /** A believable profile: a starter car, some racing done, some coins banked. */
@@ -315,4 +315,79 @@ test('level unlocks keep working for a player who never opens the garage', () =>
   assert.ok(levelled.level >= 3);
   assert.ok(levelled.unlockedCars.includes('vantage-rs'));
   assert.deepEqual(levelled.boughtCars, [], 'nothing was bought');
+});
+
+// ------------------------------------------------------- the car looks dirty
+
+/**
+ * Every DISTINCT standard material on a built car, in traversal order.
+ * Deduplicated by material object, because one paint material is shared by many
+ * body panels and counting meshes would count the same colour two dozen times.
+ */
+function materialsOf(car, dirt) {
+  const mesh = buildCarMesh(car, { dirt, shadows: false });
+  const seen = new Set();
+  const out = [];
+  mesh.group.traverse((o) => {
+    const m = o.isMesh ? o.material : null;
+    if (m?.isMeshStandardMaterial && !seen.has(m)) {
+      seen.add(m);
+      out.push({
+        hex: m.color.getHexString(),
+        roughness: m.roughness,
+        emissive: m.emissive ? m.emissive.getHexString() : '000000',
+        emissiveIntensity: m.emissiveIntensity ?? 0,
+      });
+    }
+  });
+  return out;
+}
+
+test('grime reaches the car the player sees, and only the paint is affected', () => {
+  const car = getCar('vantage-rs');
+  const clean = materialsOf(car, 0);
+  const dirty = materialsOf(car, 1);
+  assert.ok(clean.length > 4, 'the car has several materials');
+  assert.equal(clean.length, dirty.length, 'dirtying the car must not add or remove parts');
+
+  // Some paint takes the grime. How many exactly depends on which panels the car
+  // uses, so this checks the sensible range rather than one hardcoded count.
+  const changed = clean.filter((m, i) => m.hex !== dirty[i].hex).length;
+  assert.ok(changed >= 1, 'grime has to change something, or the wash is invisible');
+  assert.ok(changed <= 3, `${changed} materials changed colour; tyres, rims and lights must not be dirtied`);
+
+  // The parts that must never be dirtied: anything that glows (lamps and tail
+  // lights) and the tyres.
+  clean.forEach((m, i) => {
+    const glows = m.emissive !== '000000' && m.emissiveIntensity > 0;
+    const isTyre = m.roughness >= 0.9;
+    if (glows) assert.equal(dirty[i].hex, m.hex, 'a lamp must not be dirtied');
+    if (isTyre) assert.equal(dirty[i].hex, m.hex, 'the tyres must not be dirtied');
+  });
+
+  const roughnessSum = (list) => list.reduce((a, m) => a + m.roughness, 0);
+  assert.ok(roughnessSum(dirty) > roughnessSum(clean), 'a dirty car is a duller car');
+
+  // Half-dirty sits between the two, rather than snapping from clean to filthy.
+  const half = materialsOf(car, 0.5);
+  const changedIndex = clean.findIndex((m, i) => m.hex !== dirty[i].hex);
+  assert.notEqual(half[changedIndex].hex, clean[changedIndex].hex, 'a slightly dirty car is slightly dulled');
+  assert.notEqual(half[changedIndex].hex, dirty[changedIndex].hex);
+});
+
+test('a clean save means a clean car, and a grubby save means a dusty one', () => {
+  const car = getCar('kestrel');
+  // dirtLevel is the bridge between the stat and the mesh: 0 for a clean car.
+  const cleanSave = { grime: 0 };
+  const dustySave = { grime: 1 };
+  assert.equal(dirtLevel(cleanSave), 0);
+  assert.equal(dirtLevel(dustySave), 1);
+
+  const clean = materialsOf(car, dirtLevel(cleanSave));
+  const dusty = materialsOf(car, dirtLevel(dustySave));
+  assert.notDeepEqual(clean, dusty, 'a grubby car must not render identically to a clean one');
+
+  // And after a wash the car goes back to its original paint exactly.
+  const afterWash = purchase({ coins: 500, grime: 1 }, 'wash').profile;
+  assert.deepEqual(materialsOf(car, dirtLevel(afterWash)), clean, 'washing restores the original finish');
 });

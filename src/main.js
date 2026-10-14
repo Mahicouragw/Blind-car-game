@@ -18,6 +18,7 @@ import { attachKeyboard } from './input/keyboard.js';
 import { createPointerBus } from './input/pointerBus.js';
 import { createDrivingInput, DRIVING_ZONE, DRIVING_ROLE } from './input/drivingInput.js';
 import { createRaceScreen } from './race/raceScreen.js';
+import { dirtLevel } from './race/garage.js';
 import { webglAvailable } from './world/scene3d.js';
 import { getTrack } from './world/trackData.js';
 import { getCar } from './vehicles/carCatalog.js';
@@ -605,8 +606,9 @@ export function bootApp(config = {}) {
       return;
     }
     carPreview = createCarPreview(previewCanvas, { quality: 'low' });
-    carPreview.setCar(getCar(screen.currentCar?.id ?? gameState.save.carId));
-    const onIndex = ({ carId }) => carPreview?.setCar(getCar(carId));
+    const dirt = dirtLevel(gameState.save);
+    carPreview.setCar(getCar(screen.currentCar?.id ?? gameState.save.carId), { dirt });
+    const onIndex = ({ carId }) => carPreview?.setCar(getCar(carId), { dirt: dirtLevel(gameState.save) });
     bus.on('carSelect:index', onIndex);
     screen._offPreview = () => bus.off('carSelect:index', onIndex);
     let last = performance.now();

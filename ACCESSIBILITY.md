@@ -21,6 +21,7 @@ is met by `src/a11y/speech.js` calling `speechSynthesis` itself.
 | --- | --- |
 | Menus, focused controls, screen changes | The screen's own title and summary |
 | Car selection, description, handling ratings | `carCatalog.js` `carAnnouncement()` |
+| Garage prices, ownership, affordability, purchase results | `garage.js`, including every refusal and the balance left |
 | Story dialogue and choices | The scene graph node actually being rendered |
 | Interview questions, answers and scoring feedback | `interview.js` |
 | Negotiation offers, counters and the recorded salary | `negotiation.js` |
@@ -136,6 +137,7 @@ Full rules, thresholds and conflict resolution are in
 | Single tap | driving surface | Nothing (reserved — see rule R2) |
 | Swipe up / down | menus | Move between options |
 | Swipe left / right | car selection | Previous / next car |
+| Swipe up / down | garage | Move between cars, tyres and the wash |
 | **Press and hold** | driving surface | **Accelerate**; release coasts |
 | **Double tap** | driving surface | **Brake** |
 | Drag left / right | driving surface | **Steer, gradually** |

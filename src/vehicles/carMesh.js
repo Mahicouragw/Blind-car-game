@@ -103,12 +103,38 @@ export function buildCarMesh(car, opts = {}) {
   const palette = opts.color ?? CAR_COLORS[car?.id] ?? CAR_COLORS.kestrel;
   const shadows = opts.shadows !== false;
 
+  // Dirt. Laps spent on grass and gravel leave the paint dull and grubby, and a
+  // wash in the garage brings the shine back. This is done by darkening and
+  // de-saturating the paint rather than by tinting it brown, so a dirty red car
+  // still looks like a red car that needs a wash.
+  const dirt = Math.max(0, Math.min(1, opts.dirt ?? 0));
+  const grubby = (hex) => {
+    if (!dirt) return hex;
+    const c = new THREE.Color(hex);
+    const lum = 0.3 * c.r + 0.59 * c.g + 0.11 * c.b;
+    const washedOut = 1 - 0.55 * dirt;
+    c.r = c.r * washedOut + lum * (1 - washedOut);
+    c.g = c.g * washedOut + lum * (1 - washedOut);
+    c.b = c.b * washedOut + lum * (1 - washedOut);
+    const grime = new THREE.Color(0x54493a);
+    const dull = 0.42 * dirt;
+    c.r = c.r * (1 - dull) + grime.r * dull;
+    c.g = c.g * (1 - dull) + grime.g * dull;
+    c.b = c.b * (1 - dull) + grime.b * dull;
+    return c;
+  };
+
   const group = new THREE.Group();
   group.name = `car.${car?.id ?? 'unknown'}`;
 
-  const bodyMat = new THREE.MeshStandardMaterial({ color: palette.body, roughness: 0.42, metalness: 0.42 });
-  const trimMat = new THREE.MeshStandardMaterial({ color: palette.trim, roughness: 0.55, metalness: 0.3 });
-  const accentMat = new THREE.MeshStandardMaterial({ color: palette.accent, roughness: 0.5, metalness: 0.3 });
+  // Roughness rises with grime as well as colour: a dirty car is a duller car.
+  const bodyMat = new THREE.MeshStandardMaterial({
+    color: grubby(palette.body),
+    roughness: 0.42 + 0.34 * dirt,
+    metalness: 0.42 * (1 - 0.45 * dirt),
+  });
+  const trimMat = new THREE.MeshStandardMaterial({ color: grubby(palette.trim), roughness: 0.55 + 0.25 * dirt, metalness: 0.3 * (1 - 0.5 * dirt) });
+  const accentMat = new THREE.MeshStandardMaterial({ color: grubby(palette.accent), roughness: 0.5 + 0.25 * dirt, metalness: 0.3 * (1 - 0.5 * dirt) });
   const glassMat = new THREE.MeshStandardMaterial({
     color: 0x1b2733,
     roughness: 0.12,
