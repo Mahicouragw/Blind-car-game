@@ -28,6 +28,7 @@ import {
   buildCarSelectScreen,
   buildChapterScreen,
   buildConfirmScreen,
+  buildGarageScreen,
   buildLevelScreen,
   buildMapScreen,
   buildMenuScreen,
@@ -287,6 +288,14 @@ export function bootApp(config = {}) {
     openChapterList() {
       stopPreview();
       mount(buildChapterScreen({ gameState, screens: screensApi }));
+    },
+    openGarage(keepId) {
+      const screen = buildGarageScreen({ gameState, screens: screensApi, speech, audio, keepId });
+      // The first open stacks on top of wherever the player came from, so Back
+      // returns there. A rebuild after a purchase REPLACES the previous garage
+      // instead, so the stack does not grow one layer per coin spent.
+      mount(screen, keepId ? { replace: true, silent: true } : {});
+      return screen;
     },
     openCarSelect() {
       const screen = buildCarSelectScreen({ gameState, screens: screensApi, speech, audio });
@@ -587,6 +596,14 @@ export function bootApp(config = {}) {
   function startPreview(screen) {
     const previewCanvas = screen?.previewCanvas;
     if (!previewCanvas) return;
+    // Check for a WebGL context BEFORE handing the canvas to three.js. Without
+    // this guard a browser that cannot create a context throws from inside the
+    // renderer, which took the whole car selection screen down: the screen is
+    // usable without a picture, and says so.
+    if (!webglAvailable()) {
+      screen.reportNoPreview?.();
+      return;
+    }
     carPreview = createCarPreview(previewCanvas, { quality: 'low' });
     carPreview.setCar(getCar(screen.currentCar?.id ?? gameState.save.carId));
     const onIndex = ({ carId }) => carPreview?.setCar(getCar(carId));

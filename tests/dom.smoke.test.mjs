@@ -34,6 +34,9 @@ function boot(storage = newStorage()) {
 }
 
 const { bus } = await import('../src/core/bus.js');
+const { coerceSave } = await import('../src/core/save.js');
+const { getCar } = await import('../src/vehicles/carCatalog.js');
+const { carPrice } = await import('../src/race/garage.js');
 const { bootApp, createTutorialHarness } = await import('../src/main.js');
 
 function newStorage() {
@@ -276,6 +279,119 @@ test('starting a race without WebGL explains the limitation instead of white-scr
   const said = window.speechSynthesis.spoken.join(' ');
   assert.match(said, /cannot create a WebGL context/, 'the player is told why');
   assert.notEqual(app.screens.current.id, 'race', 'no broken race screen was mounted');
+});
+
+test('the garage is reachable from the menu and lists real prices', () => {
+  const storage = newStorage();
+  // The bus is a singleton shared by every app booted in this file, so earlier
+  // apps are still listening unless it is cleared. The first test in this file
+  // does the same thing for the same reason.
+  bus.clear();
+  bus.clear();
+  storage.setItem('vettaru.save.v1', JSON.stringify(coerceSave({ coins: 5000 }).save));
+  const app = boot(storage);
+  app.gameState.setSettingValue('talkback', true);
+
+  const garageButton = buttons().find((b) => b.textContent.includes('Garage'));
+  assert.ok(garageButton, 'the menu offers the garage');
+  assert.match(garageButton.textContent, /5000/, 'the menu says how many coins the player has');
+
+  bus.emit('gesture:tap', { zone: { role: 'menu', element: garageButton } });
+  assert.equal(app.screens.current.id, 'garage', 'the tap opened the garage');
+  assert.equal(app.gameState.save.coins, 5000, 'looking is free');
+
+  // Every car is on the list, with its price in the label the player hears.
+  const shown = labels().join(' | ');
+  // Names come from the catalogue so this does not drift when a car is renamed.
+  assert.ok(shown.includes(`${getCar('vantage-rs').name} - ${carPrice('vantage-rs')} coins`), shown);
+  assert.ok(shown.includes(`${getCar('haulmaster').name} - ${carPrice('haulmaster')} coins`), shown);
+  assert.ok(shown.includes(`${getCar('kestrel').name} - owned`), shown);
+  assert.match(shown, /Wash and polish/);
+  app.destroy();
+});
+
+test('buying a car in the garage charges the coins and makes it drivable', () => {
+  const storage = newStorage();
+  bus.clear();
+  storage.setItem('vettaru.save.v1', JSON.stringify(coerceSave({ coins: 5000 }).save));
+  const app = boot(storage);
+  app.gameState.setSettingValue('talkback', true);
+  app.screens.openGarage();
+  assert.equal(app.screens.current.id, 'garage');
+
+  const buy = buttons().find((b) => b.textContent.includes(`${getCar('vantage-rs').name} - ${carPrice('vantage-rs')} coins`));
+  assert.ok(buy, 'the car is offered at its price');
+  window.speechSynthesis.spoken.length = 0;
+  bus.emit('gesture:tap', { zone: { role: 'menu', element: buy } });
+
+  // The purchase is spoken, with the new balance, and the screen refreshed.
+  const said = window.speechSynthesis.spoken.join(' ');
+  assert.match(said, /bought for 1600 coins/i);
+  assert.match(said, /3400/, 'the spoken reply states what is left');
+  assert.equal(app.gameState.save.coins, 3400);
+  assert.ok(app.gameState.save.boughtCars.includes('vantage-rs'));
+  assert.ok(app.gameState.save.unlockedCars.includes('vantage-rs'), 'a bought car is selectable');
+  assert.equal(app.screens.current.id, 'garage', 'the player stays in the garage');
+  assert.ok(labels().join(' | ').includes(`${getCar('vantage-rs').name} - owned`), 'the list reflects the purchase');
+
+  // And the car really is drivable: car selection offers it without a lock.
+  app.screens.openCarSelect();
+  assert.equal(app.screens.current.id, 'carSelect');
+  const cars = app.screens.current.cars ?? [];
+  const bought = cars.find((c) => c.id === 'vantage-rs');
+  assert.ok(bought, 'the bought car is in the list');
+  assert.equal(bought.locked, false, 'a car bought with coins is not locked');
+  app.destroy();
+});
+
+test('a purchase the player cannot afford is refused in words, and changes nothing', () => {
+  const storage = newStorage();
+  bus.clear();
+  storage.setItem('vettaru.save.v1', JSON.stringify(coerceSave({ coins: 300 }).save));
+  const app = boot(storage);
+  app.gameState.setSettingValue('talkback', true);
+  app.screens.openGarage();
+
+  const expensive = buttons().find((b) => b.textContent.includes(getCar('haulmaster').name));
+  assert.ok(expensive, 'the expensive car is still listed, not hidden');
+  window.speechSynthesis.spoken.length = 0;
+  bus.emit('gesture:tap', { zone: { role: 'menu', element: expensive } });
+
+  assert.equal(app.gameState.save.coins, 300, 'no coins left the account');
+  assert.deepEqual(app.gameState.save.boughtCars, [], 'nothing was bought');
+  const said = window.speechSynthesis.spoken.join(' ');
+  assert.match(said, /300/, 'the refusal says how many coins the player has');
+  app.destroy();
+});
+
+test('the garage never offers a car the player already owns, or a wash with nothing to clean', () => {
+  const storage = newStorage();
+  bus.clear();
+  storage.setItem('vettaru.save.v1', JSON.stringify(coerceSave({ coins: 9000, grime: 0 }).save));
+  const app = boot(storage);
+  app.screens.openGarage();
+  const wash = buttons().find((b) => b.textContent.includes('Wash and polish'));
+  assert.ok(wash.disabled, 'a clean car is not offered a wash');
+  const starter = buttons().find((b) => b.textContent.includes(getCar('kestrel').name));
+  assert.ok(starter.disabled, 'the starter car is listed as owned, not for sale again');
+  app.destroy();
+});
+
+test('car selection opens without WebGL and explains the missing preview', () => {
+  // jsdom has no WebGL context at all, which is also what a locked-down or
+  // very low-end browser looks like. Opening car selection used to throw from
+  // inside the renderer and take the screen down with it.
+  bus.clear();
+  const app = boot();
+  assert.doesNotThrow(() => app.screens.openCarSelect());
+  assert.equal(app.screens.current.id, 'carSelect');
+  const text = document.getElementById('screen-host').textContent;
+  assert.match(text, /cannot create a three-dimensional drawing context/i, 'the player is told why there is no picture');
+  // The screen must still be fully operable without the picture.
+  assert.ok(buttons().some((b) => b.textContent.includes('Next car')), 'browsing still works');
+  // The select button names the focused car, so match the verb, not a full label.
+  assert.ok(labels().some((l) => /^Select /.test(l)), 'choosing still works');
+  app.destroy();
 });
 
 test.after(() => {

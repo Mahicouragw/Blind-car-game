@@ -22,6 +22,7 @@ import {
   stepSetting,
 } from '../a11y/settings.js';
 import { availableCars, carAnnouncement } from '../vehicles/carCatalog.js';
+import { carAvailable, carPrice, tyreTier } from '../race/garage.js';
 import { buildCarMesh } from '../vehicles/carMesh.js';
 import { ACHIEVEMENTS, LEVELS, PRACTICE_LEVEL, xpForNextLevel } from '../race/levels.js';
 import { CHAPTERS } from '../story/storyData.js';
@@ -116,6 +117,17 @@ export function buildMenuScreen({ gameState, screens, speech, audio }) {
       label: 'Car selection',
       hint: `${gameState.car.name}. Swipe left and right to browse`,
       onActivate: () => screens.openCarSelect(),
+    })
+  );
+
+  const spendable = save.coins > 0 || save.grime >= 0.15;
+  buttons.push(
+    makeButton({
+      label: 'Garage',
+      hint: spendable
+        ? `Spend your ${save.coins} coins on cars, tyres or a wash`
+        : `You have ${save.coins} coins. Win races to earn more, then buy cars, tyres or a wash`,
+      onActivate: () => screens.openGarage(),
     })
   );
 
@@ -265,7 +277,16 @@ export function buildChapterScreen({ gameState, screens }) {
 
 export function buildCarSelectScreen({ gameState, screens, speech, audio, previewCanvas }) {
   const save = gameState.save;
-  const cars = availableCars(save.level);
+  // Level unlocks cars, and the garage sells them early. Both routes count here,
+  // so a car bought with coins appears as available on this screen too.
+  const cars = availableCars(save.level).map((car) => {
+    if (!car.locked) return car;
+    if (carAvailable(car.id, save)) return { ...car, locked: false, lockReason: null };
+    const price = carPrice(car.id);
+    return price
+      ? { ...car, lockReason: `${car.lockReason}, or buy it in the garage for ${price} coins` }
+      : car;
+  });
   let index = Math.max(0, cars.findIndex((c) => c.id === save.carId));
   if (index < 0) index = 0;
 
@@ -381,6 +402,18 @@ export function buildCarSelectScreen({ gameState, screens, speech, audio, previe
     previewCanvas: preview,
     browse,
     render,
+    /**
+     * Called when the browser cannot give us a WebGL context, so the rotating
+     * preview cannot be drawn. The screen stays completely usable: every car is
+     * described in words and in figures, and this explains the missing picture
+     * rather than leaving a blank rectangle unexplained.
+     */
+    reportNoPreview() {
+      preview.style.display = 'none';
+      noteEl.textContent =
+        'This browser cannot create a three-dimensional drawing context, so the rotating car preview is not shown. Nothing else is affected: browse with the buttons below or by swiping, and every car is described in words.';
+      stage.setAttribute('aria-label', 'No 3D preview available in this browser. Use the buttons below to browse cars.');
+    },
     get currentCar() {
       return cars[index];
     },
@@ -1296,3 +1329,153 @@ export function buildVoicePickerScreen({ screens, speech, gameState }) {
 }
 
 export { collectFocusItems, screenShell, el, SCREEN };
+
+// ------------------------------------------------------------------- garage
+
+/**
+ * The garage: where the coins earned by racing are spent.
+ *
+ * Every row states its own price, whether it is owned, and whether it can be
+ * afforded, so a player moving through the list hears everything needed to
+ * decide without tapping anything. There is no separate confirmation step: a
+ * tap buys, and the outcome is spoken either way. A refusal is a normal answer,
+ * not an error, and says what would have to change.
+ *
+ * Buying refreshes the list in place and puts the focus back on the row just
+ * used, so a player is never thrown back to the top of the list after a purchase.
+ */
+export function buildGarageScreen({ gameState, screens, speech, audio, keepId = null }) {
+  const view = gameState.garageView();
+  const coins = view.coins;
+  const coinWord = coins === 1 ? 'coin' : 'coins';
+  const { root } = screenShell('Garage', 'Swipe up or down to move between items, then single tap to buy.');
+
+  const block = makeReaderBlock('What is for sale', [
+    `You have ${coins} ${coinWord}.`,
+    'Coins are won by racing. Cars unlocked here can also still be unlocked for free by reaching the driver level shown in car selection.',
+    'Tyres are a real upgrade rather than a label: a better set gives the car more grip, so it holds the line through corners.',
+    `A wash costs ${view.wash.cost} coins and removes the grime that laps spent on the grass leave on the paint. It is cosmetic only.`,
+  ]);
+  root.appendChild(block.element);
+
+  const list = el('div', 'menu-list');
+  root.appendChild(list);
+  const buttons = [];
+
+  /** Add one purchasable row with its own spoken sentence. */
+  function addRow(key, { label, hint, sentence, enabled }) {
+    const btn = makeButton({
+      label,
+      hint,
+      disabled: !enabled,
+      announce: () => sentence,
+      onActivate: () => {
+        if (!enabled) return;
+        const outcome = gameState.garagePurchase(key);
+        audio?.play(outcome.ok ? 'ui-confirm' : 'ui-back', { group: 'sfx', volume: 0.55 });
+        speech?.sayEssential(outcome.message);
+        // Rebuild so prices, ownership and affordability all reflect the new
+        // balance, and keep the focus on the row just used.
+        screens.openGarage?.(key);
+      },
+    });
+    buttons.push({ key, btn });
+    return btn.element;
+  }
+
+  function sectionTitle(text) {
+    const h = el('h3', 'menu-section', text);
+    return h;
+  }
+
+  // --- cars ---
+  if (view.cars.length) {
+    list.appendChild(sectionTitle('Cars'));
+    for (const car of view.cars) {
+      const price = car.cost;
+      let sentence;
+      let hint;
+      if (car.owned) {
+        sentence = `${car.name}. Already in your garage. ${car.description}`;
+        hint = 'Already yours. Choose it in car selection.';
+      } else if (price === null) {
+        sentence = `${car.name}. Not for sale. Unlock it by reaching driver level ${car.unlockLevel}.`;
+        hint = `Unlocks at level ${car.unlockLevel}`;
+      } else {
+        sentence = `${car.name}. ${price} coins. ${car.description} ${
+          car.affordable ? `Single tap to buy. You have ${coins} ${coinWord}.` : `You have ${coins} ${coinWord}, so you cannot afford this yet.`
+        }`;
+        hint = car.affordable ? `Buy for ${price} coins` : `Costs ${price} coins`;
+      }
+      list.appendChild(addRow(car.id, { label: car.owned ? `${car.name} - owned` : `${car.name} - ${price === null ? 'locked' : `${price} coins`}`, hint, sentence, enabled: car.purchasable }));
+    }
+  }
+
+  // --- tyres ---
+  if (view.tyres.length) {
+    list.appendChild(sectionTitle('Tyres'));
+    const fitted = tyreTier(gameState.save.tyreTier);
+    for (const tyre of view.tyres) {
+      const better = tyre.tier < fitted.tier;
+      const sentence = tyre.owned
+        ? better
+          ? `${tyre.name}. You already have ${fitted.label}, which is better, so this is not for sale to you.`
+          : `${tyre.name}. Already fitted. ${tyre.description}.`
+        : `${tyre.name}. ${tyre.cost} coins. That is ${tyre.description}. ${
+            tyre.affordable ? `Single tap to fit them. You have ${coins} ${coinWord}.` : `You have ${coins} ${coinWord}, so you cannot afford this yet.`
+          }`;
+      list.appendChild(
+        addRow(tyre.id, {
+          label: tyre.owned ? `${tyre.name} - ${better ? 'outclassed' : 'fitted'}` : `${tyre.name} - ${tyre.cost} coins`,
+          hint: tyre.owned ? (better ? `You have ${fitted.label}` : 'Already fitted') : `Fit for ${tyre.cost} coins`,
+          sentence,
+          enabled: tyre.purchasable,
+        }),
+      );
+    }
+  }
+
+  // --- wash ---
+  list.appendChild(sectionTitle('Appearance'));
+  const wash = view.wash;
+  list.appendChild(
+    addRow('wash', {
+      label: wash.purchasable ? `Wash and polish - ${wash.cost} coins` : 'Wash and polish - car is clean',
+      hint: wash.purchasable ? `Cleans the car for ${wash.cost} coins` : 'Nothing to clean',
+      sentence: wash.purchasable
+        ? `Wash and polish. ${wash.cost} coins. The car is dirty; this cleans it and brings the paint back. ${
+            wash.affordable ? `Single tap to buy. You have ${coins} ${coinWord}.` : `You have ${coins} ${coinWord}, so you cannot afford this yet.`
+          }`
+        : `Wash and polish. The car is already clean, so there is nothing to buy. You have ${coins} ${coinWord}.`,
+      enabled: wash.purchasable,
+    }),
+  );
+
+  const back = makeButton({ label: 'Back to menu', className: 'ui-button-primary', onActivate: () => screens.back() });
+  list.appendChild(back.element);
+  buttons.push({ key: null, btn: back });
+
+  const focusItems = buttons.map((b) => b.btn);
+  // Where the focus starts: the row just bought if there is one, otherwise the
+  // first thing that can actually be bought.
+  const keptIndex = keepId ? buttons.findIndex((b) => b.key === keepId) : -1;
+  const firstBuyable = buttons.findIndex((b) => !b.btn.element.disabled);
+  const startIndex = keptIndex >= 0 ? keptIndex : firstBuyable >= 0 ? firstBuyable : 0;
+  focusItems.forEach((b, i) => {
+    b.focused = i === startIndex;
+  });
+
+  return {
+    id: 'garage',
+    title: 'Garage',
+    summary: `${coins} ${coinWord} to spend.`,
+    element: root,
+    focusItems,
+    onMount(ring) {
+      if (startIndex > 0) ring.focusAt(startIndex, { silent: true });
+    },
+    destroy() {
+      root.remove();
+    },
+  };
+}

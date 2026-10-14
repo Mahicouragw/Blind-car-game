@@ -28,6 +28,7 @@ export const SCREEN = {
   MENU: 'menu',
   STORY: 'story',
   CAR_SELECT: 'carSelect',
+  GARAGE: 'garage',
   SETTINGS: 'settings',
   TUTORIAL: 'tutorial',
   RACE: 'race',
