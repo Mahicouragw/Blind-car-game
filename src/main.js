@@ -16,14 +16,14 @@ import { createSpeech } from './a11y/speech.js';
 import { SPEECH_PRIORITY } from './a11y/speechQueue.js';
 import { attachKeyboard } from './input/keyboard.js';
 import { createPointerBus } from './input/pointerBus.js';
-import { createDrivingInput, DRIVING_ZONE, DRIVING_ROLE } from './input/drivingInput.js';
+import { createDrivingInput, DRIVING_ZONE, DRIVING_ROLE, isDownLeftSwipe } from './input/drivingInput.js';
 import { createRaceScreen } from './race/raceScreen.js';
 import { dirtLevel, WASH_COST } from './race/garage.js';
 import { webglAvailable } from './world/scene3d.js';
 import { getTrack } from './world/trackData.js';
 import { getCar } from './vehicles/carCatalog.js';
 import { getLevel, LEVELS, PRACTICE_LEVEL, nextLevel } from './race/levels.js';
-import { createScreenManager, createFocusRing, makeButton, ZONE_ROLE } from './ui/screens.js';
+import { createScreenManager, createFocusRing, createZoneMap, makeButton, ZONE_ROLE } from './ui/screens.js';
 import {
   buildAudioStatusScreen,
   buildCarSelectScreen,
@@ -101,6 +101,16 @@ export function bootApp(config = {}) {
 
   let focusRing = null;
   let pauseRing = null;
+  /**
+   * Hit-test map for whichever menu panel is currently floating over the game
+   * (the race menu or the quick menu). Without it, taps on the panel fell
+   * through to the focused item and "Repair" pressed "Go back" - and swipes on
+   * the panel never reached the recognizer at all. The panel sits UNDER the
+   * gesture layer (pointer-events: none) and is operated the same way every
+   * screen is: swipes move the ring, a tap presses the button under the finger.
+   */
+  let panelZoneMap = null;
+  let quickMenuRing = null;
   let raceScreen = null;
   let carPreview = null;
   let previewRaf = null;
@@ -111,15 +121,19 @@ export function bootApp(config = {}) {
   const pointerBus = createPointerBus({
     element: gestureLayer,
     zoneAt: (x, y) => {
+      // A floating menu panel owns the touch wherever one of its buttons is.
+      if (panelZoneMap) {
+        const z = panelZoneMap.zoneAt(x, y);
+        if (z?.element) return z;
+        // Taps between buttons activate the focused option - the behaviour the
+        // panel announces when it opens.
+        return { id: 'panelBackground', role: ZONE_ROLE.MENU, immediateTap: true };
+      }
       if (raceScreen && !raceScreen.state.paused) {
         // While racing the whole layer is the driving surface. HUD controls sit
         // ABOVE this layer in CSS and receive native pointer events, so they
         // never reach the recognizer and can never be mistaken for a gesture.
         return DRIVING_ZONE;
-      }
-      if (raceScreen && raceScreen.state.paused) {
-        const zone = screens.zoneAt(x, y);
-        return zone ?? { id: 'pauseBackground', role: ZONE_ROLE.MENU, immediateTap: true };
       }
       const zone = screens.zoneAt(x, y);
       if (zone) return zone;
@@ -250,6 +264,10 @@ export function bootApp(config = {}) {
       if (raceScreen.state.paused) pauseRing?.activate();
       return;
     }
+    if (quickMenuRing) {
+      quickMenuRing.activate();
+      return;
+    }
     focusRing?.activate();
   });
 
@@ -277,16 +295,21 @@ export function bootApp(config = {}) {
       }
       return;
     }
-    // Swiping while racing opens the RACE MENU ("swipe down and left... what is
-    // the menu?"). A mostly-downward swipe is reverse and belongs to
-    // drivingInput, so only leftward, upward, and down-and-left swipes open the
-    // menu. The race pauses behind it.
+    // Swiping while racing opens the RACE MENU ("swipe down and left..."). A
+    // straight downward swipe is reverse and belongs to drivingInput; the
+    // down-and-left diagonal (and the plain left/up sweeps from earlier
+    // play-tests) open the menu. The race pauses behind it.
     if (raceScreen && !raceScreen.state.paused) {
-      const downLeft = d.direction === 'down' && (d.dx ?? 0) < -60;
-      if (d.direction === 'left' || d.direction === 'up' || downLeft) {
+      if (isDownLeftSwipe(d) || d.direction === 'left' || d.direction === 'up') {
         pauseRace('race-menu');
-        return;
       }
+      return;
+    }
+    // The same down-and-left diagonal opens the quick menu EVERYWHERE else in
+    // the game - chapters, garage, story, settings - so there is always one
+    // gesture that reaches the menu from wherever the player is.
+    if (!raceScreen && !quickMenuRing && isDownLeftSwipe(d)) {
+      openQuickMenu();
       return;
     }
     const ring = activeRing();
@@ -354,6 +377,12 @@ export function bootApp(config = {}) {
   bus.on('key:activate', () => activeRing()?.activate());
   bus.on('key:nextFocus', () => activeRing()?.move(1));
   bus.on('key:back', () => {
+    // Escape closes whichever floating menu is open before it does anything
+    // else: "get me out of here" must never strand the player in a menu.
+    if (quickMenuRing) {
+      closeQuickMenu();
+      return;
+    }
     if (raceScreen) {
       // Escape is the "get me out of here" key: it pauses while racing, and
       // while paused it goes back to driving. It used to dead-end: pauseRace()
@@ -606,6 +635,126 @@ export function bootApp(config = {}) {
   }
 
   /**
+   * Mount a floating menu panel UNDER the gesture layer and hand back its
+   * focus ring. The panel is `pointer-events: none` (see styles/main.css): the
+   * recognizer owns every touch, the zone map hit-tests which button is under
+   * the finger, and swipes move the ring - exactly like every screen. That is
+   * what makes its buttons truly tappable instead of "the focused one wins".
+   */
+  function mountMenuPanel(panel, buttons) {
+    for (const b of buttons) panel.appendChild(b.element);
+    overlay.appendChild(panel);
+    overlay.hidden = false;
+    panelZoneMap = createZoneMap(panel, null, gestureLayer);
+    panelZoneMap.rebuild();
+    screens.remeasure();
+    const ring = createFocusRing(buttons, { speech, audio });
+    panel.querySelector('button')?.focus();
+    return ring;
+  }
+
+  /** Remove whichever menu panel is up and return hit-testing to the game. */
+  function dismissPanel(panel) {
+    panel?.remove();
+    panelZoneMap = null;
+  }
+
+  /**
+   * The QUICK MENU. The "swipe down and left" gesture opens this from anywhere
+   * in the game that is not a race - chapters, garage, story, settings - so the
+   * menu is never more than one gesture away. It speaks where you are and the
+   * handful of things you most often want.
+   */
+  function openQuickMenu() {
+    if (raceScreen || quickMenuRing) return;
+    const panel = document.createElement('div');
+    panel.className = 'pause-panel';
+    panel.id = 'pause-panel';
+    panel.innerHTML = '<h2 class="pause-title">Menu</h2>';
+    const buttons = [
+      makeButton({
+        label: 'Go back and close this menu',
+        hint: 'Return to where you were',
+        className: 'ui-button-primary',
+        onActivate: () => closeQuickMenu(),
+      }),
+      makeButton({
+        label: 'Where am I',
+        hint: 'The screen you are on',
+        onActivate: () => {
+          const cur = screens.current;
+          speech.sayEssential(`You are in ${cur?.title ?? 'the game'}.${cur?.summary ? ` ${cur.summary}` : ''}`, {
+            key: 'whereAmI',
+            cooldownMs: 0,
+          });
+        },
+      }),
+      makeButton({
+        label: 'Coins',
+        hint: 'How many coins you have',
+        onActivate: () => {
+          const coins = gameState.save.coins ?? 0;
+          speech.sayEssential(`You have ${coins} ${coins === 1 ? 'coin' : 'coins'}.`, { key: 'coins', cooldownMs: 0 });
+        },
+      }),
+      makeButton({
+        label: 'Experience level',
+        hint: 'Your driver level',
+        onActivate: () => {
+          speech.sayEssential(`You are driver level ${gameState.save.level ?? 1}.`, { key: 'xp', cooldownMs: 0 });
+        },
+      }),
+      makeButton({ label: 'Game TalkBack settings', hint: 'Speech and announcement settings', onActivate: () => screensApi.openSettings() }),
+      makeButton({
+        label: 'How to play',
+        hint: 'Every driving control, spoken',
+        onActivate: () => speech.sayEssential(controlsSummary(), { key: 'controls', cooldownMs: 0 }),
+      }),
+      makeButton({
+        label: 'Cars garage',
+        hint: 'Look at and buy cars',
+        onActivate: () => {
+          closeQuickMenu();
+          screensApi.openGarage();
+        },
+      }),
+      makeButton({
+        label: 'Main menu',
+        hint: 'Go to the game main menu',
+        onActivate: () => {
+          closeQuickMenu();
+          screensApi.gotoMenu();
+        },
+      }),
+      makeButton({
+        label: 'Exit game',
+        hint: 'Says goodbye and closes the session',
+        onActivate: () => {
+          closeQuickMenu();
+          screensApi.openExit();
+        },
+      }),
+    ];
+    quickMenuRing = mountMenuPanel(panel, buttons);
+    speech.say('Menu.', { priority: 4, essential: true, interrupt: true });
+    speech.say(
+      `${buttons.length} options. ${buttons[0].label} is first. Swipe up or down to move between them, single tap to activate. Press Escape to close.`,
+      { priority: 2, essential: true, cooldownMs: 0 }
+    );
+  }
+
+  /** Leave the quick menu and go back to whatever the player was doing. */
+  function closeQuickMenu() {
+    const panel = document.getElementById('pause-panel');
+    dismissPanel(panel);
+    quickMenuRing = null;
+    if (!raceScreen) overlay.hidden = true;
+    audio.play('ui-close', { group: 'sfx', volume: 0.55 });
+    speech.say('Menu closed.', { priority: 3, essential: true, key: 'menuClosed', cooldownMs: 600 });
+    focusRing?.apply?.();
+  }
+
+  /**
    * The RACE MENU. Reached by the Pause button, Escape, P, or the "swipe down
    * and left" gesture. The race is paused behind it. The item list is the one
    * the player asked for: where am I, coins, experience, repair, wash, petrol,
@@ -699,7 +848,7 @@ export function bootApp(config = {}) {
         label: 'Cars garage',
         hint: 'Leaves the race and opens the garage',
         onActivate: () => {
-          panel.remove();
+          dismissPanel(panel);
           pauseRing = null;
           raceScreen.abort('player');
           screensApi.openGarage();
@@ -715,7 +864,7 @@ export function bootApp(config = {}) {
         hint: 'Abandons the race and returns to the menu',
         className: 'ui-button-danger',
         onActivate: () => {
-          panel.remove();
+          dismissPanel(panel);
           pauseRing = null;
           raceScreen.abort('player');
         },
@@ -724,7 +873,7 @@ export function bootApp(config = {}) {
         label: 'Exit game',
         hint: 'Says goodbye and closes the session',
         onActivate: () => {
-          panel.remove();
+          dismissPanel(panel);
           pauseRing = null;
           raceScreen.abort('player');
           screensApi.openExit();
@@ -733,6 +882,8 @@ export function bootApp(config = {}) {
     ];
     for (const b of buttons) panel.appendChild(b.element);
     overlay.appendChild(panel);
+    panelZoneMap = createZoneMap(panel, null, gestureLayer);
+    panelZoneMap.rebuild();
     screens.remeasure();
     pauseRing = createFocusRing(buttons, { speech, audio });
     const first = buttons[0].label;
@@ -754,7 +905,7 @@ export function bootApp(config = {}) {
   /** Leave the pause panel and go back to driving. */
   function resumeRace() {
     if (!raceScreen || !raceScreen.state.paused) return;
-    document.getElementById('pause-panel')?.remove();
+    dismissPanel(document.getElementById('pause-panel'));
     pauseRing = null;
     raceScreen.resume();
     audio.play('ui-resume', { group: 'sfx', volume: 0.6 });

@@ -32,7 +32,12 @@ export const DRIVING_ROLE = 'driving';
 export const DRIVING_ZONE = {
   id: 'drivingSurface',
   role: DRIVING_ROLE,
-  immediateTap: false,
+  // The brake is a SAFETY control: it must land the instant the finger lifts,
+  // never 300 ms later. Tap and double tap now mean the same thing (brake), so
+  // there is no longer any reason to delay the first tap to disambiguate - and
+  // the delay is exactly what made taps feel dead in play-testing. The
+  // double-tap-and-hold handbrake chain still resolves on top of this.
+  immediateTap: true,
   hold: true,
   allowCircle: true,
   allowSwipe: true,
@@ -73,11 +78,29 @@ export const BRAKE_TAP_MS = 620;
 export const HANDBRAKE_BURST_SECONDS = 1.1;
 
 /**
- * A downward swipe is only "reverse" when it is mostly vertical. A swipe that
- * also travels left is the "swipe down and left" the brief asks for: it opens
- * the race menu (see main.js) and must NOT throw the car into reverse.
+ * A downward swipe is only "reverse" when it is almost exactly vertical. A
+ * swipe that leans left is the "swipe down and left" the brief asks for: it
+ * opens the menu and must NOT throw the car into reverse. A real thumb cannot
+ * draw a perfectly vertical line, so the tolerance is small and the menu gets
+ * the benefit of the doubt - opening a menu is safe, reversing by accident is
+ * not.
  */
-export const REVERSE_MAX_DX = 60;
+export const REVERSE_MAX_DX = 24;
+
+/**
+ * True for the "swipe down and left" menu gesture: any clear diagonal into the
+ * down-left quadrant of the screen. Both raw deltas matter - a mostly-vertical
+ * swipe that leans left is the menu, and a mostly-horizontal one that dips
+ * down is too. Straight down is reverse; the rest of the compass belongs to
+ * the menus it is already mapped to.
+ *
+ * @param {{dx?: number, dy?: number}} d swipe payload
+ */
+export function isDownLeftSwipe(d) {
+  const dx = d.dx ?? 0;
+  const dy = d.dy ?? 0;
+  return dx <= -REVERSE_MAX_DX && dy >= REVERSE_MAX_DX;
+}
 
 export function createDrivingInput(config = {}) {
   const state = {

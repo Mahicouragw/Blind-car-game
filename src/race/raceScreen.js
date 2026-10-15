@@ -164,6 +164,7 @@ export function createRaceScreen(config) {
     gridWait: 0,
     awaitingBriefing: false,
     lastHolding: false,
+    holdSince: null,
     lastReversing: false,
     lastBraking: false,
     lastHandbraking: false,
@@ -232,6 +233,8 @@ export function createRaceScreen(config) {
   const DIRECTION_ENTER_DEG = 30;
   const DIRECTION_EXIT_DEG = 18;
   const DIRECTION_COOLDOWN_MS = 2600;
+  /** A press must last this long before it is "accelerating", not just a tap. */
+  const TALK_HOLD_SECONDS = 0.4;
   /** Grime gained per second off the racing surface. Four seconds of grass is
    *  roughly one noticeable step, so a couple of excursions per race shows. */
   const GRIME_PER_SECOND = 0.045;
@@ -440,8 +443,20 @@ export function createRaceScreen(config) {
     }
     S.lastBraking = braking;
     S.lastHandbraking = handbraking;
-    if (holding === S.lastHolding) return;
-    S.lastHolding = holding;
+    // Throttle talk-back is about a SUSTAINED hold, not about touching the
+    // screen: every tap also fires pressStart on contact, and announcing
+    // "Accelerating" there told brake taps they were accelerating - the exact
+    // complaint from play-testing. A hold must last TALK_HOLD_SECONDS before it
+    // earns its line; a tap just brakes and says "Brake".
+    if (holding) {
+      if (S.holdSince === null) S.holdSince = S.elapsed;
+      if (S.lastHolding || S.elapsed - S.holdSince < TALK_HOLD_SECONDS) return;
+      S.lastHolding = true;
+    } else {
+      S.holdSince = null;
+      if (!S.lastHolding) return;
+      S.lastHolding = false;
+    }
     if (gameState?.settings?.speakThrottle === false) return;
     const now = S.elapsed;
     if (now - S.lastThrottleSay < 0.55) return;

@@ -18,8 +18,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
-import { createDrivingInput, DRIVING_ZONE, REVERSE_MAX_DX } from '../src/input/drivingInput.js';
+import { createDrivingInput, DRIVING_ZONE, REVERSE_MAX_DX, isDownLeftSwipe } from '../src/input/drivingInput.js';
 import { createAnnouncementDirector, navigationFacts } from '../src/race/navigation.js';
+import { createGestureRecognizer, GESTURE_DEFAULTS } from '../src/input/gestures.js';
+import { createZoneMap } from '../src/ui/screens.js';
 import { getTrack } from '../src/world/trackData.js';
 
 const raceScreenSrc = readFileSync(new URL('../src/race/raceScreen.js', import.meta.url), 'utf8');
@@ -122,6 +124,11 @@ const bus = (await import('../src/core/bus.js')).bus;
 const di = createDrivingInput({});
 
 test('a down-and-left swipe does not reverse, a straight-down swipe does', () => {
+  // The menu gesture is any clear diagonal into the down-left quadrant - the
+  // old 60 px-on-one-axis rule missed real fingers and the menu "didn't work".
+  assert.ok(isDownLeftSwipe({ dx: -40, dy: 120 }), 'a mostly-down swipe leaning left opens the menu');
+  assert.ok(isDownLeftSwipe({ dx: -120, dy: 40 }), 'a mostly-left swipe dipping down opens the menu');
+  assert.ok(!isDownLeftSwipe({ dx: -10, dy: 200 }), 'a straight-down swipe is reverse, not the menu');
   // Down and left: the menu gesture. dx is well past the reverse guard.
   assert.ok(REVERSE_MAX_DX < 100, 'the guard must reject strongly-leftward swipes');
   bus.emit('gesture:swipe', { zone: DRIVING_ZONE, direction: 'down', dx: -140, dy: 220 });
@@ -151,4 +158,99 @@ test('rain comes with working wipers and is spoken', () => {
   assert.ok(/audio\?\.loop\('rain'/.test(raceScreenSrc) && /audio\?\.loop\('wiper'/.test(raceScreenSrc), 'rain and wipers must actually play');
   assert.ok(raceScreenSrc.includes('Light rain. The wipers are on.'), 'the weather must be announced');
   assert.ok(raceScreenSrc.includes('forceRain'), 'tests must be able to force the weather');
+});
+
+// -------------------------------------------- taps that wobble must still brake
+
+test('a tap that wobbles less than a swipe still resolves as a tap', () => {
+  // The play-test root cause: a real thumb drifts, and past tapMaxDistPx the
+  // contact was classified as a drag, which DROPPED the tap - so the brake
+  // never fired and only "Accelerating" was ever heard.
+  const events = [];
+  let t = 0;
+  const r = createGestureRecognizer({ now: () => t, emit: (e) => events.push(e) });
+  // ~29 px of drift: more than tapMaxDistPx (a drag started), but below
+  // swipeMinPx, so it is a tap with a wobble - and the dragEnd that re-centres
+  // the steering still fires.
+  r.pointerDown(1, 100, 100, { id: 'drivingSurface', role: 'driving', hold: true, immediateTap: true });
+  t += 40;
+  r.pointerMove(1, 128, 106);
+  t += 40;
+  r.pointerUp(1, 128, 106);
+  assert.ok(events.includes('tap'), 'the wobbled tap must still resolve as a tap');
+  assert.ok(events.includes('dragEnd'), 'steering must still re-centre');
+  assert.ok(!events.includes('swipe'), 'and it must not become a swipe');
+  assert.ok(GESTURE_DEFAULTS.tapMaxDistPx < GESTURE_DEFAULTS.swipeMinPx, 'a tap window must fit inside the swipe threshold');
+});
+
+test('the brake tap fires the moment the finger lifts, not after a window', () => {
+  const events = [];
+  let t = 0;
+  const r = createGestureRecognizer({ now: () => t, emit: (e) => events.push(e) });
+  r.pointerDown(1, 100, 100, { id: 'drivingSurface', role: 'driving', hold: true, immediateTap: true });
+  t += 60;
+  r.pointerUp(1, 100, 100);
+  // No advance(): the tap must already be out. A delayed brake is a dead brake.
+  assert.ok(events.includes('tap'), 'tap must fire on release with no timer wait');
+});
+
+// ------------------------------------------------- the quick menu is global
+
+test('the quick menu opens from anywhere and carries the common items', () => {
+  assert.ok(mainSrc.includes('openQuickMenu'), 'there must be a quick menu');
+  assert.ok(mainSrc.includes('isDownLeftSwipe(d)'), 'the down-and-left swipe must open it');
+  for (const label of [
+    'Go back and close this menu',
+    'Where am I',
+    'Coins',
+    'Experience level',
+    'Game TalkBack settings',
+    'How to play',
+    'Cars garage',
+    'Main menu',
+    'Exit game',
+  ]) {
+    assert.ok(mainSrc.includes(label), `the quick menu must offer "${label}"`);
+  }
+});
+
+test('menu panels are hit-tested and never eat the swipes', () => {
+  // The panel must sit under the gesture layer (pointer-events: none) and be
+  // operated through the zone map - the old design pressed whatever button
+  // happened to be focused instead of the one under the finger.
+  const css = readFileSync(new URL('../styles/main.css', import.meta.url), 'utf8');
+  assert.ok(/\.race-overlay \.pause-panel[\s\S]*?pointer-events:\s*none/.test(css), 'the panel must not take pointer events');
+  assert.ok(mainSrc.includes('panelZoneMap = createZoneMap(panel'), 'the panel buttons must be hit-tested');
+});
+
+test('zone hit-testing re-measures after a scroll', () => {
+  // Stale rectangles after scrolling a menu made taps land where a button used
+  // to be: "back button repair button single typing not working".
+  let buttonRect = { left: 10, top: 10, right: 110, bottom: 50 };
+  const button = {
+    getBoundingClientRect: () => buttonRect,
+    dataset: { zone: 'btn-test', zoneRole: 'menu' },
+  };
+  const origin = { getBoundingClientRect: () => ({ left: 0, top: 0 }) };
+  const container = {
+    querySelectorAll: () => [button],
+    getBoundingClientRect: () => ({ left: 0, top: 0 }),
+  };
+  const map = createZoneMap(container, null, origin);
+  map.rebuild();
+  assert.equal(map.zoneAt(60, 30)?.element, button, 'the button is hittable at its first position');
+  // The menu scrolls: the button moves up 200 px.
+  buttonRect = { left: 10, top: -190, right: 110, bottom: -150 };
+  map.markDirty();
+  assert.equal(map.zoneAt(60, -170)?.element, button, 'after a scroll the tap lands on the button again');
+  assert.equal(map.zoneAt(60, 30), null, 'and the old position is no longer hittable');
+});
+
+// --------------------------------------- feedback must not lie about state
+
+test('a brake tap is never told it is accelerating', () => {
+  // Every touch fires pressStart; the throttle line must wait for a sustained
+  // hold, or taps hear "Accelerating" and nothing else.
+  assert.ok(raceScreenSrc.includes('TALK_HOLD_SECONDS'), 'the throttle line must wait for a sustained hold');
+  assert.ok(raceScreenSrc.includes("'Brake.'"), 'the brake edge is still talked back');
 });

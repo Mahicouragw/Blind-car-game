@@ -109,9 +109,19 @@ body {
 }
 
 .race-overlay button,
-.race-overlay .hud-chip,
-.race-overlay .pause-panel {
+.race-overlay .hud-chip {
   pointer-events: auto;
+}
+
+/* The pause/race menu panel sits UNDER the gesture layer in spirit: it is
+   drawn above everything but takes no pointer events itself. Every touch on
+   it falls through to the recognizer, which hit-tests the button under the
+   finger (zone map) and routes swipes to the focus ring. When the panel owned
+   the touches, swipes on it were eaten and taps pressed whatever happened to
+   be focused instead of the button that was tapped. */
+.race-overlay .pause-panel,
+.race-overlay .pause-panel button {
+  pointer-events: none;
 }
 
 /* ------------------------------------------------------------- focus rings */

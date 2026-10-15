@@ -49,11 +49,14 @@
  */
 
 export const GESTURE_DEFAULTS = {
-  tapMaxMs: 220,
-  tapMaxDistPx: 16,
-  doubleTapWindowMs: 300,
-  longPressMs: 420,
-  doubleTapHoldMs: 360,
+  // A real thumb wobbles. These are accessibility thresholds, not shooter-game
+  // ones: a tap that drifts 20 px is still a tap, and two deliberate taps are
+  // often 350-400 ms apart.
+  tapMaxMs: 320,
+  tapMaxDistPx: 24,
+  doubleTapWindowMs: 400,
+  longPressMs: 500,
+  doubleTapHoldMs: 300,
   swipeMinPx: 34,
   swipeMaxMs: 900,
   /** |dx| must exceed |dy| by this factor to be a horizontal swipe. */
@@ -258,6 +261,7 @@ export function createGestureRecognizer(config = {}) {
         chain.at = t;
         chain.x = x;
         chain.y = y;
+        clearTimer('chainExpire');
       } else {
         // A genuinely new tap. Flush anything still waiting to resolve so the
         // previous tap is reported rather than dropped, and cancel the previous
@@ -380,7 +384,7 @@ export function createGestureRecognizer(config = {}) {
       const dy = y - touch.startY;
       const dist = Math.hypot(dx, dy);
       const duration = t - touch.startT;
-      const wasDrag = touch.isDrag;
+      let wasDrag = touch.isDrag;
       const wasLongPress = touch.longPressFired;
       // Captured before `touch` is cleared: the drag branch below has to be able
       // to emit the matching pressEnd.
@@ -418,6 +422,19 @@ export function createGestureRecognizer(config = {}) {
         chain.settled = false;
         chain.emittedTap = false;
         return true;
+      }
+
+      // A tap with a wobble. A real thumb moves, and once it passed
+      // `tapMaxDistPx` the contact was classified as a drag - which silently
+      // DROPPED the tap, and with it the brake: play-testing found taps that
+      // only ever said "Accelerating". If the finger travelled less than a
+      // swipe and never circled, it is still a tap. Steering re-centres via
+      // dragEnd, and the tap resolution below runs as if the finger had sat
+      // still - so the brake always lands.
+      if (wasDrag && !circleFired && dist < T.swipeMinPx && duration <= T.longPressMs) {
+        wasDrag = false;
+        emit('dragEnd', { zone: z, zoneId: z.id, role: z.role, dx, dy, dist, durationMs: duration, circle: circleFired });
+        if (!chain.settled && chain.count === tapCount) chain.active = true;
       }
 
       if (wasDrag) {

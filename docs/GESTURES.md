@@ -23,7 +23,8 @@ Wiring lives in `src/input/pointerBus.js` (real pointer events → recognizer),
 | Circular drag | driving surface | `circle` | **Request a U-turn** where the track allows it |
 | Swipe straight down (`\|dx\| ≤ 60`) | driving surface | `swipe` (`direction: 'down'`) | **Reverse** for 1.8 s, then stop on its own |
 | **Swipe down-and-left / left / up** | driving surface | `swipe` | **Open the race menu** (coins, repair, petrol, settings, where am I…) — the race pauses behind it |
-| Single tap | menu / list | `tap` | Activate the focused control |
+| **Swipe down-and-left** | anywhere else | `swipe` | **Open the quick menu** — chapters, garage, story, everywhere (where am I, coins, experience, settings, how to play, garage, main menu, exit) |
+| Single tap | menu / list / menu panel | `tap` | Activate **the button under the finger** (zones are hit-tested live; scrolling a menu can never make taps miss) |
 | Swipe up / down | menu / list | `swipe` | Move the focus ring |
 | Swipe left / right | car browser | `swipe` | Previous / next car |
 | **Tap twice and hold** | settings hotspot | `doubleTapHold` | **Open Game TalkBack settings** |
@@ -64,11 +65,11 @@ the **down-and-left** menu gesture and must not throw the car into reverse -
 
 | Threshold | Value | Purpose |
 | --- | --- | --- |
-| `tapMaxMs` | 220 ms | Longer than this is a hold, not a tap |
-| `tapMaxDistPx` | 16 px | Further than this is a drag, not a tap |
-| `doubleTapWindowMs` | 300 ms | Gap allowed between taps in a chain |
-| `longPressMs` | 420 ms | Hold with no movement |
-| `doubleTapHoldMs` | 360 ms | Second tap of a chain held this long |
+| `tapMaxMs` | 320 ms | Longer than this is a hold, not a tap (accessibility-sized) |
+| `tapMaxDistPx` | 24 px | Further than this is a drag, not a tap |
+| `doubleTapWindowMs` | 400 ms | Gap allowed between taps in a chain (deliberate double taps are slow) |
+| `longPressMs` | 500 ms | Hold with no movement |
+| `doubleTapHoldMs` | 300 ms | Second tap of a chain held this long |
 | `swipeMinPx` | 34 px | Minimum travel to be a swipe |
 | `swipeMaxMs` | 900 ms | Slower than this is a drag, not a swipe |
 | `swipeDominance` | 1.35× | One axis must dominate the other |
@@ -86,17 +87,22 @@ Zones carry flags that change how taps resolve: `immediateTap`, `hold`,
 
 These are authoritative. Each has a test.
 
-**R1 — Drag beats tap.** A contact that travels more than `tapMaxDistPx` before
-lifting is a *drag*. Its tap chain dies immediately, so steering can never be
-misread as a command tap, and a command tap can never be misread as steering.
-No `tap`, `doubleTap` or `tripleTap` can come out of a drag.
+**R1 — Drag beats tap, with a wobble allowance.** A contact that travels more
+than `tapMaxDistPx` before lifting starts a *drag*. A drag that travels less
+than `swipeMinPx` and never circles is still a **tap with a wobble**: it emits
+`dragEnd` (so steering re-centres) and then resolves as a tap. Play-testing
+showed why this matters: a real thumb drifts, and without the allowance those
+contacts were classified as drags and the tap — the brake — was silently
+dropped. A genuine drag or swipe still kills the tap chain: steering can never
+be misread as a command tap.
 
 **R2 — Single-tap latency is zone-dependent.** A zone flagged `immediateTap`
-(menus, lists) fires `tap` on lift: responsive. A zone that owns a double-tap
-meaning (the driving surface, where double tap brakes; the settings hotspot)
-delays the single tap by `doubleTapWindowMs` and resolves it afterwards. A
-responsive surface and an unambiguous one cannot both be had from the same
-control, so the choice is made per zone rather than globally.
+(menus, lists, **and the driving surface**) fires `tap` on lift: responsive. The
+brake is a safety control and must land the instant the finger lifts. Zones that
+suppress the immediate tap (the settings hotspot) still delay it by
+`doubleTapWindowMs`. Tap and double tap now mean the same thing on the driving
+surface (both brake), so there is nothing left to disambiguate and nothing to
+wait for.
 
 **R3 — A second contact inside the window is a double tap.** The chain stays open
 after an immediate tap so a second tap can still be reported. When that happens,

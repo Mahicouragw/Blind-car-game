@@ -25,9 +25,15 @@ export const ZONE_ROLE = {
 /**
  * Build the zone map from a container. Elements opt in with `data-zone` and
  * `data-zone-role`; anything unmarked falls back to the screen's default zone.
+ *
+ * `originEl` is the element the pointer bus reports coordinates against (the
+ * gesture layer). Rectangles are stored in THAT space, so hit-testing works no
+ * matter which container the controls live in - including panels that float
+ * over the gesture layer.
  */
-export function createZoneMap(container, defaultZone) {
+export function createZoneMap(container, defaultZone, originEl) {
   let entries = [];
+  let dirty = true;
 
   function rebuild() {
     entries = [];
@@ -49,19 +55,29 @@ export function createZoneMap(container, defaultZone) {
         rect: null,
       });
     });
+    dirty = true;
     measure();
     return entries;
   }
 
   function measure() {
+    const host = (originEl ?? container)?.getBoundingClientRect?.();
+    if (!host) return;
     for (const entry of entries) {
       const r = entry.el.getBoundingClientRect();
-      const host = container.getBoundingClientRect();
       entry.rect = { left: r.left - host.left, top: r.top - host.top, right: r.right - host.left, bottom: r.bottom - host.top };
     }
+    dirty = false;
   }
 
   function zoneAt(x, y) {
+    // Taps must hit-test against WHERE THE BUTTONS ARE NOW. The rectangles used
+    // to be measured once at mount, so any scroll of a long menu left them
+    // pointing at where the buttons used to be: taps then missed (or hit the
+    // wrong button) and the game felt like "nothing selects". A scroll or
+    // resize marks the map dirty and the next touch re-measures - a handful of
+    // geometry reads on tap, not per frame.
+    if (dirty) measure();
     for (const entry of entries) {
       const r = entry.rect;
       if (!r) continue;
@@ -72,7 +88,28 @@ export function createZoneMap(container, defaultZone) {
     return defaultZone ?? null;
   }
 
-  return { rebuild, measure, zoneAt, get entries() { return entries; } };
+  // Any scroller in the page - including the screen host's own overflow scroll -
+  // bubbles a scroll event up to the window in the capture phase.
+  const onLayoutShift = () => {
+    dirty = true;
+  };
+  if (typeof window !== 'undefined') {
+    window.addEventListener('scroll', onLayoutShift, true);
+    window.addEventListener('resize', onLayoutShift);
+  }
+
+  return {
+    rebuild,
+    measure() {
+      dirty = true;
+      measure();
+    },
+    zoneAt,
+    markDirty: onLayoutShift,
+    get entries() {
+      return entries;
+    },
+  };
 }
 
 /**
