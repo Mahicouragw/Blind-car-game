@@ -293,7 +293,10 @@ test('a corner is warned once, at the configured distance, and not repeated', ()
   const hairpin = track.zones.find((z) => z.id === 'zone.corner.hairpin');
   const far = g.pointAt(g.normaliseS(hairpin.from - 400));
   let items = d.update(navigationFacts(track, { x: far.x, z: far.z, heading: far.heading, speed: 30 }, {}), { lap: 1, totalLaps: 2, phase: 'racing' });
-  assert.equal(items.filter((i) => i.tag === 'corner').length, 0, 'nothing at 400 m');
+  // Nothing about the HAIRPIN at 400 m (a nearer corner may legitimately be
+  // previewed here - the 5-10 second look-ahead works on whatever is close).
+  const aboutHairpin = (i) => /hairpin/i.test(String(i.key ?? '') + String(i.text ?? ''));
+  assert.equal(items.filter((i) => i.tag === 'corner' && aboutHairpin(i)).length, 0, 'nothing at 400 m');
 
   const near = g.pointAt(g.normaliseS(hairpin.from - 90));
   items = d.update(navigationFacts(track, { x: near.x, z: near.z, heading: near.heading, speed: 30 }, {}), { lap: 1, totalLaps: 2, phase: 'racing' });

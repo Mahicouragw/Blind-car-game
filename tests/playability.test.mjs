@@ -19,7 +19,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
 import { createDrivingInput, DRIVING_ZONE, REVERSE_MAX_DX, isDownLeftSwipe } from '../src/input/drivingInput.js';
-import { createAnnouncementDirector, navigationFacts } from '../src/race/navigation.js';
+import { createAnnouncementDirector, navigationFacts, lookAround } from '../src/race/navigation.js';
 import { createGestureRecognizer, GESTURE_DEFAULTS } from '../src/input/gestures.js';
 import { createZoneMap } from '../src/ui/screens.js';
 import { getTrack } from '../src/world/trackData.js';
@@ -253,4 +253,56 @@ test('a brake tap is never told it is accelerating', () => {
   // hold, or taps hear "Accelerating" and nothing else.
   assert.ok(raceScreenSrc.includes('TALK_HOLD_SECONDS'), 'the throttle line must wait for a sustained hold');
   assert.ok(raceScreenSrc.includes("'Brake.'"), 'the brake edge is still talked back');
+});
+
+// ------------------------------------------------ the TalkBack menu model
+
+test('single tap selects and double tap activates - never the reverse', () => {
+  // The player: "when single-tapping, different buttons are automatically
+  // clicked... add a double tap: after the cursor is selected, double-tapped,
+  // it should take it to that cursor."
+  assert.ok(mainSrc.includes('ring.focusAt(idx)'), 'a single tap must select, not activate');
+  assert.ok(mainSrc.includes('TalkBack model, as the player asked'), 'the model is deliberate');
+  assert.ok(mainSrc.includes("bus.on('gesture:doubleTap'"), 'double tap must be wired');
+  const tapBlock = mainSrc.slice(mainSrc.indexOf("bus.on('gesture:tap'"), mainSrc.indexOf("bus.on('gesture:doubleTap'"));
+  assert.ok(!tapBlock.includes('pauseRing?.activate()'), 'a single tap must never activate the focused item');
+});
+
+test('swipe up then left goes back from anywhere', () => {
+  assert.ok(mainSrc.includes('function goBack'), 'there must be a go back action');
+  assert.ok(mainSrc.includes('upThenLeft'), 'the up-then-left sequence must be recognized');
+  assert.ok(mainSrc.includes('upLeft'), 'and the up-and-left diagonal');
+});
+
+// ------------------------------------------------- the 5-10 second scout
+
+test('the side scout reads real geometry and the preview speaks 5-10s ahead', () => {
+  const track = getTrack();
+  const g = track.geometry;
+  // On the centre-line of a straight, both sides are open.
+  const mid = g.pointAt(g.normaliseS(200));
+  const open = lookAround(track, { x: mid.x, z: mid.z, heading: mid.heading });
+  assert.equal(open.left.tight, false, 'centre of the track: left is open');
+  assert.equal(open.right.tight, false, 'centre of the track: right is open');
+
+  // Parked against the left edge: the left samples land on the kerb/grass and
+  // the scout must say the left is tight while the right stays open.
+  const h = mid.heading;
+  const lx = -Math.sin(h);
+  const lz = -Math.cos(h);
+  const edge = lookAround(track, { x: mid.x + lx * 5.2, z: mid.z + lz * 5.2, heading: h });
+  assert.equal(edge.left.tight, true, 'at the left edge the left side is tight');
+  assert.equal(edge.right.tight, false, 'and the right still has room');
+
+  // The look-ahead: 5-10 seconds before a corner, the director says "go X".
+  const director = createAnnouncementDirector({ getSettings: () => ({ talkback: true }), now: () => 0 });
+  const corner = track.zones.find((z) => z.id === 'zone.corner.t1');
+  const spot = g.pointAt(g.normaliseS(corner.from - 8 * 20)); // 8 s at 20 m/s
+  const items = director.update(
+    navigationFacts(track, { x: spot.x, z: spot.z, heading: spot.heading, speed: 20 }, {}),
+    { lap: 1, totalLaps: 2, phase: 'racing' }
+  );
+  const preview = items.find((i) => String(i.key ?? '').startsWith('preview.'));
+  assert.ok(preview, 'the corner must be previewed 5-10 seconds out');
+  assert.match(preview.text, /In \d+ seconds, (go|watch out|speed breakers)/i);
 });

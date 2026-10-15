@@ -103,13 +103,19 @@ test('swiping down moves focus and announces the new control', () => {
   assert.notEqual(after, before, 'focus should move on swipe down');
 });
 
-test('a tap on a menu zone activates the real button underneath', () => {
+test('a single tap SELECTS the button underneath, a double tap ACTIVATES it', () => {
   const app = window.__app;
   const target = buttons().find((b) => b.textContent.includes('Gesture tutorial'));
   assert.ok(target, 'tutorial button exists');
   before();
+  // TalkBack model: the single tap only moves the cursor and speaks the label -
+  // it must never open anything (taps were "automatically clicking on other
+  // things"). The double tap takes you to the selected control.
   bus.emit('gesture:tap', { zone: { role: 'menu', element: target } });
-  assert.equal(app.screens.current.id, 'tutorial', 'the tap opened the tutorial screen');
+  assert.notEqual(app.screens.current.id, 'tutorial', 'a single tap must not activate');
+  assert.equal(app.screens.current.focusRing.current?.element, target, 'the single tap selects the button under the finger');
+  bus.emit('gesture:doubleTap', { zone: { role: 'menu', element: target } });
+  assert.equal(app.screens.current.id, 'tutorial', 'the double tap opened the tutorial screen');
   function before() {
     window.speechSynthesis.spoken.length = 0;
   }
@@ -302,8 +308,11 @@ test('the garage is reachable from the menu and lists real prices', () => {
   assert.ok(garageButton, 'the menu offers the garage');
   assert.match(garageButton.textContent, /5000/, 'the menu says how many coins the player has');
 
+  // Single tap selects; the double tap is what opens the garage.
   bus.emit('gesture:tap', { zone: { role: 'menu', element: garageButton } });
-  assert.equal(app.screens.current.id, 'garage', 'the tap opened the garage');
+  assert.notEqual(app.screens.current.id, 'garage', 'the single tap does not navigate');
+  bus.emit('gesture:doubleTap', { zone: { role: 'menu', element: garageButton } });
+  assert.equal(app.screens.current.id, 'garage', 'the double tap opened the garage');
   assert.equal(app.gameState.save.coins, 5000, 'looking is free');
 
   // Every car is on the list, with its price in the label the player hears.
@@ -328,7 +337,10 @@ test('buying a car in the garage charges the coins and makes it drivable', () =>
   const buy = buttons().find((b) => b.textContent.includes(`${getCar('vantage-rs').name} - ${carPrice('vantage-rs')} coins`));
   assert.ok(buy, 'the car is offered at its price');
   window.speechSynthesis.spoken.length = 0;
+  // Single tap selects (and says the car and its price); the double tap buys.
   bus.emit('gesture:tap', { zone: { role: 'menu', element: buy } });
+  assert.equal(app.gameState.save.coins, 5000, 'selecting does not buy');
+  bus.emit('gesture:doubleTap', { zone: { role: 'menu', element: buy } });
 
   // The purchase is spoken, with the new balance, and the screen refreshed.
   const said = window.speechSynthesis.spoken.join(' ');

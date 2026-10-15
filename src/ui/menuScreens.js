@@ -828,7 +828,7 @@ const TUTORIAL_STEPS = [
   {
     id: 'menus',
     title: 'Menus: tap and swipe',
-    text: 'In a menu, one tap activates the focused control. Swipe up or down moves between options. Swipe left and right browses cars. Tap three times quickly on the start race control and nothing happens, because that control waits to be sure.',
+    text: 'In a menu, swipe up or down to move the cursor between options - the game says each one as you land on it. A single tap on a control selects it and says its name. A double tap activates whatever is selected. To go back, swipe up then left at once. Swipe left and right browses cars. Tap three times quickly on the start race control and nothing happens, because that control waits to be sure.',
     require: 'menuNavigated',
   },
   {
@@ -1415,7 +1415,7 @@ export function buildGarageScreen({ gameState, screens, speech, audio, keepId = 
   const view = gameState.garageView();
   const coins = view.coins;
   const coinWord = coins === 1 ? 'coin' : 'coins';
-  const { root } = screenShell('Garage', 'Swipe up or down to move between items, then single tap to buy.');
+  const { root } = screenShell('Garage', 'Swipe up or down to move between items, single tap to select, then double tap to buy.');
 
   const block = makeReaderBlock('What is for sale', [
     `You have ${coins} ${coinWord}.`,
@@ -1470,7 +1470,7 @@ export function buildGarageScreen({ gameState, screens, speech, audio, keepId = 
         hint = `Unlocks at level ${car.unlockLevel}`;
       } else {
         sentence = `${car.name}. ${price} coins. ${car.description} ${
-          car.affordable ? `Single tap to buy. You have ${coins} ${coinWord}.` : `You have ${coins} ${coinWord}, so you cannot afford this yet.`
+          car.affordable ? `Double tap to buy. You have ${coins} ${coinWord}.` : `You have ${coins} ${coinWord}, so you cannot afford this yet.`
         }`;
         hint = car.affordable ? `Buy for ${price} coins` : `Costs ${price} coins`;
       }
@@ -1511,7 +1511,7 @@ export function buildGarageScreen({ gameState, screens, speech, audio, keepId = 
       hint: wash.purchasable ? `Cleans the car for ${wash.cost} coins` : 'Nothing to clean',
       sentence: wash.purchasable
         ? `Wash and polish. ${wash.cost} coins. The car is dirty; this cleans it and brings the paint back. ${
-            wash.affordable ? `Single tap to buy. You have ${coins} ${coinWord}.` : `You have ${coins} ${coinWord}, so you cannot afford this yet.`
+            wash.affordable ? `Double tap to buy. You have ${coins} ${coinWord}.` : `You have ${coins} ${coinWord}, so you cannot afford this yet.`
           }`
         : `Wash and polish. The car is already clean, so there is nothing to buy. You have ${coins} ${coinWord}.`,
       enabled: wash.purchasable,

@@ -24,7 +24,9 @@ Wiring lives in `src/input/pointerBus.js` (real pointer events → recognizer),
 | Swipe straight down (`\|dx\| ≤ 60`) | driving surface | `swipe` (`direction: 'down'`) | **Reverse** for 1.8 s, then stop on its own |
 | **Swipe down-and-left / left / up** | driving surface | `swipe` | **Open the race menu** (coins, repair, petrol, settings, where am I…) — the race pauses behind it |
 | **Swipe down-and-left** | anywhere else | `swipe` | **Open the quick menu** — chapters, garage, story, everywhere (where am I, coins, experience, settings, how to play, garage, main menu, exit) |
-| Single tap | menu / list / menu panel | `tap` | Activate **the button under the finger** (zones are hit-tested live; scrolling a menu can never make taps miss) |
+| **Swipe up-and-left** (or up, then left within 450 ms) | anywhere | `swipe` | **Go back** — close the open menu, leave the screen, or open the race menu while driving |
+| Single tap | menu / list / menu panel | `tap` | **Select** the button under the finger and say its name — a tap NEVER activates |
+| **Double tap** | menu / list / menu panel | `doubleTap` | **Activate the selected control** (the TalkBack rule the player asked for) |
 | Swipe up / down | menu / list | `swipe` | Move the focus ring |
 | Swipe left / right | car browser | `swipe` | Previous / next car |
 | **Tap twice and hold** | settings hotspot | `doubleTapHold` | **Open Game TalkBack settings** |

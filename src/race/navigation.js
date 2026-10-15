@@ -11,7 +11,7 @@
  */
 
 import { zoneAtS } from '../world/trackData.js';
-import { cornerSpeed, toKph, wrapPi } from '../vehicles/physics.js';
+import { cornerSpeed, toKph, wrapPi, resolveSurface, barrierDistance } from '../vehicles/physics.js';
 import { WARNING_DISTANCE, NAV_FREQUENCY } from '../a11y/settings.js';
 
 const ORDINALS = ['first', 'second', 'third', 'fourth', 'fifth', 'sixth', 'seventh', 'eighth'];
@@ -130,6 +130,12 @@ export function navigationFacts(track, car, opts = {}) {
     tooFast = brakeDistance > nextCorner.distanceM * 0.85 && speedKph > suggestedSpeedKph + 12;
   }
 
+  // --- what is around the car? (the "you can go right" scout) ---
+  // Sample the world in the CAR's frame: a few metres ahead on each side. The
+  // player asked to hear what is on the left, what is on the right, and which
+  // way there is room to go - 5 to 10 seconds before it matters.
+  const look = lookAround(track, car);
+
   return {
     s,
     lateral,
@@ -153,7 +159,61 @@ export function navigationFacts(track, car, opts = {}) {
     recovery,
     tooFast,
     suggestedSpeedKph,
+    look,
     trackLength: g.length,
+  };
+}
+
+/**
+ * What is around the car, in the car's own frame: is the left tight, is the
+ * right tight, is there a barrier close on one side, are there kerbs ("speed
+ * breakers")? Sampled from real geometry with `resolveSurface` and
+ * `barrierDistance` - never guessed - so the words always match the world.
+ *
+ * Forward is `(cos h, -sin h)` and the car's left is `(-sin h, -cos h)`
+ * (increasing heading is left in this model). Side samples sit 2.6 m out and
+ * 6-20 m ahead: exactly the window the driver can still react in.
+ *
+ * @param {object} track
+ * @param {{x:number, z:number, heading:number}} car
+ */
+export function lookAround(track, car) {
+  const h = car.heading ?? 0;
+  const fx = Math.cos(h);
+  const fz = -Math.sin(h);
+  const lx = -Math.sin(h);
+  const lz = -Math.cos(h);
+  const RANGES = [6, 13, 20];
+
+  function sample(ahead, sideOffset) {
+    const x = car.x + fx * ahead + lx * sideOffset;
+    const z = car.z + fz * ahead + lz * sideOffset;
+    const surf = resolveSurface(track, x, z);
+    const bar = barrierDistance(track, x, z);
+    return {
+      surf: surf.surface,
+      offTrack: surf.offTrack,
+      barrier: bar.distance < 2.5,
+      kerb: surf.surface === 'kerb',
+    };
+  }
+
+  const left = RANGES.map((r) => sample(r, 2.6));
+  const right = RANGES.map((r) => sample(r, -2.6));
+  const ahead = [12, 20].map((r) => sample(r, 0));
+
+  return {
+    left: {
+      tight: left.some((s) => s.offTrack || s.kerb),
+      barrier: left.some((s) => s.barrier),
+      kerb: left.some((s) => s.kerb),
+    },
+    right: {
+      tight: right.some((s) => s.offTrack || s.kerb),
+      barrier: right.some((s) => s.barrier),
+      kerb: right.some((s) => s.kerb),
+    },
+    aheadTight: ahead.some((s) => s.offTrack),
   };
 }
 
@@ -178,6 +238,8 @@ export function createAnnouncementDirector(config = {}) {
     lastSpeedBand: null,
     lastSpeedAnnounceAt: -Infinity,
     lastCoachAt: -Infinity,
+    previewedCorners: new Set(),
+    lastScoutAt: -Infinity,
     opponentCooldownUntil: new Map(),
     started: false,
   };
@@ -223,6 +285,8 @@ export function createAnnouncementDirector(config = {}) {
       state.recoveryStepCount = 0;
       state.lastSpeedBand = null;
       state.lastCoachAt = -Infinity;
+      state.previewedCorners.clear();
+      state.lastScoutAt = -Infinity;
       state.opponentCooldownUntil.clear();
       state.started = false;
     },
@@ -343,6 +407,7 @@ export function createAnnouncementDirector(config = {}) {
       if (corner && corner.distanceM > warn * 3) {
         state.warnedCorners.delete(corner.id);
         state.brakeCalledCorners.delete(corner.id);
+        state.previewedCorners.delete(corner.id);
       }
 
       // ------------------------------------------------------------ too fast
@@ -385,6 +450,75 @@ export function createAnnouncementDirector(config = {}) {
           nonInterrupt: true,
           tag: 'coach',
         });
+      }
+
+      // ------------------------------ 5-10 second look-ahead ("go right in 8s")
+      // The driver asked to be told which way to go BEFORE it matters - 5 to 10
+      // seconds ahead - with what is on each side, so the turn is a decision and
+      // not a surprise. Said once per corner per lap.
+      if (racingNow && corner && facts.speed > 2.5 && !state.previewedCorners.has(corner.id)) {
+        const eta = corner.distanceM / facts.speed;
+        if (eta <= 10.5 && eta >= 2) {
+          state.previewedCorners.add(corner.id);
+          const look = facts.look;
+          let sideHint = '';
+          if (look) {
+            const leftTight = look.left.barrier || look.left.tight;
+            const rightTight = look.right.barrier || look.right.tight;
+            if (leftTight && !rightTight) sideHint = ' The left is tight. The right is clear, so you can go right.';
+            else if (rightTight && !leftTight) sideHint = ' The right is tight. The left is clear, so you can go left.';
+            else if (leftTight && rightTight) sideHint = ' Both sides are tight. Keep in the middle.';
+          }
+          const kindHint =
+            corner.kind === 'chicane'
+              ? 'Speed breakers ahead. Slow down. '
+              : corner.severity === 'hairpin'
+                ? 'Watch out. Sharp turn. '
+                : '';
+          out.push({
+            text: `${kindHint}In ${Math.max(2, Math.round(eta))} seconds, go ${corner.direction}.${sideHint}`,
+            concise: `Go ${corner.direction} in ${Math.max(2, Math.round(eta))} seconds.`,
+            priority: 2,
+            key: `preview.${corner.id}`,
+            cooldownMs: 0,
+            tag: 'corner',
+          });
+        }
+      }
+
+      // ------------------------------------------------- the side scout
+      // "Watch out - barrier on the left. The right is clear." Only when
+      // something is actually close, and rarely: this is background awareness,
+      // not chatter.
+      if (racingNow && facts.look && t - state.lastScoutAt > 9500 * ff) {
+        const look = facts.look;
+        const leftTight = look.left.barrier || look.left.tight;
+        const rightTight = look.right.barrier || look.right.tight;
+        if (leftTight || rightTight) {
+          state.lastScoutAt = t;
+          const saySide = (side, info) => {
+            if (info.barrier) return `watch out, there is a barrier close on the ${side}`;
+            if (info.kerb) return `there are speed breakers on the ${side} edge`;
+            return `the ${side} edge is close`;
+          };
+          const openSide = (side) => `The ${side} is clear. You can go ${side}.`;
+          let text;
+          if (leftTight && rightTight) {
+            text = `${saySide('left', look.left)[0].toUpperCase()}${saySide('left', look.left).slice(1)}, and ${saySide('right', look.right)}. Keep in the middle.`;
+          } else if (leftTight) {
+            text = `${saySide('left', look.left)[0].toUpperCase()}${saySide('left', look.left).slice(1)}. ${openSide('right')}`;
+          } else {
+            text = `${saySide('right', look.right)[0].toUpperCase()}${saySide('right', look.right).slice(1)}. ${openSide('left')}`;
+          }
+          out.push({
+            text,
+            priority: 1,
+            key: 'scout',
+            cooldownMs: 0,
+            nonInterrupt: true,
+            tag: 'scout',
+          });
+        }
       }
 
       // -------------------------------------------------------------- off track

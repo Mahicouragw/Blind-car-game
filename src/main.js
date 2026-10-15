@@ -254,21 +254,39 @@ export function bootApp(config = {}) {
 
   bus.on('gesture:tap', (d) => {
     unlockAudio();
+    // While racing the driving surface is the brake (drivingInput.js). Taps
+    // never select anything over a moving car.
+    if (raceScreen && !raceScreen.state.paused) return;
+    // TalkBack model, as the player asked for it: a single tap SELECTS the
+    // control under the finger and says its name. It must NEVER activate it -
+    // taps were "automatically clicking on other things" (wash, garage) and the
+    // thing they wanted needed a cursor and a double tap instead.
+    const ring = activeRing();
+    if (d.zone?.element && ring?.indexOf) {
+      const idx = ring.indexOf(d.zone.element);
+      if (idx >= 0) {
+        ring.focusAt(idx);
+        return;
+      }
+    }
     if (d.zone?.element) {
+      // An element outside any focus ring (rare): it still gets a real click.
       d.zone.element.click();
       return;
     }
-    if (raceScreen) {
-      // A tap outside the pause panel while paused activates the focused pause
-      // option - the same "single tap activates" rule every menu follows.
-      if (raceScreen.state.paused) pauseRing?.activate();
-      return;
-    }
-    if (quickMenuRing) {
-      quickMenuRing.activate();
-      return;
-    }
-    focusRing?.activate();
+    // A tap between controls re-announces the selected one - it never activates.
+    ring?.announceCurrent?.();
+  });
+
+  bus.on('gesture:doubleTap', (d) => {
+    unlockAudio();
+    // While racing, the driving surface's double tap is the brake.
+    if (raceScreen && !raceScreen.state.paused) return;
+    // The player asked for this explicitly: double tap takes you to whatever
+    // the cursor is on - it ACTIVATES the selected control.
+    const ring = activeRing();
+    if (ring?.activate()) return;
+    if (d.zone?.element) d.zone.element.click();
   });
 
   bus.on('gesture:tripleTap', (d) => {
@@ -276,13 +294,36 @@ export function bootApp(config = {}) {
     // control is a non-immediate zone, so three taps produce this event and
     // zero activations. We say so rather than staying silent.
     if (d.zone?.role === ZONE_ROLE.MENU) {
-      speech.say('Three quick taps do nothing on purpose, so a race can never start by accident. Use a single tap to activate.', {
+      speech.say('Three quick taps do nothing on purpose, so a race can never start by accident. Single tap selects, double tap activates.', {
         priority: SPEECH_PRIORITY.HIGH,
         key: 'tripleExplained',
         cooldownMs: 4000,
       });
     }
   });
+
+  // ---- the "go back" flick: up, then left (or one up-and-left diagonal) ----
+  // The player asked for this after taps failed them: "after swiping up,
+  // without any delay, swipe left - that should take it back." Tracked here,
+  // not in the recognizer, so the same two ordinary swipes keep meaning
+  // "move" on their own and only the pair (within 450 ms) is the back gesture.
+  let lastSwipe = { dir: null, at: -Infinity };
+
+  /** "Get me out of here": close the open menu, else leave the screen. */
+  function goBack() {
+    if (quickMenuRing) {
+      closeQuickMenu();
+      return;
+    }
+    if (raceScreen) {
+      // From driving there is no parent screen - the way back is the race menu
+      // (it holds Go back, Main menu, Exit). From the menu, back resumes.
+      if (raceScreen.state.paused) resumeRace();
+      else pauseRace('race-menu');
+      return;
+    }
+    screens.back();
+  }
 
   bus.on('gesture:swipe', (d) => {
     unlockAudio();
@@ -295,23 +336,23 @@ export function bootApp(config = {}) {
       }
       return;
     }
-    // Swiping while racing opens the RACE MENU ("swipe down and left..."). A
-    // straight downward swipe is reverse and belongs to drivingInput; the
-    // down-and-left diagonal (and the plain left/up sweeps from earlier
-    // play-tests) open the menu. The race pauses behind it.
-    if (raceScreen && !raceScreen.state.paused) {
-      if (isDownLeftSwipe(d) || d.direction === 'left' || d.direction === 'up') {
-        pauseRace('race-menu');
-      }
+    // Back: an up-and-left diagonal, or an up flick followed at once by a left.
+    const upLeft = (d.dx ?? 0) <= -24 && (d.dy ?? 0) <= -24;
+    const upThenLeft = lastSwipe.dir === 'up' && d.direction === 'left' && Date.now() - lastSwipe.at < 450;
+    lastSwipe = { dir: d.direction, at: Date.now() };
+    if (upLeft || upThenLeft) {
+      lastSwipe = { dir: null, at: -Infinity };
+      goBack();
       return;
     }
-    // The same down-and-left diagonal opens the quick menu EVERYWHERE else in
-    // the game - chapters, garage, story, settings - so there is always one
-    // gesture that reaches the menu from wherever the player is.
-    if (!raceScreen && !quickMenuRing && isDownLeftSwipe(d)) {
-      openQuickMenu();
+    // Down and left opens the menu everywhere: the race menu while racing, the
+    // quick menu anywhere else.
+    if (isDownLeftSwipe(d)) {
+      if (raceScreen && !raceScreen.state.paused) pauseRace('race-menu');
+      else if (!raceScreen && !quickMenuRing) openQuickMenu();
       return;
     }
+    // Everything else moves the focus ring - the cursor the player speaks of.
     const ring = activeRing();
     if (!ring) return;
     if (d.direction === 'up') ring.move(-1);
@@ -738,7 +779,7 @@ export function bootApp(config = {}) {
     quickMenuRing = mountMenuPanel(panel, buttons);
     speech.say('Menu.', { priority: 4, essential: true, interrupt: true });
     speech.say(
-      `${buttons.length} options. ${buttons[0].label} is first. Swipe up or down to move between them, single tap to activate. Press Escape to close.`,
+      `${buttons.length} options. ${buttons[0].label} is first. Swipe up or down to move between them, single tap to select, double tap to activate. To go back, swipe up then left.`,
       { priority: 2, essential: true, cooldownMs: 0 }
     );
   }
@@ -894,7 +935,7 @@ export function bootApp(config = {}) {
     } else {
       speakCue('Paused.', 'voice-paused', { priority: 4, essential: true, interrupt: true });
     }
-    speech.say(`${buttons.length} options. ${first} is first. Swipe up or down to move between them, single tap to activate.`, {
+    speech.say(`${buttons.length} options. ${first} is first. Swipe up or down to move between them, single tap to select, double tap to activate. To go back to the race, swipe up then left.`, {
       priority: 2,
       essential: true,
       cooldownMs: 0,

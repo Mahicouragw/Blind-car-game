@@ -190,6 +190,10 @@ export function createFocusRing(items, { speech, audio, announceOnMove = true, l
       if (!opts.silent) announceFocus(describe(api.current));
       return api.current;
     },
+    /** Index of a control by its element, for touch selection; -1 if not ours. */
+    indexOf(el) {
+      return items.findIndex((it) => it.element === el);
+    },
     activate() {
       const item = api.current;
       if (!item) return false;
@@ -279,8 +283,8 @@ export function createScreenManager(config) {
     const items = screen.focusItems ?? [];
     const backItem = items.find((i) => /^back/i.test(String(i.label ?? '').trim()));
     const howMany = count
-      ? ` ${count} options. Swipe up or down to move between them, single tap to activate.${
-          backItem ? ` To leave, swipe to ${backItem.label.split('.')[0]}, or press Escape.` : ' Press Escape to leave.'
+      ? ` ${count} options. Swipe up or down to move between them, single tap to select, double tap to activate.${
+          backItem ? ` To leave, swipe to ${backItem.label.split('.')[0]}, or swipe up then left.` : ' To leave, swipe up then left.'
         }`
       : '';
     // The screen's own description is always spoken, and it is marked essential
