@@ -42,11 +42,11 @@ export const DEFAULT_COOLDOWN = {
  * state has a short one. Callers can override per message.
  */
 export const STALE_MS = {
-  0: 12000, // AMBIENT
-  1: 8000, // LOW
-  2: 5000, // NORMAL - lap, position, driving state
-  3: 10000, // HIGH - warnings
-  4: 20000, // CRITICAL - safety, countdown, finish
+  0: 3000, // AMBIENT
+  1: 3000, // LOW
+  2: 2500, // NORMAL - lap, position, driving state
+  3: 5000, // HIGH - warnings
+  4: 12000, // CRITICAL - safety, countdown, finish
 };
 
 export const QUEUE_LIMITS = {
@@ -170,7 +170,24 @@ export function createSpeechQueue(config = {}) {
         return { accepted: false, reason: 'talkback-off' };
       }
 
-      if (isBlockedByKey({ ...item, priority }, t)) {
+      // "Current event only" (the play-test: the cursor was on chapter two and
+      // the game was still reading chapter one, five to thirty seconds late).
+      // A REPLACE message - a cursor move, a screen change, an answer - drops
+      // every other queued line and cuts whatever is being said, at any
+      // priority. Older events must never be read after newer ones.
+      if (item.replace) {
+        for (let i = state.pending.length - 1; i >= 0; i--) {
+          const p = state.pending[i];
+          const samePassage =
+            !!item.group && p.group === item.group && p.passageId === item.passageId;
+          if (!samePassage && !p.essential) {
+            state.pending.splice(i, 1);
+            state.stats.droppedStale++;
+          }
+        }
+      }
+
+      if (!item.replace && isBlockedByKey({ ...item, priority }, t)) {
         state.stats.droppedCooldown++;
         return { accepted: false, reason: 'cooldown' };
       }
@@ -225,8 +242,11 @@ export function createSpeechQueue(config = {}) {
         // A screen change or a story beat can demand the line immediately. This
         // ignores priority entirely, because equal-priority speech could never
         // interrupt equal-priority speech: every passage the player tapped past
-        // stayed in the queue and was read out afterwards.
-        hardInterrupt: !!item.hardInterrupt,
+        // stayed in the queue and was read out afterwards. REPLACE implies it:
+        // a cursor move is the current event and must be heard now.
+        hardInterrupt: !!(item.hardInterrupt || item.replace),
+        // Cut everything else and say only this. See above.
+        replace: !!item.replace,
         // Which reading of this group it belongs to. See the replacement rule.
         passageId: item.passageId ?? null,
         expiresAt: t + (Number.isFinite(item.ttlMs) ? item.ttlMs : STALE_MS[priority] ?? 6000),
@@ -292,7 +312,8 @@ export function createSpeechQueue(config = {}) {
         return api.take();
       }
       // Re-check the cooldown at delivery time: the item may have sat queued.
-      if (item.key && isBlockedByKey(item, t)) {
+      // A REPLACE line is the current event - it always gets through.
+      if (item.key && !item.replace && isBlockedByKey(item, t)) {
         state.stats.droppedCooldown++;
         return api.take();
       }

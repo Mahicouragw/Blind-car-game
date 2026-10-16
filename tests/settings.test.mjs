@@ -258,6 +258,43 @@ test('a hard interrupt is reported regardless of priority', () => {
   assert.equal(p.q.take().text, 'beat three', 'and it is the beat being looked at');
 });
 
+test('a cursor move speaks ONLY the current item - never the one before it', () => {
+  // The play-test: "when I move the cursor to chapter two it still reads
+  // chapter one... it should read the CURRENT event, not the last one."
+  const { q } = queue();
+  q.offer({ text: 'Chapter One.', priority: 2, key: 'focus' });
+  q.take(); // the old label is being spoken
+  q.offer({ text: 'Chapter Two.', priority: 2, key: 'focus', replace: true, hardInterrupt: true });
+  assert.equal(q.shouldHardInterrupt(), true, 'the new label cuts the old one off mid-sentence');
+  q.finish(); // the cut line settles
+  assert.equal(q.take().text, 'Chapter Two.', 'and the current item is what gets read');
+
+  // A replace also clears the backlog: nothing queued before the cursor moved
+  // may be read after it - not five, ten, fifteen or thirty seconds later.
+  const { q: r } = queue();
+  r.offer({ text: 'old screen intro', priority: 2, essential: true });
+  r.offer({ text: 'old racing line', priority: 3 });
+  r.offer({ text: 'old flavour', priority: 1 });
+  r.offer({ text: 'Chapter Two.', priority: 2, key: 'focus', replace: true });
+  // Essential lines survive (the settings surface must never be silenced);
+  // everything else is the past and must go.
+  assert.equal(r.pendingCount, 2, 'only essential leftovers and the new label remain');
+  const first = r.take().text;
+  r.finish();
+  const second = r.take().text;
+  assert.ok([first, second].includes('Chapter Two.'), 'the current label is spoken');
+  assert.ok(![first, second].includes('old racing line'), 'stale racing lines are gone');
+  assert.ok(![first, second].includes('old flavour'), 'stale flavour is gone');
+
+  // And the current label is never eaten by a cooldown on its way out.
+  const { q: c } = queue();
+  c.offer({ text: 'Wash and polish.', priority: 2, key: 'focus', cooldownMs: 5000 });
+  c.take();
+  c.finish();
+  c.offer({ text: 'Garage.', priority: 2, key: 'focus', replace: true });
+  assert.equal(c.take().text, 'Garage.', 'the next cursor item always gets through');
+});
+
 test('the chunks of one passage never replace each other', () => {
   // A long passage is spoken sentence by sentence, all sharing one group. An
   // earlier version of the replacement rule matched on the group alone, so each

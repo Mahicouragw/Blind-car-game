@@ -777,10 +777,10 @@ export function bootApp(config = {}) {
       }),
     ];
     quickMenuRing = mountMenuPanel(panel, buttons);
-    speech.say('Menu.', { priority: 4, essential: true, interrupt: true });
+    speech.say('Menu.', { priority: 4, essential: true, interrupt: true, replace: true });
     speech.say(
       `${buttons.length} options. ${buttons[0].label} is first. Swipe up or down to move between them, single tap to select, double tap to activate. To go back, swipe up then left.`,
-      { priority: 2, essential: true, cooldownMs: 0 }
+      { priority: 2, essential: true, cooldownMs: 0, replace: true }
     );
   }
 
@@ -791,7 +791,7 @@ export function bootApp(config = {}) {
     quickMenuRing = null;
     if (!raceScreen) overlay.hidden = true;
     audio.play('ui-close', { group: 'sfx', volume: 0.55 });
-    speech.say('Menu closed.', { priority: 3, essential: true, key: 'menuClosed', cooldownMs: 600 });
+    speech.say('Menu closed.', { priority: 3, essential: true, key: 'menuClosed', cooldownMs: 600, replace: true });
     focusRing?.apply?.();
   }
 
@@ -931,14 +931,15 @@ export function bootApp(config = {}) {
     // "Paused." comes from its AI voice clip when available; the options list is
     // dynamic text and is always synthesised. One clip, one line, no doubles.
     if (reason === 'race-menu') {
-      speech.say('Race menu.', { priority: 4, essential: true, interrupt: true });
+      speech.say('Race menu.', { priority: 4, essential: true, interrupt: true, replace: true });
     } else {
-      speakCue('Paused.', 'voice-paused', { priority: 4, essential: true, interrupt: true });
+      speakCue('Paused.', 'voice-paused', { priority: 4, essential: true, interrupt: true, replace: true });
     }
     speech.say(`${buttons.length} options. ${first} is first. Swipe up or down to move between them, single tap to select, double tap to activate. To go back to the race, swipe up then left.`, {
       priority: 2,
       essential: true,
       cooldownMs: 0,
+      replace: true,
     });
     panel.querySelector('button')?.focus();
   }

@@ -147,13 +147,18 @@ export function createFocusRing(items, { speech, audio, announceOnMove = true, l
     });
   }
 
-  /** Speak ONLY the newly focused control. Shared key: latest wins. */
+  /** Speak ONLY the newly focused control - and ONLY it. */
   function announceFocus(text, opts = {}) {
     speech?.say(text, {
       priority: 2,
       key: 'focus',
       cooldownMs: 0,
-      ttlMs: 2200,
+      // "It should read the current event, not the last one." A cursor move
+      // cuts whatever is still talking and drops the backlog, so the player
+      // hears the item under the cursor NOW - never the item it was on five,
+      // ten or thirty seconds ago.
+      hardInterrupt: true,
+      replace: true,
       ...opts,
     });
   }
@@ -292,7 +297,7 @@ export function createScreenManager(config) {
     // and how to turn it back on.
     // hardInterrupt: arriving on a screen must always be heard. Without it the
     // announcement queued behind whatever the previous screen was still saying.
-    speech?.say(`${title}.${summary}${howMany}`, { priority: 3, essential: true, cooldownMs: 0, interrupt: true, hardInterrupt: true });
+    speech?.say(`${title}.${summary}${howMany}`, { priority: 3, essential: true, cooldownMs: 0, interrupt: true, hardInterrupt: true, replace: true });
   }
 
   const api = {

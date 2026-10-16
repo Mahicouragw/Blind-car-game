@@ -288,12 +288,28 @@ export function createSpeech(config = {}) {
     },
 
     sayCritical(text, opts = {}) {
-      return api.say(text, { priority: SPEECH_PRIORITY.CRITICAL, interrupt: true, cooldownMs: 0, ...opts });
+      // Safety and answers are the current event: they cut whatever is being
+      // said and clear the backlog (replace), at any priority.
+      return api.say(text, {
+        priority: SPEECH_PRIORITY.CRITICAL,
+        interrupt: true,
+        cooldownMs: 0,
+        hardInterrupt: true,
+        replace: true,
+        ...opts,
+      });
     },
 
     /** Settings-screen lines: spoken even when Game TalkBack is off. */
     sayEssential(text, opts = {}) {
-      return api.say(text, { essential: true, priority: SPEECH_PRIORITY.HIGH, ...opts });
+      // Answers and confirmations are the CURRENT event ("where am I", "coins",
+      // "bought"): they replace whatever the queue was still catching up on.
+      return api.say(text, {
+        essential: true,
+        priority: SPEECH_PRIORITY.HIGH,
+        replace: true,
+        ...opts,
+      });
     },
 
     stop() {
