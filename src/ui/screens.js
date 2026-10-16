@@ -375,6 +375,7 @@ export function createScreenManager(config) {
     },
 
     clearStack() {
+      for (const screen of stack) if (screen !== current) screen.destroy?.();
       stack.length = 0;
     },
   };

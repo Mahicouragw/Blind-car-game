@@ -13,6 +13,11 @@ Wiring lives in `src/input/pointerBus.js` (real pointer events → recognizer),
 
 ## Gesture map
 
+The table below describes the existing simulation races. The new **Easy Racing
+Ground, Forest Adventure and City Walk** have their own simpler controls:
+see [EASY-PLAY.md](EASY-PLAY.md). Their menus use the same cursor rule.
+
+
 | Gesture | Zone | Emits | Game action |
 | --- | --- | --- | --- |
 | Press and hold | driving surface | `pressStart` on contact, `pressEnd` on lift | **Accelerate** while held; release **coasts** |
@@ -25,12 +30,12 @@ Wiring lives in `src/input/pointerBus.js` (real pointer events → recognizer),
 | **Swipe down-and-left / left / up** | driving surface | `swipe` | **Open the race menu** (coins, repair, petrol, settings, where am I…) — the race pauses behind it |
 | **Swipe down-and-left** | anywhere else | `swipe` | **Open the quick menu** — chapters, garage, story, everywhere (where am I, coins, experience, settings, how to play, garage, main menu, exit) |
 | **Swipe up-and-left** (or up, then left within 450 ms) | anywhere | `swipe` | **Go back** — close the open menu, leave the screen, or open the race menu while driving |
-| Single tap | menu / list / menu panel | `tap` | **Select** the button under the finger and say its name — a tap NEVER activates |
+| Single tap | menu / list / menu panel | `tap` | **Confirm** the item under the cursor and say its name, wherever tapped — never move the cursor or activate |
 | **Double tap** | menu / list / menu panel | `doubleTap` | **Activate the selected control** (the TalkBack rule the player asked for) |
 | Swipe up / down | menu / list | `swipe` | Move the focus ring |
 | Swipe left / right | car browser | `swipe` | Previous / next car |
 | **Tap twice and hold** | settings hotspot | `doubleTapHold` | **Open Game TalkBack settings** |
-| Tap three times | any | `tripleTap` | **Nothing** — see rule R6 |
+| Tap three times | simulation / menus | `tripleTap` | **Nothing** — see rule R6 |
 | Long press | settings hotspot | `longPressStart` | Open Game TalkBack settings (alternative) |
 
 Every gesture has a keyboard equivalent in `src/input/keyboard.js`; see

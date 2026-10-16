@@ -329,7 +329,12 @@ export function createGestureRecognizer(config = {}) {
           chain.count = 0;
           chain.settled = true;
         });
+      } else if (chain.count === 2 && z.deferDoubleTap) {
+        // Easy-world triple tap heals: wait for a possible third tap rather
+        // than sitting down on tap two and healing on tap three.
+        clearTimer('tapResolve');
       } else if (chain.count >= 2) {
+        clearTimer('tapResolve');
         // R3/R6. If an immediate tap was already delivered for tap 1, tell the
         // consumer to undo it before we report the multi-tap meaning.
         if (chain.emittedTap) {
@@ -413,7 +418,7 @@ export function createGestureRecognizer(config = {}) {
       // `pressStartFired` is only ever true for a zone with `hold`, so gating on it
       // is exactly the old `z.hold` check, minus the drag hole.
       if (pressStartWasFired) {
-        emit('pressEnd', { zone: z, zoneId: z.id, role: z.role, x, y, durationMs: duration, tapCount });
+        emit('pressEnd', { zone: z, zoneId: z.id, role: z.role, x, y, durationMs: duration, tapCount, moved: wasDrag });
       }
 
       if (wasLongPress) {
@@ -503,6 +508,8 @@ export function createGestureRecognizer(config = {}) {
         });
       } else if (!z.immediateTap && tapCount === 1) {
         // R2: this zone owns a double-tap meaning, so the single tap waits.
+        setTimer('tapResolve', T.doubleTapWindowMs, () => resolveTapChain(z, x, y, tapCount));
+      } else if (tapCount === 2 && z.deferDoubleTap) {
         setTimer('tapResolve', T.doubleTapWindowMs, () => resolveTapChain(z, x, y, tapCount));
       } else if (tapCount === 2) {
         // Second tap of a double-tap-and-hold zone, released before the hold

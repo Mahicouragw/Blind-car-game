@@ -434,3 +434,16 @@ test('the engine range is wide enough to hear acceleration', async () => {
   // speaker, which is the whole point for a player who cannot see the revs.
   assert.ok(redline / idle > 2.5, `idle ${idle.toFixed(2)} to redline ${redline.toFixed(2)} should be a wide, audible change`);
 });
+
+test('stopAll stops recorded loops AND one-shots, including delayed sounds', async () => {
+  const { audio, fake } = makeAudio(); await audio.unlock();
+  for (const key of ['ui-click', 'engine-loop', 'engine-loop-alt', 'music-race']) audio.buffers.set(key, fakeBuffer());
+  audio.play('ui-click', { delay: 5 }); audio.engine.start();
+  audio.loop('music-race', { group: 'music' });
+  assert.ok(fake.sources.length >= 4);
+  audio.setActive(false);
+  for (const src of fake.sources) assert.notEqual(src.stoppedAt, null, 'every active recording must stop');
+  assert.equal(audio.engine.handleLow, null);
+  assert.equal(audio.play('ui-click'), false); assert.equal(audio.loop('engine-loop'), null);
+  audio.setActive(true); assert.equal(audio.play('ui-click'), true);
+});

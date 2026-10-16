@@ -103,17 +103,18 @@ test('swiping down moves focus and announces the new control', () => {
   assert.notEqual(after, before, 'focus should move on swipe down');
 });
 
-test('a single tap SELECTS the button underneath, a double tap ACTIVATES it', () => {
+test('a single tap confirms the CURSOR anywhere, a double tap ACTIVATES it', () => {
   const app = window.__app;
   const target = buttons().find((b) => b.textContent.includes('Gesture tutorial'));
   assert.ok(target, 'tutorial button exists');
+  app.screens.current.focusRing.focusAt(app.screens.current.focusRing.indexOf(target));
   before();
   // TalkBack model: the single tap only moves the cursor and speaks the label -
   // it must never open anything (taps were "automatically clicking on other
   // things"). The double tap takes you to the selected control.
   bus.emit('gesture:tap', { zone: { role: 'menu', element: target } });
   assert.notEqual(app.screens.current.id, 'tutorial', 'a single tap must not activate');
-  assert.equal(app.screens.current.focusRing.current?.element, target, 'the single tap selects the button under the finger');
+  assert.equal(app.screens.current.focusRing.current?.element, target, 'a single tap keeps the cursor selected');
   bus.emit('gesture:doubleTap', { zone: { role: 'menu', element: target } });
   assert.equal(app.screens.current.id, 'tutorial', 'the double tap opened the tutorial screen');
   function before() {
@@ -308,7 +309,8 @@ test('the garage is reachable from the menu and lists real prices', () => {
   assert.ok(garageButton, 'the menu offers the garage');
   assert.match(garageButton.textContent, /5000/, 'the menu says how many coins the player has');
 
-  // Single tap selects; the double tap is what opens the garage.
+  // Swipes select; a tap anywhere confirms that cursor.
+  app.screens.current.focusRing.focusAt(app.screens.current.focusRing.indexOf(garageButton));
   bus.emit('gesture:tap', { zone: { role: 'menu', element: garageButton } });
   assert.notEqual(app.screens.current.id, 'garage', 'the single tap does not navigate');
   bus.emit('gesture:doubleTap', { zone: { role: 'menu', element: garageButton } });

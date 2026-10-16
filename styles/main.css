@@ -991,3 +991,15 @@ html.talkback-off .settings-list {
     transition-duration: 0.001ms !important;
   }
 }
+
+/* Spoken easy-play areas also provide a quiet, high-contrast visual companion. */
+.easy-world .easy-action {
+  border-left: 3px solid #f8d36a;
+  padding: 8px 16px;
+  background: rgba(248, 211, 106, 0.05);
+  border-radius: 0 12px 12px 0;
+}
+.easy-world .easy-status { color: #dce7f2; }
+@media (prefers-reduced-motion: reduce) {
+  .easy-world svg .easy-centreline { stroke-dashoffset: 0 !important; }
+}

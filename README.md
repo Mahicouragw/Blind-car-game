@@ -15,6 +15,16 @@ Circuit, the cars, the characters and the seven-chapter story.
 
 ---
 
+## New easy-play areas
+
+The main menu also offers **Easy Racing Ground**, **Forest Adventure**, and
+**City Walk**: simpler, untimed, voice-led mini-games. Auto-drive and swipe-to-turn;
+walk, fight and heal; collect coins, buy a shop and enter racing events. The
+existing 3D simulation races are unchanged. See [the easy-play guide](docs/EASY-PLAY.md).
+
+In every menu: swipes move the cursor, **single tap anywhere confirms that same
+item**, and **double tap activates**. Exit and backgrounding stop game audio.
+
 ## Play it
 
 **Live: <https://mahicouragw.github.io/Blind-car-game/>** — published

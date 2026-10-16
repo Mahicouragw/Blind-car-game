@@ -11,6 +11,7 @@
  */
 
 import { JSDOM } from 'jsdom';
+import { performance as nodePerformance } from 'node:perf_hooks';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
@@ -147,7 +148,9 @@ export function createDom(opts = {}) {
   install('navigator', window.navigator);
   install('HTMLElement', window.HTMLElement);
   install('localStorage', window.localStorage);
-  install('performance', window.performance ?? { now: () => Date.now() });
+  // jsdom's PerformanceImpl itself calls Node's global performance. Installing
+  // window.performance here recurses forever on the first real pointer sample.
+  install('performance', nodePerformance);
   install('requestAnimationFrame', window.requestAnimationFrame);
   install('cancelAnimationFrame', window.cancelAnimationFrame);
   install('getComputedStyle', window.getComputedStyle.bind(window));
@@ -167,6 +170,7 @@ export function createDom(opts = {}) {
       return bus;
     },
     dispose() {
+      window.vettaru?.destroy?.();
       dom.window.close();
       for (const k of installed) {
         try {

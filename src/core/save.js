@@ -161,6 +161,11 @@ export function coerceSave(raw) {
     heroName,
     xp,
     coins,
+    easyWorld: {
+      potions: clampInt(raw.easyWorld?.potions, 0, 99, 3),
+      shopOwned: raw.easyWorld?.shopOwned === true,
+      questDone: raw.easyWorld?.questDone === true,
+    },
     level,
     carId,
     unlockedCars,

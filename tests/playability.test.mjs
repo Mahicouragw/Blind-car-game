@@ -261,8 +261,10 @@ test('single tap selects and double tap activates - never the reverse', () => {
   // The player: "when single-tapping, different buttons are automatically
   // clicked... add a double tap: after the cursor is selected, double-tapped,
   // it should take it to that cursor."
-  assert.ok(mainSrc.includes('ring.focusAt(idx)'), 'a single tap must select, not activate');
-  assert.ok(mainSrc.includes('TalkBack model, as the player asked'), 'the model is deliberate');
+  const cursorTap = mainSrc.slice(mainSrc.indexOf("bus.on('gesture:tap'"), mainSrc.indexOf("bus.on('gesture:doubleTap'"));
+  assert.ok(cursorTap.includes('announceCurrent'), 'a single tap confirms the current cursor');
+  assert.ok(!cursorTap.includes('focusAt('), 'a tap anywhere must never move the cursor to another item');
+  assert.ok(!cursorTap.includes('.click('), 'a single tap must never activate anything');
   assert.ok(mainSrc.includes("bus.on('gesture:doubleTap'"), 'double tap must be wired');
   const tapBlock = mainSrc.slice(mainSrc.indexOf("bus.on('gesture:tap'"), mainSrc.indexOf("bus.on('gesture:doubleTap'"));
   assert.ok(!tapBlock.includes('pauseRing?.activate()'), 'a single tap must never activate the focused item');

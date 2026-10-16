@@ -133,7 +133,8 @@ Full rules, thresholds and conflict resolution are in
 
 | Gesture | Where | Action |
 | --- | --- | --- |
-| Single tap | menu / list | Activate the focused control |
+| Single tap | menu / list | Confirm and announce the current cursor item, anywhere tapped; never activate |
+| Double tap | menu / list | Activate the current cursor item |
 | Single tap | driving surface | **Brake** (a pedal tap, held ~620 ms) |
 | Swipe up / down | menus | Move between options |
 | Swipe left / right | car selection | Previous / next car |
@@ -257,3 +258,10 @@ Typing in a text field is never hijacked (`allowInField` in
   theme switch.
 - **Not verified with a real screen reader on a real device.** See
   [docs/TESTING.md](docs/TESTING.md).
+
+## New easy-play areas
+
+Easy Racing Ground, Forest Adventure and City Walk are ungated, untimed spoken
+mini-games. Their complete controls and safety rules are in
+[docs/EASY-PLAY.md](docs/EASY-PLAY.md). They do not replace the existing simulation
+races. Automatic movement pauses behind menus and on background/pagehide.

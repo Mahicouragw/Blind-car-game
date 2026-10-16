@@ -324,6 +324,8 @@ export function createAudio(config = {}) {
   const buffers = new Map();
   const failed = new Map();
   const loops = new Map();
+  const activeSources = new Set();
+  let active = true;
   let unlocked = false;
   let duckUntil = 0;
   let ducked = false;
@@ -486,7 +488,7 @@ export function createAudio(config = {}) {
      * @param {{volume?:number, rate?:number, group?:string, delay?:number}} [opts]
      */
     play(name, opts = {}) {
-      if (!ctx || !unlocked) return false;
+      if (!active || !ctx || !unlocked) return false;
       const buf = buffers.get(resolveSoundName(name));
       if (!buf) return false;
       const group = groups[opts.group ?? 'sfx'] ?? groups.sfx;
@@ -499,6 +501,8 @@ export function createAudio(config = {}) {
       src.connect(gain).connect(group);
       try {
         src.start(ctx.currentTime + (opts.delay ?? 0));
+        activeSources.add(src);
+        src.onended = () => { activeSources.delete(src); src.disconnect?.(); gain.disconnect?.(); };
       } catch {
         return false;
       }
@@ -509,7 +513,7 @@ export function createAudio(config = {}) {
      * Start a recorded loop. Returns a handle to change rate/gain and stop it.
      */
     loop(name, opts = {}) {
-      if (!ctx || !unlocked) return null;
+      if (!active || !ctx || !unlocked) return null;
       const buf = buffers.get(name);
       if (!buf) return null;
       const group = groups[opts.group ?? 'engine'] ?? groups.sfx;
@@ -522,6 +526,8 @@ export function createAudio(config = {}) {
       src.connect(gain).connect(group);
       try {
         src.start();
+        activeSources.add(src);
+        src.onended = () => { activeSources.delete(src); src.disconnect?.(); gain.disconnect?.(); };
       } catch {
         return null;
       }
@@ -548,12 +554,12 @@ export function createAudio(config = {}) {
           if (handle._stopped) return;
           handle._stopped = true;
           try {
-            gain.gain.setTargetAtTime(0, ctx.currentTime, fade / 3);
-            src.stop(ctx.currentTime + fade);
+            if (fade > 0) gain.gain.setTargetAtTime(0, ctx.currentTime, fade / 3);
+            src.stop(ctx.currentTime + Math.max(0, fade));
           } catch {
             /* ignore */
           }
-          loops.delete(name);
+          if (loops.get(name) === handle) loops.delete(name);
         },
         _stopped: false,
       };
@@ -561,6 +567,23 @@ export function createAudio(config = {}) {
       return handle;
     },
 
+    /** Stop even one-shots, crossfading sources and delayed starts. */
+    stopAll() {
+      api.music.stop(0);
+      for (const handle of loops.values()) handle._stopped = true;
+      loops.clear();
+      for (const src of activeSources) {
+        try { src.stop(ctx?.currentTime ?? 0); src.disconnect?.(); } catch { /* already ended */ }
+      }
+      activeSources.clear();
+      api.engine.handleLow = null;
+      api.engine.handleHigh = null;
+      api.skid.handle = null;
+    },
+    setActive(value) {
+      active = !!value;
+      if (!active) api.stopAll();
+    },
     stopLoops(names) {
       const list = names ? names.map((n) => loops.get(n)).filter(Boolean) : [...loops.values()];
       for (const h of list) h.stop();

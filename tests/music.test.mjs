@@ -203,3 +203,40 @@ test('a director with no audio object does not throw', () => {
   assert.doesNotThrow(() => director.playTrack('music-race'));
   assert.equal(director.track, 'music-race', 'the intent is still recorded even with no audio');
 });
+
+test('Exit is deliberate silence, never the fallback menu music', () => {
+  assert.equal(trackForScreen('exit'), null);
+  const { director, events, audio } = makeDirector();
+  events.emit('screen:mounted', { id: 'menu' });
+  const count = played(audio).length;
+  director.stop(); events.emit('screen:mounted', { id: 'exit' });
+  assert.equal(played(audio).length, count);
+  assert.equal(director.track, null);
+  director.suspend(); director.resume();
+  assert.equal(played(audio).length, count, 'foregrounding Exit must stay silent');
+});
+
+test('background music stays stopped across screen/settings events until resume', () => {
+  const { director, events, audio } = makeDirector();
+  events.emit('screen:mounted', { id: 'menu' });
+  director.suspend(); const count = played(audio).length;
+  events.emit('screen:mounted', { id: 'results' });
+  events.emit('settings:applied', { key: 'music' });
+  assert.equal(played(audio).length, count);
+  director.resume(); assert.equal(played(audio).at(-1), 'music-results');
+});
+
+test('an ambience download completing after silence cannot restart its loop', async () => {
+  const events = createBus(); const started = [];
+  let finish;
+  const audio = {
+    music: { play() {}, stop() {} },
+    ensureLoaded: () => new Promise(resolve => { finish = resolve; }),
+    stopLoops() {}, loop(name) { started.push(name); return {}; },
+  };
+  const director = createMusicDirector({ audio, events });
+  events.emit('scene:music', { track: 'music-story-city' });
+  assert.ok(finish, 'the scene requested ambience');
+  director.suspend(); finish(); await Promise.resolve();
+  assert.deepEqual(started, [], 'a late file must not defeat silence');
+});

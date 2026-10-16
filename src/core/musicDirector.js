@@ -39,6 +39,10 @@ export const SCREEN_TRACKS = {
   // to hear.
   settings: null,
   audio: null,
+  exit: null,
+  ground: null,
+  forest: null,
+  city: null,
 };
 
 /** Fallback for screens not in SCREEN_TRACKS, including tutorial step screens. */
@@ -122,13 +126,14 @@ export function createMusicDirector(config = {}) {
   let scene = null;
   let wanted = null;
   let ambience = null;
+  let suspended = false;
   const offs = [];
 
   /** Start, swap or stop the scene bed. `null` means no bed. */
   let bedToken = 0;
   function setBed(want) {
     if (!audio?.loop) return;
-    if (want === ambience) return;
+    if (want && want === ambience) return;
     audio.stopLoops?.(AMBIENCE_SLOTS);
     ambience = null;
     const token = ++bedToken;
@@ -158,9 +163,9 @@ export function createMusicDirector(config = {}) {
    */
   function apply(track) {
     wanted = track ?? null;
-    applyAmbience(wanted);
+    applyAmbience(suspended ? null : wanted);
     if (!audio?.music) return false;
-    if (getSettings().music === false || !track) {
+    if (suspended || getSettings().music === false || !track) {
       audio.music.stop(0.8);
       return false;
     }
@@ -190,7 +195,7 @@ export function createMusicDirector(config = {}) {
     offs.push(
       events.on('story:ambience', (payload) => {
         // The story node names its scene; play the matching bed if one exists.
-        setBed(AMBIENCE_FOR_STORY[payload?.ambience] ?? null);
+        setBed(suspended ? null : AMBIENCE_FOR_STORY[payload?.ambience] ?? null);
       }),
     );
     offs.push(
@@ -202,7 +207,7 @@ export function createMusicDirector(config = {}) {
         if (key === 'sfx') {
           audio?.stopLoops?.(AMBIENCE_SLOTS);
           ambience = null;
-          applyAmbience(wanted);
+          applyAmbience(suspended ? null : wanted);
         }
       }),
     );
@@ -225,6 +230,15 @@ export function createMusicDirector(config = {}) {
     },
     stop() {
       return apply(null);
+    },
+    suspend() {
+      suspended = true;
+      setBed(null); // invalidates async ambience starts too
+      audio?.music?.stop(0);
+    },
+    resume() {
+      suspended = false;
+      return apply(wanted);
     },
     destroy() {
       for (const off of offs) {

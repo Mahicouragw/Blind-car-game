@@ -149,6 +149,14 @@ export function buildMenuScreen({ gameState, screens, speech, audio }) {
     })
   );
 
+  for (const [area, label, hint] of [
+    ['ground', 'Easy Racing Ground', 'Automatic driving, swipe-to-turn, petrol and unlimited coins'],
+    ['forest', 'Forest Adventure', 'Walk, fight monsters with a sword, heal and collect coins'],
+    ['city', 'City Walk', 'Walk, buy potions and a shop, enter races or visit the forest'],
+  ]) {
+    buttons.push(makeButton({ label, hint, onActivate: () => screens.openEasyWorld(area) }));
+  }
+
   buttons.push(
     makeButton({
       label: 'Gesture tutorial',
@@ -828,7 +836,7 @@ const TUTORIAL_STEPS = [
   {
     id: 'menus',
     title: 'Menus: tap and swipe',
-    text: 'In a menu, swipe up or down to move the cursor between options - the game says each one as you land on it. A single tap on a control selects it and says its name. A double tap activates whatever is selected. To go back, swipe up then left at once. Swipe left and right browses cars. Tap three times quickly on the start race control and nothing happens, because that control waits to be sure.',
+    text: 'In a menu, swipe up or down to move the cursor between options - the game says each one as you land on it. A single tap anywhere confirms the item the cursor is on and says its name. It never selects a different item under your finger. A double tap activates whatever is selected. To go back, swipe up then left at once. Swipe left and right browses cars. Tap three times quickly on the start race control and nothing happens, because that control waits to be sure.',
     require: 'menuNavigated',
   },
   {
@@ -1489,7 +1497,7 @@ export function buildGarageScreen({ gameState, screens, speech, audio, keepId = 
           ? `${tyre.name}. You already have ${fitted.label}, which is better, so this is not for sale to you.`
           : `${tyre.name}. Already fitted. ${tyre.description}.`
         : `${tyre.name}. ${tyre.cost} coins. That is ${tyre.description}. ${
-            tyre.affordable ? `Single tap to fit them. You have ${coins} ${coinWord}.` : `You have ${coins} ${coinWord}, so you cannot afford this yet.`
+            tyre.affordable ? `Double tap to fit them. You have ${coins} ${coinWord}.` : `You have ${coins} ${coinWord}, so you cannot afford this yet.`
           }`;
       list.appendChild(
         addRow(tyre.id, {

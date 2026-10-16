@@ -43,6 +43,7 @@ import {
   createCarPreview,
 } from './ui/menuScreens.js';
 import { buildStoryScreen } from './ui/storyScreen.js';
+import { buildEasyWorldScreen } from './ui/easyWorldScreen.js';
 
 const FIRST_RUN_KEY = 'vettaru.firstrun.v1';
 
@@ -89,7 +90,7 @@ export function bootApp(config = {}) {
   const tutorialHarness = createTutorialHarness();
 
   // ----------------------------------------------------------- zone defaults
-  let defaultZone = { id: 'background', role: ZONE_ROLE.READER, immediateTap: false, allowSwipe: false };
+  let defaultZone = { id: 'background', role: ZONE_ROLE.MENU, immediateTap: true, allowSwipe: true };
   const screens = createScreenManager({
     host,
     speech,
@@ -107,7 +108,7 @@ export function bootApp(config = {}) {
    * through to the focused item and "Repair" pressed "Go back" - and swipes on
    * the panel never reached the recognizer at all. The panel sits UNDER the
    * gesture layer (pointer-events: none) and is operated the same way every
-   * screen is: swipes move the ring, a tap presses the button under the finger.
+   * screen is: swipes move the ring, a tap confirms the current cursor.
    */
   let panelZoneMap = null;
   let quickMenuRing = null;
@@ -135,6 +136,7 @@ export function bootApp(config = {}) {
         // never reach the recognizer and can never be mistaken for a gesture.
         return DRIVING_ZONE;
       }
+      if (screens.current?.playing && !quickMenuRing) return screens.current.zone;
       const zone = screens.zoneAt(x, y);
       if (zone) return zone;
       return defaultZone;
@@ -248,38 +250,36 @@ export function bootApp(config = {}) {
   // - paused: the pause panel's ring;
   // - otherwise: the mounted screen's ring.
   function activeRing() {
+    if (quickMenuRing) return quickMenuRing;
+    if (screens.current?.playing) return null;
     if (raceScreen) return raceScreen.state.paused ? pauseRing : null;
-    return focusRing;
+    return screens.current?.focusRing ?? focusRing;
   }
+
+  function routePlayGesture(type, d) {
+    const screen = screens.current;
+    if (quickMenuRing || !screen?.playing) return false;
+    return screen.handleGesture?.(type, d) ?? false;
+  }
+  bus.on('gesture:pressStart', d => { unlockAudio(); routePlayGesture('pressStart', d); });
+  bus.on('gesture:pressEnd', d => routePlayGesture('pressEnd', d));
 
   bus.on('gesture:tap', (d) => {
     unlockAudio();
+    if (routePlayGesture('tap', d)) return;
     // While racing the driving surface is the brake (drivingInput.js). Taps
     // never select anything over a moving car.
     if (raceScreen && !raceScreen.state.paused) return;
-    // TalkBack model, as the player asked for it: a single tap SELECTS the
-    // control under the finger and says its name. It must NEVER activate it -
-    // taps were "automatically clicking on other things" (wash, garage) and the
-    // thing they wanted needed a cursor and a double tap instead.
-    const ring = activeRing();
-    if (d.zone?.element && ring?.indexOf) {
-      const idx = ring.indexOf(d.zone.element);
-      if (idx >= 0) {
-        ring.focusAt(idx);
-        return;
-      }
-    }
-    if (d.zone?.element) {
-      // An element outside any focus ring (rare): it still gets a real click.
-      d.zone.element.click();
-      return;
-    }
-    // A tap between controls re-announces the selected one - it never activates.
-    ring?.announceCurrent?.();
+    // The player's rule, twice stated: "single tap, anywhere, and the item the
+    // CURSOR is on is the one selected - never some other item under my
+    // finger." A tap confirms and re-says the cursor; it never moves the
+    // selection and never activates. Double tap activates.
+    activeRing()?.announceCurrent?.();
   });
 
   bus.on('gesture:doubleTap', (d) => {
     unlockAudio();
+    if (routePlayGesture('doubleTap', d)) return;
     // While racing, the driving surface's double tap is the brake.
     if (raceScreen && !raceScreen.state.paused) return;
     // The player asked for this explicitly: double tap takes you to whatever
@@ -290,6 +290,7 @@ export function bootApp(config = {}) {
   });
 
   bus.on('gesture:tripleTap', (d) => {
+    if (routePlayGesture('tripleTap', d)) return;
     // Requirement 12: three quick taps must never start a race. The Start Race
     // control is a non-immediate zone, so three taps produce this event and
     // zero activations. We say so rather than staying silent.
@@ -322,6 +323,11 @@ export function bootApp(config = {}) {
       else pauseRace('race-menu');
       return;
     }
+    if (screens.current?.handleGesture) {
+      if (screens.current.isMenu) screens.current.closeMenu();
+      else screensApi.gotoMenu();
+      return;
+    }
     screens.back();
   }
 
@@ -348,10 +354,12 @@ export function bootApp(config = {}) {
     // Down and left opens the menu everywhere: the race menu while racing, the
     // quick menu anywhere else.
     if (isDownLeftSwipe(d)) {
-      if (raceScreen && !raceScreen.state.paused) pauseRace('race-menu');
+      if (screens.current?.handleGesture && !raceScreen) screens.current.openMenu();
+      else if (raceScreen && !raceScreen.state.paused) pauseRace('race-menu');
       else if (!raceScreen && !quickMenuRing) openQuickMenu();
       return;
     }
+    if (routePlayGesture('swipe', d)) return;
     // Everything else moves the focus ring - the cursor the player speaks of.
     const ring = activeRing();
     if (!ring) return;
@@ -364,6 +372,7 @@ export function bootApp(config = {}) {
 
   bus.on('gesture:doubleTapHold', (d) => {
     unlockAudio();
+    if (screens.current?.playing) return;
     // While racing, the driving surface owns this gesture: double-tap-and-hold
     // is the HANDBRAKE (drivingInput.js pulls the e-brake and the car drifts).
     // It must never open a menu over a moving car. The race menu is the
@@ -372,12 +381,12 @@ export function bootApp(config = {}) {
     // The documented way into Game TalkBack settings from anywhere, and the
     // accessible alternative is F1 (see input/keyboard.js).
     if (d.zone?.doubleTapHoldTarget || d.zone?.role === ZONE_ROLE.SETTINGS_HOTSPOT || d.zone?.role === ZONE_ROLE.DRIVING) {
-      screens.openSettings();
+      screensApi.openSettings();
       tutorialHarness.record('openedSettings');
       return;
     }
     if (!raceScreen || raceScreen.state.paused) {
-      screens.openSettings();
+      screensApi.openSettings();
       tutorialHarness.record('openedSettings');
     }
   });
@@ -387,7 +396,7 @@ export function bootApp(config = {}) {
   // only the double-tap-and-hold worked.
   bus.on('gesture:longPressStart', (d) => {
     if (d.zone?.role === ZONE_ROLE.SETTINGS_HOTSPOT) {
-      screens.openSettings();
+      screensApi.openSettings();
       tutorialHarness.record('openedSettings');
     }
   });
@@ -415,45 +424,37 @@ export function bootApp(config = {}) {
   });
 
   // ---------------------------------------------------------- keyboard map
-  bus.on('key:activate', () => activeRing()?.activate());
-  bus.on('key:nextFocus', () => activeRing()?.move(1));
-  bus.on('key:back', () => {
-    // Escape closes whichever floating menu is open before it does anything
-    // else: "get me out of here" must never strand the player in a menu.
-    if (quickMenuRing) {
-      closeQuickMenu();
-      return;
-    }
-    if (raceScreen) {
-      // Escape is the "get me out of here" key: it pauses while racing, and
-      // while paused it goes back to driving. It used to dead-end: pauseRace()
-      // early-returns when already paused, so Escape did nothing at all.
-      if (raceScreen.state.paused) resumeRace();
-      else pauseRace();
-      return;
-    }
-    screens.back();
+  bus.on('key:activate', () => { unlockAudio(); activeRing()?.activate(); });
+  bus.on('key:down', d => {
+    unlockAudio();
+    if (!quickMenuRing) screens.current?.handleKey?.('down', d);
   });
+  bus.on('key:up', d => { if (!quickMenuRing) screens.current?.handleKey?.('up', d); });
+  bus.on('key:nextFocus', () => activeRing()?.move(1));
+  bus.on('key:back', () => goBack());
   bus.on('key:repeatLastAnnouncement', () => speech.repeat());
-  bus.on('key:openVoiceSettings', () => screens.openSettings());
+  bus.on('key:openVoiceSettings', () => screensApi.openSettings());
   bus.on('key:toggleMuteGuidance', () => {
     const on = !gameState.settings.talkback;
     gameState.setSettingValue('talkback', on);
     speech.sayEssential(on ? 'Game TalkBack is on.' : 'Game TalkBack is off. This settings screen keeps speaking. Press F1 to turn it back on.');
   });
-  bus.on('key:pause', () => (raceScreen ? pauseRace() : null));
+  bus.on('key:pause', () => {
+    if (screens.current?.playing) screens.current.openMenu();
+    else if (raceScreen) pauseRace();
+  });
 
   function unlockAudio() {
     if (gameState.session.audioUnlocked) return;
     gameState.session.audioUnlocked = true;
     audio.unlock().then(async (ok) => {
       if (!ok) {
-        speech.sayEssential(audio.status().message);
+        if (typeof document !== 'undefined' && !document.hidden && screens.current?.id !== 'exit') speech.sayEssential(audio.status().message);
         return;
       }
       const res = await audio.loadAll();
       const status = audio.status();
-      if (!status.ok) speech.sayEssential(status.message);
+      if (!status.ok && typeof document !== 'undefined' && !document.hidden && screens.current?.id !== 'exit') speech.sayEssential(status.message);
       void res;
     });
   }
@@ -485,6 +486,19 @@ export function bootApp(config = {}) {
     mount: (...args) => screens.mount(...args),
     remeasure: () => screens.remeasure(),
     clearStack: () => screens.clearStack(),
+    openEasyWorld(area = 'ground') {
+      endPreviousSpeech();
+      stopPreview();
+      if (quickMenuRing) closeQuickMenu();
+      screens.clearStack();
+      const screen = buildEasyWorldScreen({
+        area, gameState, screens: screensApi, speech, audio,
+        onControlsChanged: changed => {
+          if (screens.current === changed) rebuildFocus(changed);
+        },
+      });
+      mount(screen, { replace: true });
+    },
     gotoMenu() {
       endPreviousSpeech();
       stopPreview();
@@ -575,7 +589,13 @@ export function bootApp(config = {}) {
     openExit() {
       endPreviousSpeech();
       stopPreview();
-      mount(buildExitScreen({ gameState, screens: screensApi, speech, audio }));
+      // The play-test: "after closing the game the game music is still playing -
+      // fix this". Saying goodbye must silence the game: the music bed, the
+      // scene ambience loops and the music bus all stop together.
+      musicDirector.stop();
+      audio.stopAll();
+      screens.clearStack();
+      mount(buildExitScreen({ gameState, screens: screensApi, speech, audio }), { replace: true });
     },
     editHeroName() {
       mount(buildNameScreen({ screens: screensApi, speech, gameState }));
@@ -708,6 +728,7 @@ export function bootApp(config = {}) {
    */
   function openQuickMenu() {
     if (raceScreen || quickMenuRing) return;
+    screens.current?.suspend?.();
     const panel = document.createElement('div');
     panel.className = 'pause-panel';
     panel.id = 'pause-panel';
@@ -789,6 +810,7 @@ export function bootApp(config = {}) {
     const panel = document.getElementById('pause-panel');
     dismissPanel(panel);
     quickMenuRing = null;
+    screens.current?.resume?.();
     if (!raceScreen) overlay.hidden = true;
     audio.play('ui-close', { group: 'sfx', volume: 0.55 });
     speech.say('Menu closed.', { priority: 3, essential: true, key: 'menuClosed', cooldownMs: 600, replace: true });
@@ -1008,7 +1030,7 @@ export function bootApp(config = {}) {
       canvas.hidden = true;
       overlay.hidden = true;
       gestureLayer.classList.remove('is-driving');
-      defaultZone = { id: 'background', role: ZONE_ROLE.READER, immediateTap: false, allowSwipe: false };
+      defaultZone = { id: 'background', role: ZONE_ROLE.MENU, immediateTap: true, allowSwipe: true };
       const screen = buildStoryScreen({ gameState, screens: screensApi, speech, audio, chapterId: opts.chapterId ?? 7 });
       mount(screen, { silent: true });
       screen.focusButtons?.length;
@@ -1026,7 +1048,7 @@ export function bootApp(config = {}) {
     canvas.hidden = true;
     overlay.hidden = true;
     gestureLayer.classList.remove('is-driving');
-    defaultZone = { id: 'background', role: ZONE_ROLE.READER, immediateTap: false, allowSwipe: false };
+    defaultZone = { id: 'background', role: ZONE_ROLE.MENU, immediateTap: true, allowSwipe: true };
     mount(screen);
   }
 
@@ -1036,7 +1058,7 @@ export function bootApp(config = {}) {
     canvas.hidden = true;
     overlay.hidden = true;
     gestureLayer.classList.remove('is-driving');
-    defaultZone = { id: 'background', role: ZONE_ROLE.READER, immediateTap: false, allowSwipe: false };
+    defaultZone = { id: 'background', role: ZONE_ROLE.MENU, immediateTap: true, allowSwipe: true };
     if (opts?.fromStory) {
       // Fair recovery: an abandoned race is recorded as not finished, and the
       // story offers to run it again rather than pretending it happened.
@@ -1137,7 +1159,7 @@ export function bootApp(config = {}) {
       'This game has its own spoken guidance called Game TalkBack. It does not need TalkBack or any screen reader on your phone to be switched on.',
       speech.explainStatus(),
       'Controls. Press and hold anywhere on the driving surface to accelerate, and release to coast. Tap once to brake. Tap twice quickly for the handbrake, which makes the car slide. Drag left or right to steer, and the steering is gradual, never instant. Draw a circle to ask for a U-turn, which the game only performs where the track allows it.',
-      'In menus, a single tap activates the focused control, and swiping up or down moves between options. Swipe left and right to browse cars.',
+      'In menus, swiping up, down, left or right moves the cursor. A single tap anywhere confirms the current selection. Double tap activates it. Swipe left and right on a car preview to browse cars.',
       'Tap twice and hold on the settings area, or press F1 on a keyboard, to open the voice settings at any time. There is also always a button on the menu.',
       'Three quick taps never start a race. That is deliberate.',
       'You can practise all of this in the gesture tutorial, and then on the empty circuit, before any race starts.',
@@ -1160,12 +1182,16 @@ export function bootApp(config = {}) {
     speech.sayCritical(`Level up. You are now driver level ${to}. New cars may be available in the garage.`);
   });
 
+  const inputTimer = setInterval(() => { if (typeof document !== 'undefined' && !document.hidden) pointerBus.tick(); }, 25);
+  inputTimer.unref?.();
+
   mountMenu();
   // The welcome is spoken after the menu is on screen so the player hears both.
   const welcomeDelay = Number.isFinite(config.welcomeDelay) ? config.welcomeDelay : 900;
   const welcomeTimer = setTimeout(announceWelcome, welcomeDelay);
 
   function announceWelcome() {
+    if (document.hidden || screens.current?.id === 'exit') return;
     firstRunAnnouncement();
     if (gameState.session.loadRejected?.length) {
       speech.sayEssential(`Some saved data could not be used and was reset: ${gameState.session.loadRejected.join('; ')}.`);
@@ -1175,14 +1201,40 @@ export function bootApp(config = {}) {
     }
   }
 
-  window.addEventListener('beforeunload', () => gameState.syncStory());
-  document.addEventListener('visibilitychange', () => {
-    if (document.hidden && raceScreen) pauseRace();
-  });
+  function stopForBackground() {
+    pointerBus.reset();
+    drivingInput.reset();
+    if (raceScreen && !raceScreen.state.paused) pauseRace();
+    screens.current?.suspend?.();
+    musicDirector.suspend();
+    audio.setActive(false);
+    speech.stop();
+  }
+  function onVisibility() {
+    if (document.hidden) stopForBackground();
+    else {
+      audio.setActive(true);
+      musicDirector.resume();
+      screens.current?.resume?.();
+    }
+  }
+  function onPageHide() { gameState.syncStory(); stopForBackground(); }
+  function onPageShow() { if (!document.hidden) onVisibility(); }
+  window.addEventListener('beforeunload', onPageHide);
+  window.addEventListener('pagehide', onPageHide);
+  window.addEventListener('pageshow', onPageShow);
+  document.addEventListener('visibilitychange', onVisibility);
 
   /** Tear everything down: timers, listeners, WebGL and audio. */
   function destroy() {
     clearTimeout(welcomeTimer);
+    clearInterval(inputTimer);
+    window.removeEventListener('beforeunload', onPageHide);
+    window.removeEventListener('pagehide', onPageHide);
+    window.removeEventListener('pageshow', onPageShow);
+    document.removeEventListener('visibilitychange', onVisibility);
+    musicDirector.destroy();
+    audio.setActive(false);
     destroyRace();
     stopPreview();
     screens.destroyAll();

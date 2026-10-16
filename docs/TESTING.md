@@ -6,6 +6,21 @@ Where something could not be run in this environment, it is listed under
 
 ---
 
+## Latest easy-play and lifecycle regression run
+
+- `npm test`: **367 tests, 367 pass, zero failures**, Node 20.20.2 with jsdom 26.
+- `npm run validate`: original circuit geometry gate passed.
+- Added model and full application/recognizer tests for all three easy areas,
+  3+ second hold timing, short-hold and tap stops, deferred triple-tap healing,
+  real fuel exhaustion and refill, cursor retention over a different button,
+  coin/quest rewards, health, city purchases, save round-trip, background freeze,
+  Exit silence and late ambience-download cancellation.
+- Real Android audio hardware, TalkBack interaction and hands-on phone usability
+  have **not** been tested in this environment. Automated tests are not a
+  substitute for that play-test. See [EASY-PLAY.md](EASY-PLAY.md) for the new modes.
+
+The table below is the older baseline and is kept for historical context.
+
 ## Executed
 
 ```bash
