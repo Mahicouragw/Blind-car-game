@@ -238,7 +238,8 @@ export function createAnnouncementDirector(config = {}) {
     lastSpeedBand: null,
     lastSpeedAnnounceAt: -Infinity,
     lastCoachAt: -Infinity,
-    previewedCorners: new Set(),
+    /** Per-corner distance-callout state: {lastAt, said:Set, first}. */
+    callouts: new Map(),
     lastScoutAt: -Infinity,
     opponentCooldownUntil: new Map(),
     started: false,
@@ -285,7 +286,7 @@ export function createAnnouncementDirector(config = {}) {
       state.recoveryStepCount = 0;
       state.lastSpeedBand = null;
       state.lastCoachAt = -Infinity;
-      state.previewedCorners.clear();
+      state.callouts.clear();
       state.lastScoutAt = -Infinity;
       state.opponentCooldownUntil.clear();
       state.started = false;
@@ -404,10 +405,12 @@ export function createAnnouncementDirector(config = {}) {
       }
 
       // Forget a corner once we are well past it, so the next lap warns again.
-      if (corner && corner.distanceM > warn * 3) {
+      // Well past means far beyond the 500 m callout range: wiping callout state
+      // while still approaching re-fired the callout every frame.
+      if (corner && corner.distanceM > Math.max(warn * 3, 510)) {
         state.warnedCorners.delete(corner.id);
         state.brakeCalledCorners.delete(corner.id);
-        state.previewedCorners.delete(corner.id);
+        state.callouts.delete(corner.id);
       }
 
       // ------------------------------------------------------------ too fast
@@ -452,37 +455,60 @@ export function createAnnouncementDirector(config = {}) {
         });
       }
 
-      // ------------------------------ 5-10 second look-ahead ("go right in 8s")
-      // The driver asked to be told which way to go BEFORE it matters - 5 to 10
-      // seconds ahead - with what is on each side, so the turn is a decision and
-      // not a surprise. Said once per corner per lap.
-      if (racingNow && corner && facts.speed > 2.5 && !state.previewedCorners.has(corner.id)) {
-        const eta = corner.distanceM / facts.speed;
-        if (eta <= 10.5 && eta >= 2) {
-          state.previewedCorners.add(corner.id);
-          const look = facts.look;
-          let sideHint = '';
-          if (look) {
-            const leftTight = look.left.barrier || look.left.tight;
-            const rightTight = look.right.barrier || look.right.tight;
-            if (leftTight && !rightTight) sideHint = ' The left is tight. The right is clear, so you can go right.';
-            else if (rightTight && !leftTight) sideHint = ' The right is tight. The left is clear, so you can go left.';
-            else if (leftTight && rightTight) sideHint = ' Both sides are tight. Keep in the middle.';
+      // --------------------------- distance callouts ("Turn left in 500 m")
+      // The driver asked for METRES, not seconds - "it should say like you
+      // should turn left 500 m, 300 m, 100 m", held to every 3-5 seconds on
+      // the approach - and only the CURRENT distance, never a count that has
+      // gone stale. The number said is the live distance snapped to 50 m bands
+      // (25 m, then 10 m, close in), so it walks 500, 450, 400 ... 300 ... 100
+      // as the corner arrives and can never describe a moment that has passed.
+      if (racingNow && corner && facts.speed > 2.5) {
+        const dist = corner.distanceM;
+        if (dist <= 500 && dist > 25) {
+          const rec =
+            state.callouts.get(corner.id) ?? { lastAt: -Infinity, lastNumber: null, first: false };
+          const snap = (d) =>
+            d <= 60 ? Math.round(d / 10) * 10 : d <= 150 ? Math.round(d / 25) * 25 : Math.round(d / 50) * 50;
+          const number = snap(dist);
+          const since = t - rec.lastAt;
+          // The player's pacing: "hold per 3 second 5 seconds". A new number is
+          // said at most every 3 s; silence never lasts more than 5 s.
+          if ((number !== rec.lastNumber && since >= 3000) || since >= 5000) {
+            rec.lastAt = t;
+            rec.lastNumber = number;
+            let kindHint = '';
+            let sideHint = '';
+            if (!rec.first) {
+              kindHint =
+                corner.kind === 'chicane'
+                  ? 'Speed breakers ahead. Slow down. '
+                  : corner.severity === 'hairpin'
+                    ? 'Watch out. Sharp turn. '
+                    : '';
+              const look = facts.look;
+              if (look) {
+                const leftTight = look.left.barrier || look.left.tight;
+                const rightTight = look.right.barrier || look.right.tight;
+                if (leftTight && !rightTight) sideHint = ' The left is tight. The right is clear, so you can go right.';
+                else if (rightTight && !leftTight) sideHint = ' The right is tight. The left is clear, so you can go left.';
+                else if (leftTight && rightTight) sideHint = ' Both sides are tight. Keep in the middle.';
+              }
+            }
+            rec.first = true;
+            state.callouts.set(corner.id, rec);
+            out.push({
+              text: `${kindHint}Turn ${corner.direction} in ${number} metres.${sideHint}`,
+              concise: `Turn ${corner.direction}, ${number} metres.`,
+              priority: 3,
+              key: `calls.${corner.id}`,
+              cooldownMs: 0,
+              ttlMs: 6000,
+              interrupt: true,
+              tag: 'corner',
+            });
+          } else {
+            state.callouts.set(corner.id, rec);
           }
-          const kindHint =
-            corner.kind === 'chicane'
-              ? 'Speed breakers ahead. Slow down. '
-              : corner.severity === 'hairpin'
-                ? 'Watch out. Sharp turn. '
-                : '';
-          out.push({
-            text: `${kindHint}In ${Math.max(2, Math.round(eta))} seconds, go ${corner.direction}.${sideHint}`,
-            concise: `Go ${corner.direction} in ${Math.max(2, Math.round(eta))} seconds.`,
-            priority: 2,
-            key: `preview.${corner.id}`,
-            cooldownMs: 0,
-            tag: 'corner',
-          });
         }
       }
 

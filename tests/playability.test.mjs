@@ -276,7 +276,7 @@ test('swipe up then left goes back from anywhere', () => {
 
 // ------------------------------------------------- the 5-10 second scout
 
-test('the side scout reads real geometry and the preview speaks 5-10s ahead', () => {
+test('the side scout reads real geometry and the turn is called out in METRES', () => {
   const track = getTrack();
   const g = track.geometry;
   // On the centre-line of a straight, both sides are open.
@@ -294,15 +294,78 @@ test('the side scout reads real geometry and the preview speaks 5-10s ahead', ()
   assert.equal(edge.left.tight, true, 'at the left edge the left side is tight');
   assert.equal(edge.right.tight, false, 'and the right still has room');
 
-  // The look-ahead: 5-10 seconds before a corner, the director says "go X".
+  // The look-ahead: "Turn X in N metres" on the approach - metres, never
+  // seconds ("it should say turn left 500 m, 300 m, 100 m").
   const director = createAnnouncementDirector({ getSettings: () => ({ talkback: true }), now: () => 0 });
   const corner = track.zones.find((z) => z.id === 'zone.corner.t1');
-  const spot = g.pointAt(g.normaliseS(corner.from - 8 * 20)); // 8 s at 20 m/s
+  const spot = g.pointAt(g.normaliseS(corner.from - 160));
   const items = director.update(
     navigationFacts(track, { x: spot.x, z: spot.z, heading: spot.heading, speed: 20 }, {}),
     { lap: 1, totalLaps: 2, phase: 'racing' }
   );
-  const preview = items.find((i) => String(i.key ?? '').startsWith('preview.'));
-  assert.ok(preview, 'the corner must be previewed 5-10 seconds out');
-  assert.match(preview.text, /In \d+ seconds, (go|watch out|speed breakers)/i);
+  const callout = items.find((i) => String(i.key ?? '').startsWith('calls.'));
+  assert.ok(callout, 'the turn must be called out on the approach');
+  assert.match(callout.text, /Turn (left|right) in \d+ metres/i);
+  assert.ok(!/seconds/i.test(callout.text), 'the callout must speak METRES, never seconds');
+});
+
+test('distance callouts keep the 3-5 second pacing and say the current count', () => {
+  const track = getTrack();
+  const g = track.geometry;
+  let clock = 0;
+  const director = createAnnouncementDirector({
+    getSettings: () => ({ talkback: true }),
+    now: () => clock,
+  });
+  const race = { lap: 1, totalLaps: 2, phase: 'racing' };
+  // Approach WHICHEVER corner is actually next from this point, so wrapping
+  // around the circuit can never swap the corner under the test.
+  const probe = g.pointAt(g.normaliseS(track.zones.find((z) => z.id === 'zone.corner.t1').from - 480));
+  const first = navigationFacts(track, { x: probe.x, z: probe.z, heading: probe.heading, speed: 20 }, {});
+  const next = first.nextCorner;
+  assert.ok(next, 'a corner is ahead');
+  // The summary carries no `from`; resolve the real zone by id.
+  const nextZone = track.zones.find((z) => z.id === next.id);
+  assert.ok(nextZone);
+  const at = (m) => {
+    const p = g.pointAt(g.normaliseS(nextZone.from - m));
+    const f = navigationFacts(track, { x: p.x, z: p.z, heading: p.heading, speed: 20 }, {});
+    assert.equal(f.nextCorner?.id, next.id, `still approaching ${next.id} at ${m} m`);
+    return f;
+  };
+  // Far out on the approach: the first callout lands at once, in metres.
+  let facts = at(480);
+  let items = director.update(facts, race);
+  let calls = items.filter((i) => String(i.key ?? '').startsWith('calls.'));
+  assert.equal(calls.length, 1, 'the first callout lands immediately');
+  assert.match(calls[0].text, /Turn (left|right) in \d+ metres/i);
+  const saidOf = (c) => Number(c.text.match(/in (\d+) metres/i)[1]);
+  let lastSaid = saidOf(calls[0]);
+  assert.ok(Math.abs(lastSaid - facts.nextCorner.distanceM) <= 60, 'and the number is the current distance');
+
+  // 200 ms later: nothing - the player asked for 3-5 s pacing.
+  clock += 200;
+  facts = at(470);
+  items = director.update(facts, race);
+  assert.equal(items.filter((i) => String(i.key ?? '').startsWith('calls.')).length, 0, 'no callout inside 3 seconds');
+
+  // 5 s later, still between steps: the live number is re-said (silence never
+  // lasts past 5 s), and it is the CURRENT distance, not the stale one.
+  clock += 5000;
+  facts = at(410);
+  items = director.update(facts, race);
+  calls = items.filter((i) => String(i.key ?? '').startsWith('calls.'));
+  assert.equal(calls.length, 1, 'silence never lasts past the pacing');
+  assert.ok(Math.abs(saidOf(calls[0]) - facts.nextCorner.distanceM) <= 60, 'the number said is the current distance');
+  assert.ok(saidOf(calls[0]) < lastSaid, 'the count goes down as the corner approaches');
+  lastSaid = saidOf(calls[0]);
+
+  // Crossing the next named step: said once, with the pace respected.
+  clock += 3000;
+  facts = at(295);
+  items = director.update(facts, race);
+  calls = items.filter((i) => String(i.key ?? '').startsWith('calls.'));
+  assert.equal(calls.length, 1);
+  assert.ok(Math.abs(saidOf(calls[0]) - facts.nextCorner.distanceM) <= 60, 'and still the current distance');
+  assert.ok(saidOf(calls[0]) < lastSaid);
 });
