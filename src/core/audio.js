@@ -84,7 +84,7 @@ export const AUDIO_MANIFEST = {
   'ui-close': `${A}/ui/close.ogg`,
   'ui-scroll': `${A}/ui/scroll.ogg`,
   'ui-question': `${A}/ui/question.ogg`,
-  'ui-tick': `${A}/ui/tick.ogg`,
+  'ui-tick': `${A}/adventure/sword-hit.mp3`,
   'ui-switch': `${A}/ui/switch.ogg`,
   'ui-glass': `${A}/ui/glass.ogg`,
   'ui-pluck': `${A}/ui/pluck.ogg`,
@@ -126,6 +126,14 @@ export const AUDIO_MANIFEST = {
   'pit-lane-ambience': `${A}/scene/pit-lane-ambience.mp3`,
   'rain': `${A}/scene/rain.mp3`,
   'wiper': `${A}/scene/wiper.mp3`,
+  // CC0 recorded adventure effects. Provenance: adventure/SOURCES.json.
+  'forest-birds': `${A}/adventure/forest-birds.mp3`,
+  'sword-swing': `${A}/adventure/sword-swing.mp3`,
+  'sword-hit': `${A}/adventure/sword-hit.mp3`,
+  'monster-arrival': `${A}/adventure/monster-arrival.mp3`,
+  'monster-hit': `${A}/impact/generic-light.ogg`,
+  'loot-drop': `${A}/scene/coins-2.ogg`,
+  'path-turn': `${A}/scene/cloth.ogg`,
   // music (short recorded stingers - see AUDIO_GAPS for the honest limitation)
   'music-warm': `${A}/music/stinger-warm.ogg`,
   'music-bright': `${A}/music/stinger-bright.ogg`,
@@ -171,6 +179,7 @@ export const LAZY_AUDIO = new Set([
   'music-results',
   // Field-recorded beds are long files; fetch them when a scene actually needs
   // them instead of making the menu wait for eight megabytes of pit lane.
+  'forest-birds',
   'rain',
   'wiper',
   'city-ambience',
@@ -198,6 +207,7 @@ export const LAZY_AUDIO = new Set([
  * under-attributing is a licence violation.
  */
 export const MUSIC_CREDITS = [
+  { key: 'forest-birds', title: 'Forest birds - ambient seamless loop', artist: 'Magnesus', url: 'https://freesound.org/people/Magnesus/sounds/723913/', licence: 'Creative Commons 0', attributionRequired: false },
   { key: 'music-theme-menu', title: 'New Hero in Town', artist: 'Kevin MacLeod', url: 'https://incompetech.com/', licence: 'Creative Commons: By Attribution 4.0', attributionRequired: true, year: 2019 },
   { key: 'music-story-city', title: 'Adventure', artist: 'Rafael Krux', url: 'https://cinematicwaves.com/', licence: 'Public domain, released through FreePD', attributionRequired: false },
   { key: 'music-story-family', title: 'Fancy Family', artist: 'Rafael Krux', url: 'https://cinematicwaves.com/', licence: 'Public domain, released through FreePD', attributionRequired: false },

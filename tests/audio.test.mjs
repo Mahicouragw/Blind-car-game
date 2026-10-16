@@ -257,7 +257,7 @@ test('every lazy track is a real manifest entry, and none is loaded eagerly', ()
     assert.ok(AUDIO_MANIFEST[name], `${name} is lazy but missing from the manifest`);
     // Lazy means "long recording, load on demand": the full-length music beds
     // and the long field-recorded scene beds (rain, wipers, ambience).
-    assert.match(AUDIO_MANIFEST[name], /music\/|scene\//, `${name} should point at a bed folder`);
+    assert.match(AUDIO_MANIFEST[name], /music\/|scene\/|adventure\//, `${name} should point at a bed folder`);
   }
   const eager = eagerAudioNames();
   for (const name of eager) assert.ok(!LAZY_AUDIO.has(name), `${name} is both eager and lazy`);

@@ -100,10 +100,10 @@ test('forest monster is announced, stops walking, takes two sword hits, gives co
   w.tap(); assert.equal(w.state.monster.health, 25); w.tap();
   assert.equal(w.state.monster, null); assert.equal(w.state.kills, 1); assert.ok(w.wallet.coins >= 5);
 });
-test('left/right monsters require aiming; health and potion counts are real', () => {
+test('left/right monsters auto-aim on a single tap; health and potions are real', () => {
   const w = createEasyWorld({ area: 'forest' });
-  w.state.monster = { side: 'left', health: 50 }; w.tap(); assert.equal(w.state.monster.health, 50);
-  w.swipe('left'); w.tap(); assert.equal(w.state.monster.health, 25);
+  w.state.monster = { side: 'left', health: 50 }; w.tap(); assert.equal(w.state.monster.health, 25);
+  assert.equal(w.state.aim, 'left');
   advance(w, 5.1); assert.equal(w.state.health, 92); assert.match(words(w), /Health 92/);
   w.heal(); assert.equal(w.state.health, 100); assert.equal(w.inventory.potions, 2);
   w.heal(); assert.equal(w.inventory.potions, 2, 'full health must not waste a potion');
@@ -118,7 +118,7 @@ test('three physical taps heal WITHOUT the double-tap sit side effect', () => {
   for (let i = 0; i < 3; i++) {
     r.pointerDown(1, 100, 100, PLAY_ZONE); clock += 40; r.pointerUp(1, 100, 100); clock += 100; r.tick();
   }
-  clock += 500; r.tick();
+  clock += 700; r.tick();
   assert.equal(events.filter(e => e === 'tripleTap').length, 1);
   assert.ok(!events.includes('doubleTap')); assert.ok(!events.includes('tap'));
   assert.equal(w.state.health, 100); assert.equal(w.state.seated, false); assert.equal(w.inventory.potions, 2);
@@ -127,7 +127,7 @@ test('a physical double tap still sits after its disambiguation window', () => {
   let clock = 0; const events = [];
   const r = createGestureRecognizer({ now: () => clock, emit: type => events.push(type) });
   for (let i = 0; i < 2; i++) { r.pointerDown(1, 100, 100, PLAY_ZONE); clock += 40; r.pointerUp(1, 100, 100); clock += 100; }
-  clock += 500; r.tick();
+  clock += 700; r.tick();
   assert.equal(events.filter(e => e === 'doubleTap').length, 1); assert.ok(!events.includes('tap'));
 });
 test('forest death returns safely without confiscating the wallet', () => {
@@ -154,4 +154,22 @@ test('new inventory survives save/reload and rejects corrupt values', () => {
   const b = coerceSave({ easyWorld: { potions: -2, shopOwned: 'yes', questDone: 'yes' } }).save;
   assert.deepEqual(b.easyWorld, { potions: 0, shopOwned: false, questDone: false });
   assert.equal(coerceSave({}).save.easyWorld.potions, 3);
+});
+
+test('monster defeat gives five coins, 25 XP and a real level crossing exactly once', () => {
+  const wallet={coins:0,xp:110}; const w=createEasyWorld({area:'forest',wallet});
+  w.state.monster={side:'right',health:25}; w.tap();
+  assert.equal(wallet.coins,5); assert.equal(wallet.xp,135); assert.equal(wallet.level,2);
+  assert.match(words(w),/Level up!/);
+  w.tap(); assert.equal(wallet.xp,135); assert.equal(wallet.coins,5,'a dead monster cannot pay twice');
+});
+
+test('each third defeated monster drops a potion; attacks and arrival have distinct recorded cues', () => {
+  const w=createEasyWorld({area:'forest'});
+  for(let i=0;i<3;i++) { w.state.monster={side:'ahead',health:25}; w.tap(); }
+  assert.equal(w.inventory.potions,4);
+  const defeat=w.drain().filter(e=>Array.isArray(e.sound));
+  assert.ok(defeat.every(e=>e.sound.includes('sword-swing') && e.sound.includes('sword-hit') && e.sound.includes('loot-drop')));
+  w.state.monster={side:'left',health:50}; advance(w,5.1);
+  assert.ok(w.drain().some(e=>e.sound==='monster-hit'));
 });

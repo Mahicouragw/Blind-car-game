@@ -3,7 +3,12 @@ import assert from 'node:assert/strict';
 import { createDom } from './helpers/dom.mjs';
 const env = createDom({ speech: true, audio: false });
 const { window, document } = env;
+// Enable the real phone Pointer Events input family in this DOM harness.
+window.PointerEvent = window.Event;
 const { bootApp } = await import('../src/main.js');
+// The entry module auto-boots once. Remove that adapter before manual boots;
+// clearing its bus listeners alone would leave two DOM adapters emitting.
+window.vettaru?.destroy();
 const { bus } = await import('../src/core/bus.js');
 const { coerceSave, SAVE_KEY } = await import('../src/core/save.js');
 const apps = [];
@@ -92,7 +97,7 @@ test('full pointer pipeline: forest triple tap heals, not a menu action or sit',
   for (let i = 0; i < 3; i++) {
     r.pointerDown(1, 100, 100, screen.zone); clock += 50; r.pointerUp(1,100,100); clock += 100; r.tick();
   }
-  clock += 500; r.tick();
+  clock += 700; r.tick();
   assert.equal(screen.world.state.health, 100); assert.equal(screen.world.state.seated, false);
   assert.equal(app.gameState.save.easyWorld.potions, 2);
   assert.equal(JSON.parse(store.getItem(SAVE_KEY)).easyWorld.potions, 2);
@@ -154,7 +159,50 @@ test('stationary single taps resolve from the running input clock, with no furth
   const r = app.pointerBus.recognizer;
   r.pointerDown(1, 100, 100, screen.zone); r.pointerUp(1, 100, 100);
   assert.equal(taps, 0);
-  await new Promise(resolve => setTimeout(resolve, 500));
+  await new Promise(resolve => setTimeout(resolve, 750));
   assert.equal(taps, 1, 'the idle input clock must settle a delayed single tap');
+  app.destroy();
+});
+
+
+test('PHONE DOM sequence including pointerleave: attack, sit, heal, menu activation', () => {
+  const { app } = boot(10); const screen = start(app, 'forest');
+  const layer = document.getElementById('gesture-layer');
+  const recognizer = app.pointerBus.recognizer;
+  let clock = 0; recognizer.setClock(() => clock);
+  function sample(type, x = 100) {
+    const e = new window.Event(type, { bubbles: true, cancelable: true });
+    for (const [k,v] of Object.entries({ pointerId:1, pointerType:'touch', isPrimary:true, clientX:x, clientY:100, button:0 })) Object.defineProperty(e,k,{value:v});
+    layer.dispatchEvent(e);
+  }
+  function tap() { sample('pointerdown'); clock+=50; sample('pointerup'); sample('lostpointercapture'); sample('pointerout'); sample('pointerleave'); }
+  function resolve() { clock+=700; recognizer.tick(); }
+  screen.world.state.monster = { side:'left',health:50 };
+  tap(); resolve(); assert.equal(screen.world.state.monster.health,25);
+  assert.match(screen.element.querySelector('.easy-action').textContent,/Sword strike/);
+  tap(); clock+=120; tap(); resolve(); assert.equal(screen.world.state.seated,true);
+  assert.match(screen.element.querySelector('.easy-action').textContent,/Seated/);
+  screen.world.state.health=50;
+  tap(); clock+=120; tap(); clock+=120; tap(); resolve();
+  assert.equal(screen.world.state.health,100); assert.equal(app.gameState.save.easyWorld.potions,2);
+  assert.match(screen.element.querySelector('.easy-action').textContent,/Healed/);
+  screen.openMenu(); pick(app,'Visit City Walk');
+  app.pointerBus.reset(); tap(); clock+=120; tap(); resolve();
+  assert.equal(app.screens.current.id,'city');
+  app.destroy();
+});
+
+test('monster loot persists coins, XP, level and healing drops to the shared save', () => {
+  const { app, store } = boot(); const screen = start(app,'forest');
+  app.gameState.save.xp=110;
+  for(let i=0;i<3;i++) {
+    screen.world.state.monster={side:'right',health:25};
+    screen.handleGesture('tap');
+  }
+  assert.equal(app.gameState.save.xp,185); assert.equal(app.gameState.save.level,2);
+  assert.equal(app.gameState.save.easyWorld.potions,4);
+  const restored=coerceSave(JSON.parse(store.getItem(SAVE_KEY))).save;
+  assert.equal(restored.xp,185); assert.equal(restored.level,2);
+  assert.equal(restored.easyWorld.potions,4); assert.ok(restored.coins>=15);
   app.destroy();
 });

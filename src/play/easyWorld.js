@@ -2,6 +2,8 @@
  * Existing simulation races are intentionally unaffected by these easy modes.
  * Coins share the existing wallet; all inventory is validated by save.js.
  */
+import { levelForXp } from '../race/levels.js';
+
 export const ACCELERATE_HOLD_MS = 3000;
 export const GROUND_ROUTE = [
   { metres: 500, direction: 'right' }, { metres: 300, direction: 'left' },
@@ -25,6 +27,8 @@ export function createEasyWorld({ area = 'ground', wallet = {}, inventory = {}, 
   inventory.shopOwned = inventory.shopOwned === true;
   inventory.questDone = inventory.questDone === true;
   wallet.coins = clamp(Math.floor(n(wallet.coins)), 0, 10000000);
+  wallet.xp = clamp(Math.floor(n(wallet.xp)), 0, 10000000);
+  wallet.level = levelForXp(wallet.xp);
   const state = {
     area, paused: false, menu: false, elapsed: 0, leg: 0, remaining: path[0].metres,
     distance: 0, speed: driving ? 12 : 0, cruiseSpeed: 12, holding: false, holdElapsed: 0,
@@ -47,7 +51,7 @@ export function createEasyWorld({ area = 'ground', wallet = {}, inventory = {}, 
   }
   function describe() {
     if (state.out) return driving ? 'You are out. Restarting the racing ground.' : 'You are resting safely at the forest entrance.';
-    if (state.monster) return `Monster ${state.monster.side}. Monster health ${state.monster.health}. Your health ${state.health}. Swipe toward it, then single tap to strike. Triple tap to heal.`;
+    if (state.monster) return `Monster ${state.monster.side}. Monster health ${state.monster.health}. Your health ${state.health}. Single tap to strike it. Triple tap to heal.`;
     if (driving) return `${state.speed > 0 ? 'Driving' : 'Stopped'}. Turn ${segment().direction} in ${metres()} metres. Petrol ${Math.ceil(state.fuel)} percent. ${wallet.coins} coins.`;
     return `${area === 'forest' ? 'Forest' : 'City'}. ${state.seated ? 'Seated' : state.speed > 0 ? 'Walking' : 'Standing'}. Path turns ${segment().direction} in ${metres()} metres. Health ${state.health}. ${wallet.coins} coins.`;
   }
@@ -114,15 +118,20 @@ export function createEasyWorld({ area = 'ground', wallet = {}, inventory = {}, 
       if (state.paused || state.out) return;
       if (driving) { state.speed = 0; emit('Stopped.', 'brake', 4); return; }
       if (area !== 'forest' || !state.monster) { emit(describe()); return; }
-      if (state.aim !== state.monster.side) {
-        emit(`Monster ${state.monster.side}. Swipe ${state.monster.side === 'ahead' ? 'up' : state.monster.side} to aim, then tap.`, 'ui-error'); return;
-      }
+      // Easy combat: one tap always attacks the announced nearby monster.
+      // Directional swipes are optional aiming feedback, not an invisible gate.
+      state.aim = state.monster.side;
       state.monster.health = Math.max(0, state.monster.health - 25);
       if (state.monster.health === 0) {
         state.monster = null; state.kills++; gain(5); state.attackClock = 0;
         state.nextMonsterAt = state.distance + 35;
-        emit(`Monster defeated. Five coins. Your health ${state.health}. Hold to keep walking.`, 'generic-light'); quest();
-      } else emit(`Sword strike. Monster health ${state.monster.health}. Your health ${state.health}.`, 'generic-light');
+        const before = levelForXp(wallet.xp);
+        wallet.xp = Math.min(10000000, wallet.xp + 25);
+        wallet.level = levelForXp(wallet.xp);
+        const potion = state.kills % 3 === 0 && inventory.potions < 99;
+        if (potion) inventory.potions++;
+        emit(`Monster defeated. Loot: five coins and 25 experience.${potion ? ' One healing potion dropped.' : ''} ${wallet.xp} experience total. ${wallet.level > before ? 'Level up! ' : ''}Level ${wallet.level}. Your health ${state.health}. Hold to keep walking.`, ['sword-swing', 'sword-hit', 'loot-drop'], 4); quest();
+      } else emit(`Sword strike. Monster health ${state.monster.health}. Your health ${state.health}.`, ['sword-swing', 'sword-hit']);
     },
     doubleTap() {
       if (state.paused || state.out) return;
@@ -183,8 +192,8 @@ export function createEasyWorld({ area = 'ground', wallet = {}, inventory = {}, 
           state.attackClock = 0; state.health = Math.max(0, state.health - 8);
           if (state.health === 0) {
             state.out = true; state.restartIn = 3;
-            emit('Health zero. Returning safely to the forest entrance. Your coins are safe.', 'generic-light', 4);
-          } else emit(`Monster ${state.monster.side} attacks. Health ${state.health}. Swipe toward it and tap to strike. Triple tap to heal.`, 'generic-light', 4);
+            emit('Health zero. Returning safely to the forest entrance. Your coins are safe.', 'monster-hit', 4);
+          } else emit(`Monster ${state.monster.side} attacks. Health ${state.health}. Single tap to strike. Triple tap to heal.`, 'monster-hit', 4);
         }
         return;
       }
@@ -218,7 +227,7 @@ export function createEasyWorld({ area = 'ground', wallet = {}, inventory = {}, 
       if (area === 'forest' && state.distance >= state.nextMonsterAt) {
         const side = ['ahead', 'left', 'right'][state.kills % 3];
         state.monster = { side, health: 50 }; state.speed = 0; state.attackClock = 0; state.aim = 'ahead';
-        emit(`Monster ${side}. Monster health 50. Your health ${state.health}. ${side === 'ahead' ? 'Single tap to strike.' : 'Swipe ' + side + ', then single tap to strike.'} Triple tap to heal.`, 'ui-question', 4);
+        emit(`Monster ${side}. Monster health 50. Your health ${state.health}. Single tap to strike. Triple tap to heal.`, 'monster-arrival', 4);
         return;
       }
       if (area === 'city' && inventory.shopOwned) {
@@ -234,7 +243,7 @@ export function createEasyWorld({ area = 'ground', wallet = {}, inventory = {}, 
         const direction = segment().direction;
         state.leg++; state.turns++; state.remaining = segment().metres;
         state.queuedTurn = null; state.lastGuideAt = state.elapsed; state.lastNumber = metres();
-        emit(`${driving ? 'Turning' : 'Walking'} ${direction}. Next: ${segment().direction} in ${metres()} metres.`, 'ui-select', 4);
+        emit(`${driving ? 'Turning' : 'Walking'} ${direction}. Next: ${segment().direction} in ${metres()} metres.`, 'path-turn', 4);
       } else guide();
     },
   };

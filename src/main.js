@@ -395,6 +395,7 @@ export function bootApp(config = {}) {
   // never a thing, so this alternative route into the voice settings was dead and
   // only the double-tap-and-hold worked.
   bus.on('gesture:longPressStart', (d) => {
+    if (routePlayGesture('longPressStart', d)) return;
     if (d.zone?.role === ZONE_ROLE.SETTINGS_HOTSPOT) {
       screensApi.openSettings();
       tutorialHarness.record('openedSettings');
@@ -452,6 +453,7 @@ export function bootApp(config = {}) {
         if (typeof document !== 'undefined' && !document.hidden && screens.current?.id !== 'exit') speech.sayEssential(audio.status().message);
         return;
       }
+      if (!document.hidden && screens.current?.id !== 'exit') musicDirector.resume();
       const res = await audio.loadAll();
       const status = audio.status();
       if (!status.ok && typeof document !== 'undefined' && !document.hidden && screens.current?.id !== 'exit') speech.sayEssential(status.message);

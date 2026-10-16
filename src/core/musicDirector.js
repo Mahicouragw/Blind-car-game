@@ -40,9 +40,9 @@ export const SCREEN_TRACKS = {
   settings: null,
   audio: null,
   exit: null,
-  ground: null,
-  forest: null,
-  city: null,
+  ground: 'music-race',
+  forest: 'music-story-family',
+  city: 'music-story-city',
 };
 
 /** Fallback for screens not in SCREEN_TRACKS, including tutorial step screens. */
@@ -84,7 +84,7 @@ export function trackForScreen(screenId) {
  * Quiet scene beds played UNDER the music, one per story mood.
  *
  * These are the ambience slots the audio credits used to list as gaps; each is
- * now an original generated loop (see core/audio.js AUDIO_GAPS). They run at
+ * are now credited field recordings (see docs/AUDIO-CREDITS.md). They run at
  * low volume on the sfx bus so announcements duck them like every other sound.
  */
 export const AMBIENCE_FOR_TRACK = {
@@ -95,7 +95,7 @@ export const AMBIENCE_FOR_TRACK = {
 };
 
 /** Every ambience slot, so they can all be stopped as one group. */
-export const AMBIENCE_SLOTS = ['city-ambience', 'home-ambience', 'workshop-ambience', 'pit-lane-ambience'];
+export const AMBIENCE_SLOTS = ['city-ambience', 'home-ambience', 'workshop-ambience', 'pit-lane-ambience', 'forest-birds'];
 
 /**
  * Story scenes name their own bed (`story:ambience` with the scene kind), which
@@ -153,7 +153,7 @@ export function createMusicDirector(config = {}) {
 
   /** Start, swap or stop the scene bed to sit under `track`. */
   function applyAmbience(track) {
-    setBed(AMBIENCE_FOR_TRACK[track] ?? null);
+    setBed(!suspended && track && scene === 'forest' ? 'forest-birds' : AMBIENCE_FOR_TRACK[track] ?? null);
   }
 
   /**

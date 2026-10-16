@@ -203,3 +203,14 @@ individually, including:
 `tests/dom.smoke.test.mjs` then proves the wiring: a `gesture:tap` on a zone
 element clicks the real button, a `gesture:swipe` moves the real focus ring, and
 a `gesture:tripleTap` on the Race control produces **zero** clicks.
+
+
+## Touchscreen lift is not cancellation
+
+The DOM adapter now chooses Pointer Events **or** legacy touch events, captures
+an active pointer, and ignores ordinary pointerleave after a lift. Only a real
+cancel of the active finger cancels a press. This prevents phone taps disappearing
+while swipes appear to work. Menus and easy-play accept a 600 ms multi-tap rhythm;
+menu taps target the cursor even across physical hit areas. Forest short taps do
+not start walking. See `tests/pointerBus.test.mjs` and the DOM phone regression in
+`tests/easyWorld.dom.test.mjs`.

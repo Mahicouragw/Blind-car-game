@@ -6,7 +6,27 @@ Where something could not be run in this environment, it is listed under
 
 ---
 
-## Latest easy-play and lifecycle regression run
+## Latest phone-tap, audio and loot regression run
+
+- `npm test`: **385 tests, 385 pass, zero failures**, Node 20.20.2 / jsdom 26.
+- New adapter tests dispatch actual DOM events, including the phone's
+  `pointerup → lostpointercapture → pointerout → pointerleave` sequence, mixed
+  compatibility streams, ignored second fingers, legacy touchend with another
+  finger still down, a true cancellation, and a slower cross-button double tap.
+- Full app tests cover DOM-origin menu activation, auto-aim sword attack, sit,
+  heal without spurious “Standing”, and saved coins/XP/level/potion rewards.
+- **Executed Chromium with Playwright, Pixel 7 mobile/touch emulation:** real
+  `touchscreen.tap()` calls opened the Forest menu, started play, attacked a
+  left-side monster, sat, healed once, killed the monster, awarded XP and stopped
+  music on Exit. All four new MP3s decoded successfully; no page exceptions.
+- **Negative control executed:** substituting the pre-fix `pointerBus.js` and
+  `gestures.js` reproduced the failure in that same Chromium test: the menu did
+  not activate on double tap. The observed finger-lift stream included
+  `pointerleave`, exactly as the regression explains.
+- This is browser automation, **not physical Android/TalkBack or audible
+  speaker/headphone verification**. Those hands-on checks remain outstanding.
+
+## Previous easy-play and lifecycle regression run
 
 - `npm test`: **367 tests, 367 pass, zero failures**, Node 20.20.2 with jsdom 26.
 - `npm run validate`: original circuit geometry gate passed.

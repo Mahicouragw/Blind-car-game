@@ -259,8 +259,10 @@ export function createGestureRecognizer(config = {}) {
       const t = now();
 
       // --- R4/R6: are we continuing a tap chain? ---
-      const inWindow = chain.active && t - chain.at <= T.doubleTapWindowMs && chain.zone?.id === z.id;
-      const near = inWindow && Math.hypot(x - chain.x, y - chain.y) < T.tapMaxDistPx * 3.5;
+      const tapWindow = z.tapWindowMs ?? T.doubleTapWindowMs;
+      const sameTarget = (chain.zone?.tapGroup ?? chain.zone?.id) === (z.tapGroup ?? z.id);
+      const inWindow = chain.active && t - chain.at <= tapWindow && sameTarget;
+      const near = inWindow && (z.tapAnywhere || Math.hypot(x - chain.x, y - chain.y) < T.tapMaxDistPx * 3.5);
 
       if (inWindow && near) {
         chain.count += 1;
@@ -502,15 +504,15 @@ export function createGestureRecognizer(config = {}) {
         // tap can still be reported as a double/triple tap plus tapSuperseded.
         emit('tap', { zone: z, zoneId: z.id, role: z.role, x, y });
         chain.emittedTap = true;
-        setTimer('chainExpire', T.doubleTapWindowMs, () => {
+        setTimer('chainExpire', z.tapWindowMs ?? T.doubleTapWindowMs, () => {
           chain.active = false;
           chain.emittedTap = false;
         });
       } else if (!z.immediateTap && tapCount === 1) {
         // R2: this zone owns a double-tap meaning, so the single tap waits.
-        setTimer('tapResolve', T.doubleTapWindowMs, () => resolveTapChain(z, x, y, tapCount));
+        setTimer('tapResolve', z.tapWindowMs ?? T.doubleTapWindowMs, () => resolveTapChain(z, x, y, tapCount));
       } else if (tapCount === 2 && z.deferDoubleTap) {
-        setTimer('tapResolve', T.doubleTapWindowMs, () => resolveTapChain(z, x, y, tapCount));
+        setTimer('tapResolve', z.tapWindowMs ?? T.doubleTapWindowMs, () => resolveTapChain(z, x, y, tapCount));
       } else if (tapCount === 2) {
         // Second tap of a double-tap-and-hold zone, released before the hold
         // threshold: this is a plain double tap (second half of R4). Ordinary
@@ -529,6 +531,8 @@ export function createGestureRecognizer(config = {}) {
     },
 
     pointerCancel(id) {
+      // A late leave/cancel, or an ignored second finger, cannot erase taps.
+      if (!touch || touch.id !== id) return false;
       if (touch && touch.id === id) {
         const z = touch.zone;
         if (z.hold && touch.pressStartFired) {

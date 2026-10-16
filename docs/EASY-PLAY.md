@@ -43,17 +43,22 @@ menu reads that area's controls. There is no time limit or tutorial gate.
 
 ## Forest Adventure
 
-- Hold to walk, release to stop. Double tap to sit/stand; holding stands up again.
+- Hold for half a second to start walking; release to stop. Double tap to sit/stand; holding stands up again.
 - Select announced left/right paths with swipes. At an unselected junction, stop
   safely and hear the direction again rather than falling into a hazard.
-- Monsters appear ahead, left or right and stop walking. Swipe up for ahead,
-  or left/right to aim at that side; single tap strikes with the sword.
+- Monsters appear ahead, left or right and stop walking. **Single tap attacks
+  the announced nearby monster with automatic aim.** Directional swipes may
+  still aim, but are not required to make a sword attack work.
 - Each monster takes two hits. Its health and the player's health are spoken.
   Every five seconds an undefeated monster inflicts eight health damage.
 - Triple tap heals up to 50 health using one potion. Start with three; at full
   health no potion is wasted. Triple tap does not also trigger the double-tap sit
   action: this play surface defers double tap until the third-tap window closes.
-- Defeating a monster gives five coins. Walking also gives coins. At zero health,
+- Defeating a monster gives five coins and **25 XP** toward the existing saved
+  player level. Every third defeat during a visit also drops one healing potion
+  (bag cap 99). The loot and any level-up are spoken once. Defeating a monster
+  cannot reward twice. The local menu reads experience and level.
+- Walking also gives coins. At zero health,
   restart safely at the entrance after three seconds; keep the wallet.
 
 ## City Walk
@@ -87,3 +92,19 @@ Tests: `tests/easyWorld.test.mjs` (pure model and recognizer),
 `tests/easyWorld.dom.test.mjs` (real application routing, cursor, purchases and
 lifecycle), plus audio/music regressions in their existing test files. These are
 automated tests, **not a claim of hands-on Android/TalkBack verification**.
+
+
+## Phone tap regression fix
+
+Android-style Pointer Events normally send `pointerup`, `lostpointercapture`,
+`pointerout`, then `pointerleave` when a finger lifts. Leave is **not** a cancel.
+The old adapter cancelled every pending tap at that point, so swipes worked but
+single/double/triple taps were lost. The adapter now uses pointer capture, ignores
+leave, rejects cancellation from a different finger, and listens to **one** event
+family (Pointer Events or legacy Touch Events), never both. Legacy touchend uses
+`changedTouches`, not the other fingers remaining on screen.
+
+Menu tap chains follow the cursor across physical button boundaries. A 600 ms
+window and position-independent taps support a deliberate rhythm. Forest double
+tap waits through the third-tap window, so a triple tap only heals. Short taps no
+longer start walking or overwrite attack/heal feedback with “Standing”.

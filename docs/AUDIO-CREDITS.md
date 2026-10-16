@@ -1,6 +1,6 @@
 # Audio credits, licences and honest gaps
 
-**96 sound files, 37 MB.** Every one is a real *file* that the game plays back;
+**100 sound files, 38.3 MB.** Every one is a real *file* that the game plays back;
 there is no oscillator, no generated noise buffer and no synthesised tone
 anywhere in this project's audio *code* — `src/core/audio.js` only ever plays
 files.
@@ -11,7 +11,7 @@ The files have three provenances, and this document records each:
    (0.9 MB, all CC0 Kenney) plus **six full-length music beds (22.0 MB)**,
    documented separately below because their licences differ from one another
    and two of them require attribution.
-2. **11 field recordings of real things** (14 MB): brakes, handbrake, gear
+2. **15 field/foley recordings of real things** (the original eleven plus four adventure recordings): brakes, handbrake, gear
    change, tyre squeal, rain, wipers, a cheering grandstand and four scene
    beds, downloaded from **freesound.org under Creative Commons 0** — real
    recordings, one per action the brief asked for. The brief allows AI
@@ -398,3 +398,27 @@ connection.
 
 No error message anywhere exposes a stack trace, a path, a header or any internal
 detail. The dev server logs only the request line and refuses to serve dotfiles.
+
+
+## Forest and combat recordings (CC0)
+
+Four additional files are vendored in `assets/audio/adventure/`. Each source page
+was checked for the CC0 public-domain licence before downloading its HQ MP3
+preview. No AI generation, oscillator or synthetic Web Audio tone is involved.
+The files are played locally; no third-party service is contacted during play.
+`assets/audio/adventure/SOURCES.json` records the exact download URLs and bytes.
+
+| File | Creator | Source and use |
+| --- | --- | --- |
+| `forest-birds.mp3` | Magnesus | [Forest birds - ambient seamless loop](https://freesound.org/people/Magnesus/sounds/723913/), 27-second recorded bird bed |
+| `sword-hit.mp3` | loudernoises | [Sword Clash](https://freesound.org/people/loudernoises/sounds/334169/), recorded metal/blade clash; also the physical cursor clink replacing the old digital tick |
+| `sword-swing.mp3` | Angrycrazii | [Sword swing.wav](https://freesound.org/people/Angrycrazii/sounds/277322/), short recorded swing/foley |
+| `monster-arrival.mp3` | qubodup | [Goblin Growl](https://freesound.org/people/qubodup/sounds/442817/), CC0 edited recording, derived from a credited CC0 sample on its source page |
+
+The monster-hit cue reuses the existing `generic-light.ogg` impact recording;
+loot reuses `coins-2.ogg`, and path turns reuse `cloth.ogg`. These intentional
+aliases are documented in the manifest tests. Walking uses the existing grass
+and concrete footstep recordings. Sword swings and contact are layered with a
+short delay, not synthesized. Existing full-length credited music now plays in
+the new areas; forest birds sit underneath and both duck under speech. Exit and
+background/pagehide still stop all playback and invalidate pending loop starts.

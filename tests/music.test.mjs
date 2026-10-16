@@ -240,3 +240,27 @@ test('an ambience download completing after silence cannot restart its loop', as
   director.suspend(); finish(); await Promise.resolve();
   assert.deepEqual(started, [], 'a late file must not defeat silence');
 });
+
+test('forest plays music AND a real bird recording, and Exit stops the bird bed', async () => {
+  const events = createBus(); const started = [], stopped = [], tracks = [];
+  const audio = {
+    music: { play: async name => tracks.push(name), stop() {} },
+    ensureLoaded: async () => true,
+    loop(name) { started.push(name); return { stop() {} }; },
+    stopLoops(names) { stopped.push(names); },
+  };
+  const director = createMusicDirector({ events, audio });
+  events.emit('screen:mounted', { id:'forest' }); await Promise.resolve();
+  assert.deepEqual(tracks, ['music-story-family']); assert.deepEqual(started, ['forest-birds']);
+  events.emit('screen:mounted', { id:'exit' }); await Promise.resolve();
+  assert.equal(director.track,null); assert.ok(stopped.some(names => names.includes('forest-birds')));
+});
+
+test('forest birds respect SFX off while music can keep playing', async () => {
+  const events = createBus(); const loops = [];
+  const director = createMusicDirector({ events, getSettings:()=>({sfx:false,music:true}), audio:{
+    music:{play(){},stop(){}}, stopLoops(){}, loop(name){loops.push(name);}, ensureLoaded:async()=>true,
+  }});
+  events.emit('screen:mounted',{id:'forest'}); await Promise.resolve();
+  assert.equal(director.track,'music-story-family'); assert.deepEqual(loops,[]);
+});

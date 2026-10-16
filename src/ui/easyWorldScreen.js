@@ -3,12 +3,12 @@ import { makeButton } from './screens.js';
 
 export const PLAY_ZONE = {
   id: 'easy-play', role: 'easyPlay', hold: true, allowSwipe: true,
-  immediateTap: false, doubleTapHoldTarget: false, deferDoubleTap: true, allowCircle: false, preventScroll: true,
+  tapAnywhere: true, tapWindowMs: 600, immediateTap: false, doubleTapHoldTarget: false, deferDoubleTap: true, allowCircle: false, preventScroll: true,
 };
 const TITLES = { ground: 'Easy Racing Ground', forest: 'Forest Adventure', city: 'City Walk' };
 export const EASY_CONTROLS = {
   ground: 'The car drives automatically. Hold more than three seconds and release to accelerate and keep driving. Single tap, or hold one or two seconds and release, to stop. Hear the metres, then swipe left or right to select the next turn; the car turns at the junction. Missing a turn causes a crash and a restart. Coins come as you drive. Petrol runs out; its menu opens automatically.',
-  forest: 'Hold to walk; release to stop. Double tap to sit or stand. Swipe left or right to follow a path. Monsters are announced ahead, left or right. Swipe toward a monster, or swipe up for ahead, then single tap to strike with your sword. Triple tap to use a healing potion. You start with three potions. Monsters take two hits. Your health is spoken after each attack.',
+  forest: 'Hold to walk; release to stop. Double tap to sit or stand. Swipe left or right to follow a path. Monsters are announced ahead, left or right. Single tap to strike the announced nearby monster with your sword. Aiming is automatic; swipes can also aim. Triple tap to use a healing potion. You start with three potions. Monsters take two hits. Your health is spoken after each attack.',
   city: 'Hold to walk; release to stop. Double tap to sit or stand. Swipe left or right to follow a path. Collect coins as you walk. Open the menu to buy healing potions, buy a city shop, visit the forest or enter racing. There is no timer and no combat in the city.',
 };
 
@@ -17,6 +17,10 @@ export function buildEasyWorldScreen({ area, gameState, screens, speech, audio, 
   const wallet = {
     get coins() { return gameState.save.coins; },
     set coins(value) { gameState.save.coins = value; },
+    get xp() { return gameState.save.xp; },
+    set xp(value) { gameState.save.xp = value; },
+    get level() { return gameState.save.level; },
+    set level(value) { gameState.save.level = value; },
   };
   const world = createEasyWorld({ area, wallet, inventory: gameState.save.easyWorld });
   const root = document.createElement('section');
@@ -41,7 +45,7 @@ export function buildEasyWorldScreen({ area, gameState, screens, speech, audio, 
   const controls = document.createElement('div'); controls.className = 'menu-list';
   root.append(head, caption, visual, status, actionText, controls);
   let started = false, destroyed = false, suspended = false, lastWall = performance.now(), tickId = null;
-  let saved = JSON.stringify([gameState.save.coins, gameState.save.easyWorld]);
+  let saved = JSON.stringify([gameState.save.coins, gameState.save.xp, gameState.save.level, gameState.save.easyWorld]);
   let keyStart = null;
   let engineRunning = false;
   let footstepClock = 0;
@@ -65,8 +69,15 @@ export function buildEasyWorldScreen({ area, gameState, screens, speech, audio, 
     },
     handleGesture(type, d = {}) {
       if (!api.playing) return false;
-      if (type === 'pressStart') world.pressStart();
-      if (type === 'pressEnd') world.pressEnd(d.durationMs, d.cancelled || (area === 'ground' && d.moved));
+      if (type === 'pressStart' && area === 'ground') world.pressStart();
+      if (type === 'longPressStart' && area !== 'ground') {
+        world.pressStart();
+        if (world.state.speed > 0) {
+          audio?.play(area === 'forest' ? 'footstep-grass-0' : 'footstep-concrete-0', { group: 'sfx', volume: 0.3 });
+          footstepClock = 0;
+        }
+      }
+      if (type === 'pressEnd' && (area === 'ground' || world.state.holding)) world.pressEnd(d.durationMs, d.cancelled || (area === 'ground' && d.moved));
       if (type === 'tap') world.tap();
       if (type === 'doubleTap') world.doubleTap();
       if (type === 'tripleTap') world.heal();
@@ -112,7 +123,7 @@ export function buildEasyWorldScreen({ area, gameState, screens, speech, audio, 
     },
   };
   function persist() {
-    const now = JSON.stringify([gameState.save.coins, gameState.save.easyWorld]);
+    const now = JSON.stringify([gameState.save.coins, gameState.save.xp, gameState.save.level, gameState.save.easyWorld]);
     if (now !== saved) { gameState.persist(); saved = now; }
   }
   function stopEngine() {
@@ -121,7 +132,10 @@ export function buildEasyWorldScreen({ area, gameState, screens, speech, audio, 
   }
   function flush() {
     const items = world.drain();
-    for (const item of items) if (item.sound) audio?.play(item.sound, { group: 'sfx', volume: 0.4 });
+    for (const item of items) {
+      const sounds = Array.isArray(item.sound) ? item.sound : item.sound ? [item.sound] : [];
+      sounds.forEach((name, index) => audio?.play(name, { group: 'sfx', volume: name === 'monster-arrival' ? 0.55 : 0.4, delay: index * 0.09 }));
+    }
     // One PRESENT instruction wins this update. Coins never queue ahead of a turn.
     const message = items.filter(i => i.text).sort((a, b) => b.priority - a.priority)[0];
     if (message) {
@@ -138,7 +152,7 @@ export function buildEasyWorldScreen({ area, gameState, screens, speech, audio, 
     caption.textContent = world.describe();
     status.textContent = area === 'ground'
       ? `${Math.round(s.speed * 3.6)} km/h · Petrol ${Math.ceil(s.fuel)}% · ${gameState.save.coins} coins · ${s.turns} turns completed`
-      : `Health ${s.health}/100 · ${world.inventory.potions} potions · ${gameState.save.coins} coins · ${Math.floor(s.distance)} metres walked`;
+      : `Health ${s.health}/100 · ${world.inventory.potions} potions · ${gameState.save.coins} coins · XP ${gameState.save.xp} · Level ${gameState.save.level} · ${Math.floor(s.distance)} metres walked`;
     const left = world.segment().direction === 'left';
     visual.querySelector('.turn-marker').textContent = left ? '←' : '→';
     for (const path of visual.querySelectorAll('.easy-road, .easy-centreline')) path.setAttribute('d', `M300 290V105H${left ? 60 : 540}`);
@@ -165,6 +179,7 @@ export function buildEasyWorldScreen({ area, gameState, screens, speech, audio, 
     button(started ? 'Return to game' : `Start ${TITLES[area]}`, 'Close this menu and play', () => api.closeMenu());
     if (area === 'ground') button('Petrol', 'Fill for five coins. Free emergency refill if you cannot afford it.', () => { world.buyPetrol(); flush(); render(); });
     button('Where am I', 'Read current position, health and coins', () => { speech?.say(world.describe(), { hardInterrupt: true, replace: true, cooldownMs: 0 }); });
+    button('Experience and level', 'Read your saved progress', () => speech?.say(`Experience ${gameState.save.xp}. Level ${gameState.save.level}. Monsters give 25 experience and five coins each.`, { hardInterrupt: true, replace: true, cooldownMs: 0 }));
     button('How to play', 'Read the controls for this area', () => { speech?.say(`${EASY_CONTROLS[area]} Down-left opens this menu. Up then left goes back. Keyboard: W to hold, S to stop or strike, A and D to choose direction, Space to sit, R to heal.`, { hardInterrupt: true, replace: true, cooldownMs: 0 }); });
     if (area === 'city') {
       button('Buy healing potion', 'Three coins. Use by triple tapping in the forest.', () => { world.buyPotion(); flush(); render(); });

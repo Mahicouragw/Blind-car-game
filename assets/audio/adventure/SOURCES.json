@@ -1,0 +1,34 @@
+[
+  {
+    "name": "forest-birds",
+    "author": "Magnesus",
+    "source": "https://freesound.org/people/Magnesus/sounds/723913/",
+    "download": "https://cdn.freesound.org/previews/723/723913_2008500-hq.mp3",
+    "license": "CC0-1.0",
+    "bytes": 637824
+  },
+  {
+    "name": "sword-hit",
+    "author": "loudernoises",
+    "source": "https://freesound.org/people/loudernoises/sounds/334169/",
+    "download": "https://cdn.freesound.org/previews/334/334169_5859881-hq.mp3",
+    "license": "CC0-1.0",
+    "bytes": 14455
+  },
+  {
+    "name": "sword-swing",
+    "author": "Angrycrazii",
+    "source": "https://freesound.org/people/Angrycrazii/sounds/277322/",
+    "download": "https://cdn.freesound.org/previews/277/277322_5293512-hq.mp3",
+    "license": "CC0-1.0",
+    "bytes": 10648
+  },
+  {
+    "name": "monster-arrival",
+    "author": "qubodup",
+    "source": "https://freesound.org/people/qubodup/sounds/442817/",
+    "download": "https://cdn.freesound.org/previews/442/442817_71257-hq.mp3",
+    "license": "CC0-1.0",
+    "bytes": 20559
+  }
+]
