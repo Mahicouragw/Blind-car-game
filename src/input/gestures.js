@@ -59,6 +59,12 @@ export const GESTURE_DEFAULTS = {
   doubleTapHoldMs: 300,
   swipeMinPx: 34,
   swipeMaxMs: 900,
+  /**
+   * Menus are not flicked like a shooter. A deliberate drag to the next item
+   * can take several seconds; only the driving surface keeps the strict
+   * `swipeMaxMs`, so steering and reverse cannot fire from slow drags.
+   */
+  slowSwipeMaxMs: 6000,
   /** |dx| must exceed |dy| by this factor to be a horizontal swipe. */
   swipeDominance: 1.35,
   circleMinTurnDeg: 300,
@@ -424,14 +430,19 @@ export function createGestureRecognizer(config = {}) {
         return true;
       }
 
-      // A tap with a wobble. A real thumb moves, and once it passed
-      // `tapMaxDistPx` the contact was classified as a drag - which silently
-      // DROPPED the tap, and with it the brake: play-testing found taps that
-      // only ever said "Accelerating". If the finger travelled less than a
-      // swipe and never circled, it is still a tap. Steering re-centres via
-      // dragEnd, and the tap resolution below runs as if the finger had sat
-      // still - so the brake always lands.
-      if (wasDrag && !circleFired && dist < T.swipeMinPx && duration <= T.longPressMs) {
+      // A tap with a wobble - but ONLY where a tap carries a safety-critical
+      // action (the brake on the driving surface). A real thumb moves, and once
+      // it passed `tapMaxDistPx` the contact was classified as a drag - which
+      // silently DROPPED the tap, and with it the brake.
+      //
+      // In a MENU the same rescue was a disaster (the play-test: "when I move
+      // the cursor to chapter two it still reads chapter one... I try to drag
+      // right and it always hits something else"). A 24-34 px drag is an
+      // ATTEMPTED SWIPE, and converting it to a tap re-selected the button
+      // under the finger - the one the cursor was leaving. Menus therefore
+      // never rescue a drag into a tap; below, their drags become swipes.
+      const tapIsPrecious = z.hold || z.role === 'driving';
+      if (wasDrag && !circleFired && dist < T.swipeMinPx && duration <= T.longPressMs && tapIsPrecious) {
         wasDrag = false;
         emit('dragEnd', { zone: z, zoneId: z.id, role: z.role, dx, dy, dist, durationMs: duration, circle: circleFired });
         if (!chain.settled && chain.count === tapCount) chain.active = true;
@@ -440,7 +451,13 @@ export function createGestureRecognizer(config = {}) {
       if (wasDrag) {
         // R7: a recognised circular swipe consumes the gesture, so lifting the
         // finger afterwards must not also produce a swipe.
-        if (z.allowSwipe && !circleFired && dist >= T.swipeMinPx && duration <= T.swipeMaxMs) {
+        //
+        // Menus accept any deliberate movement (>= tapMaxDistPx) as a swipe at
+        // the player's own pace; the driving surface keeps the strict flick
+        // thresholds so steering and reverse cannot fire from slow drags.
+        const swipeMin = tapIsPrecious ? T.swipeMinPx : T.tapMaxDistPx;
+        const swipeMaxMs = tapIsPrecious ? T.swipeMaxMs : T.slowSwipeMaxMs;
+        if (z.allowSwipe && !circleFired && dist >= swipeMin && duration <= swipeMaxMs) {
           emit('swipe', {
             zone: z, zoneId: z.id,
             role: z.role,

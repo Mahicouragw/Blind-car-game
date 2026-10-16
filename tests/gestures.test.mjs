@@ -265,6 +265,32 @@ test('a small finger wobble still counts as a tap, not a drag', () => {
   assert.equal(h.count('dragStart'), 0);
 });
 
+test('a drag in a menu is a SWIPE - it must never tap the item the drag started on', () => {
+  // The play-test: "when I move the cursor to chapter two it still reads
+  // chapter one... I try to drag right and it always hits something else."
+  // A 24-34 px drag used to be rescued into a tap on the button under the
+  // finger - the item the player was LEAVING.
+  const h = harness();
+  h.down(100, 100, MENU);
+  h.move(130, 106, 40); // ~31 px: past tapMaxDistPx, under swipeMinPx
+  h.up(130, 106, 40);
+  assert.equal(h.count('tap'), 0, 'a drag must never resolve as a tap in a menu');
+  assert.equal(h.count('swipe'), 1, 'it is the swipe the player meant');
+  assert.equal(h.find('swipe').direction, 'right');
+});
+
+test('a slow deliberate drag still swipes in a menu', () => {
+  // Menu items are dragged at the player's own pace, not flicked. Only the
+  // driving surface keeps the 900 ms flick rule (steering, reverse).
+  const h = harness();
+  h.down(100, 100, MENU);
+  h.move(100, 160, 2500); // 60 px down, over two and a half seconds
+  h.up(100, 160, 2500);
+  assert.equal(h.count('swipe'), 1, 'a slow drag is still a swipe');
+  assert.equal(h.find('swipe').direction, 'down');
+  assert.equal(h.count('tap'), 0);
+});
+
 // ---------------------------------------------------------------------- circle
 
 function traceCircle(h, cx, cy, r, zone, steps = 40, stepMs = 12) {

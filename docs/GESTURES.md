@@ -72,8 +72,9 @@ the **down-and-left** menu gesture and must not throw the car into reverse -
 | `doubleTapWindowMs` | 400 ms | Gap allowed between taps in a chain (deliberate double taps are slow) |
 | `longPressMs` | 500 ms | Hold with no movement |
 | `doubleTapHoldMs` | 300 ms | Second tap of a chain held this long |
-| `swipeMinPx` | 34 px | Minimum travel to be a swipe |
-| `swipeMaxMs` | 900 ms | Slower than this is a drag, not a swipe |
+| `swipeMinPx` | 34 px | Minimum travel to be a swipe on the **driving surface**; in menus any travel past `tapMaxDistPx` is a swipe |
+| `swipeMaxMs` | 900 ms | Driving surface only: slower than this is a drag, not a swipe (steering, reverse) |
+| `slowSwipeMaxMs` | 6000 ms | Menus: a deliberate drag is a swipe at the player's own pace |
 | `swipeDominance` | 1.35× | One axis must dominate the other |
 | `circleMinTurnDeg` | 300° | Accumulated turn to count as a circle |
 | `circleMinRadiusPx` / `Max` | 22 / 260 px | Rejects dots and whole-screen sweeps |
@@ -89,14 +90,18 @@ Zones carry flags that change how taps resolve: `immediateTap`, `hold`,
 
 These are authoritative. Each has a test.
 
-**R1 — Drag beats tap, with a wobble allowance.** A contact that travels more
-than `tapMaxDistPx` before lifting starts a *drag*. A drag that travels less
-than `swipeMinPx` and never circles is still a **tap with a wobble**: it emits
-`dragEnd` (so steering re-centres) and then resolves as a tap. Play-testing
-showed why this matters: a real thumb drifts, and without the allowance those
-contacts were classified as drags and the tap — the brake — was silently
-dropped. A genuine drag or swipe still kills the tap chain: steering can never
-be misread as a command tap.
+**R1 — Drag beats tap, with a wobble allowance ONLY on the driving surface.** A
+contact that travels more than `tapMaxDistPx` before lifting starts a *drag*. On
+the driving surface a drag that travels less than `swipeMinPx` and never circles
+is still a **tap with a wobble**: it emits `dragEnd` (so steering re-centres) and
+then resolves as a tap — the brake. Play-testing showed why this matters: a real
+thumb drifts, and without the allowance those contacts were classified as drags
+and the tap — the brake — was silently dropped. In **menus** the same rescue was
+a disaster: a 24–34 px drag toward the next item became a tap on the item the
+drag STARTED on ("when I move the cursor to chapter two it still reads chapter
+one"), so menus never rescue a drag into a tap — a menu drag is a swipe. A
+genuine drag or swipe still kills the tap chain: steering can never be misread as
+a command tap.
 
 **R2 — Single-tap latency is zone-dependent.** A zone flagged `immediateTap`
 (menus, lists, **and the driving surface**) fires `tap` on lift: responsive. The
