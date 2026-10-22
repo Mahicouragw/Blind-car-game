@@ -127,6 +127,7 @@ export const AUDIO_MANIFEST = {
   'rain': `${A}/scene/rain.mp3`,
   'wiper': `${A}/scene/wiper.mp3`,
   // CC0 recorded adventure effects. Provenance: adventure/SOURCES.json.
+  'car-horn': `${A}/adventure/car-horn.mp3`,
   'forest-birds': `${A}/adventure/forest-birds.mp3`,
   'sword-swing': `${A}/adventure/sword-swing.mp3`,
   'sword-hit': `${A}/adventure/sword-hit.mp3`,
@@ -298,26 +299,12 @@ export const AUDIO_GAPS = [
   { slot: 'voice-acting', want: 'Recorded voice acting for story dialogue.', cueUsed: 'speech synthesis, labelled as synthesis', status: 'synthesised-not-recorded' },
 ];
 
-/**
- * How far engine, music and effects drop while Game TalkBack is speaking.
- *
- * `holdMs` is a SAFETY NET, not the normal duration. The duck is latched on by
- * `duck()` and released by `unduck()` when the utterance settles, so it lasts
- * exactly as long as the announcement does. An earlier version timed the duck at
- * `recoveryMs` (420 ms) instead, which is shorter than almost every
- * announcement: the engine came back to full volume mid-sentence and masked the
- * guidance, so corner warnings and collision callouts were effectively silent
- * while driving. `holdMs` only exists for an utterance that never fires `onend`,
- * and is deliberately just above the speech module's own 12 s safety timer.
- *
- * Engine and music duck hard because for a blind player the speech IS the
- * interface. Impact effects duck less: a collision sound is information, not
- * atmosphere.
- */
+/** Compatibility mix constants: speech NEVER changes music/effect/engine gains.
+ * Manual volume changes are still smoothed to avoid clicks. */
 export const DUCK_LEVELS = {
-  engine: 0.22,
-  music: 0.16,
-  sfx: 0.55,
+  engine: 1,
+  music: 1,
+  sfx: 1,
   recoveryMs: 420,
   holdMs: 15000,
   rampSeconds: 0.09,
@@ -337,8 +324,7 @@ export function createAudio(config = {}) {
   const activeSources = new Set();
   let active = true;
   let unlocked = false;
-  let duckUntil = 0;
-  let ducked = false;
+
 
   function ensureContext() {
     if (ctx || !AudioCtor) return ctx;
@@ -362,14 +348,14 @@ export function createAudio(config = {}) {
   /** Effective gain per group, so tests and the status readout can see them. */
   function targetLevels() {
     const s = getSettings();
-    const sfxBase = s.sfx === false ? 0 : (s.sfxVolume ?? 0.85);
-    const musicBase = s.music === false ? 0 : (s.musicVolume ?? 0.5);
+    const sfxBase = s.sfx === false ? 0 : (s.sfxVolume ?? 0.7);
+    const musicBase = s.music === false ? 0 : (s.musicVolume ?? 0.2);
     return {
       // Voice is never ducked: it is the accessibility surface.
       voice: 1,
-      sfx: sfxBase * (ducked ? DUCK_LEVELS.sfx : 1),
-      music: musicBase * (ducked ? DUCK_LEVELS.music : 1),
-      engine: sfxBase * (ducked ? DUCK_LEVELS.engine : 1),
+      sfx: sfxBase,
+      music: musicBase,
+      engine: sfxBase,
     };
   }
 
@@ -589,6 +575,7 @@ export function createAudio(config = {}) {
       api.engine.handleLow = null;
       api.engine.handleHigh = null;
       api.skid.handle = null;
+      api.horn.handle = null; api.horn.wanted = false;
     },
     setActive(value) {
       active = !!value;
@@ -604,6 +591,23 @@ export function createAudio(config = {}) {
      * tracking engine speed. This is what makes the audio speed-dependent
      * without generating anything.
      */
+    horn: {
+      handle: null, wanted: false, pending: null,
+      start() {
+        if (!active) return null;
+        api.horn.wanted = true;
+        if (!ctx || !unlocked || !buffers.has('car-horn')) {
+          if (!api.horn.pending) api.horn.pending = Promise.all([api.unlock(), ensureLoaded('car-horn')]).then(([ready, buffer]) => {
+            api.horn.pending = null;
+            if (ready && buffer && api.horn.wanted && active) api.horn.start();
+          });
+          return null;
+        }
+        if (!api.horn.handle) api.horn.handle = api.loop('car-horn', { group: 'sfx', volume: 1 });
+        return api.horn.handle;
+      },
+      stop() { api.horn.wanted = false; api.horn.handle?.stop(0.03); api.horn.handle = null; },
+    },
     engine: {
       handleLow: null,
       handleHigh: null,
@@ -762,34 +766,12 @@ export function createAudio(config = {}) {
       },
     },
 
-    /**
-     * Called by the speech system when an utterance starts. Latched: it stays
-     * down until `unduck()`, however long the announcement runs.
-     */
-    duck(holdMs = DUCK_LEVELS.holdMs) {
-      ducked = true;
-      duckUntil = Date.now() + holdMs;
-      applyVolumes();
-    },
-    /** Called when the utterance settles; the mix comes back up after a tail. */
-    unduck() {
-      duckUntil = Date.now() + DUCK_LEVELS.recoveryMs;
-    },
-    get ducked() {
-      return ducked;
-    },
-    /** Effective mix levels, for tests and the audio status readout. */
-    get levels() {
-      return targetLevels();
-    },
-    /** Call once per frame; releases the duck after speech has finished. */
-    tick() {
-      if (ducked && Date.now() > duckUntil) {
-        ducked = false;
-        applyVolumes();
-      }
-      applyVolumes();
-    },
+    // Retained for older speech adapters, deliberately no-ops. No auto ducking.
+    duck() {},
+    unduck() {},
+    get ducked() { return false; },
+    get levels() { return targetLevels(); },
+    tick() { applyVolumes(); },
 
     setVolumes() {
       applyVolumes();

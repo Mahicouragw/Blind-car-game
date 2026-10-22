@@ -48,19 +48,30 @@ test('wrong-direction swipe is corrected, never silently accepted', () => {
   const w = createEasyWorld(); w.swipe('left');
   assert.equal(w.state.queuedTurn, null); assert.match(words(w), /Not left. Take right/);
 });
-test('missing a junction crashes out and restarts, keeping coins', () => {
-  const wallet = { coins: 9 }; const w = createEasyWorld({ wallet });
-  w.state.remaining = 1; w.update(0.1); assert.equal(w.state.out, true);
-  assert.equal(w.state.speed, 0); advance(w, 3.2);
-  assert.equal(w.state.out, false); assert.ok(w.state.fuel > 99);
-  assert.equal(w.state.speed, 12); assert.equal(wallet.coins, 9);
+test('missing a junction stops indefinitely; only manual retry restarts, keeping coins', () => {
+  const wallet={coins:9}; const w=createEasyWorld({wallet});
+  w.state.remaining=1; w.update(0.1);
+  assert.equal(w.state.out,true); assert.equal(w.state.speed,0);
+  assert.equal(w.state.menu,true); assert.equal(w.state.paused,true);
+  assert.match(words(w),/Choose Try again/); advance(w,60);
+  assert.equal(w.state.out,true); assert.equal(w.state.speed,0);
+  assert.equal(w.closeMenu(),false); assert.equal(w.state.menu,true);
+  assert.equal(w.retry(),true); assert.equal(w.state.out,false);
+  assert.equal(w.state.speed,12); assert.equal(wallet.coins,9);
+  assert.equal(w.retry(),false,'retry is not available during live driving');
 });
-test('metre countdown is current and paced 3-5 seconds, not every frame', () => {
-  const w = createEasyWorld(); w.update(0.1);
-  assert.match(words(w), /Turn right in 500 metres/);
-  advance(w, 2.8); assert.ok(!/Turn right/.test(words(w)));
-  advance(w, 0.4); const text = words(w); assert.match(text, /Turn right in 450 metres/);
-  assert.doesNotMatch(text, /seconds/);
+test('turn calls once at 500m, complete routine silence until 50m, then turn now', () => {
+  const w=createEasyWorld(); w.update(0.1);
+  assert.match(words(w),/Turn right in 500 metres/);
+  for(const distance of [490,450,400,300,200,100,51]) {
+    w.state.remaining=distance; advance(w,0.01); w.update(0.001);
+    assert.equal(words(w),'',`silent at ${distance}m`);
+  }
+  w.state.remaining=50; w.update(0.001); assert.match(words(w),/^Turn right now\./);
+  advance(w,1); assert.equal(words(w),'','no repeated urgent chatter');
+  w.swipe('right'); w.drain(); w.state.remaining=1; w.update(0.1);
+  assert.match(words(w),/Turning right. Next: left in 500 metres/);
+  w.state.remaining=50; w.update(0.001); assert.match(words(w),/Turn left now/);
 });
 test('fuel really burns with distance; empty tank stops, pauses, and opens menu', () => {
   const w = createEasyWorld(); const initial = w.state.fuel; advance(w, 2);
@@ -172,4 +183,36 @@ test('each third defeated monster drops a potion; attacks and arrival have disti
   assert.ok(defeat.every(e=>e.sound.includes('sword-swing') && e.sound.includes('sword-hit') && e.sound.includes('loot-drop')));
   w.state.monster={side:'left',health:50}; advance(w,5.1);
   assert.ok(w.drain().some(e=>e.sound==='monster-hit'));
+});
+
+test('default mix, one-time legacy-default migration, and custom-volume preservation', () => {
+  const fresh=coerceSave({}).save;
+  assert.equal(fresh.settings.musicVolume,0.2); assert.equal(fresh.settings.sfxVolume,0.7);
+  const legacy=coerceSave({settings:{musicVolume:0.5,sfxVolume:0.85}}).save;
+  assert.equal(legacy.settings.musicVolume,0.2); assert.equal(legacy.settings.sfxVolume,0.7);
+  assert.equal(legacy.audioMixVersion,1);
+  for(const settings of [{musicVolume:0.35,sfxVolume:0.85},{musicVolume:0.5,sfxVolume:0.6},{musicVolume:0,sfxVolume:0}]) {
+    const save=coerceSave({settings}).save;
+    assert.equal(save.settings.musicVolume,settings.musicVolume); assert.equal(save.settings.sfxVolume,settings.sfxVolume);
+  }
+  const chosen=coerceSave({audioMixVersion:1,settings:{musicVolume:0.5,sfxVolume:0.85}}).save;
+  assert.equal(chosen.settings.musicVolume,0.5); assert.equal(chosen.settings.sfxVolume,0.85);
+  assert.deepEqual(coerceSave(chosen).save,chosen,'migration is idempotent');
+});
+
+test('every default ground leg allows a truthful 500m first warning', () => {
+  const w=createEasyWorld();
+  for(let i=0;i<8;i++) {
+    assert.equal(w.segment().metres,500);
+    w.swipe(w.segment().direction); w.state.remaining=1; w.update(0.1); w.drain();
+    advance(w,1); assert.equal(words(w),'','next-leg initial direction is not repeated');
+  }
+});
+
+test('forest health-zero recovery stays unchanged, including opening and closing menu', () => {
+  const w=createEasyWorld({area:'forest'});
+  w.state.health=8; w.state.monster={side:'left',health:50}; w.state.attackClock=4.9;
+  w.update(0.2); assert.equal(w.state.out,true);
+  w.menu(); assert.equal(w.closeMenu(),true); advance(w,3.2);
+  assert.equal(w.state.out,false); assert.equal(w.state.health,100);
 });

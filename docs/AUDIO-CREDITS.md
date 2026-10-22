@@ -1,6 +1,6 @@
 # Audio credits, licences and honest gaps
 
-**100 sound files, 38.3 MB.** Every one is a real *file* that the game plays back;
+**101 sound files, 38.4 MB.** Every one is a real *file* that the game plays back;
 there is no oscillator, no generated noise buffer and no synthesised tone
 anywhere in this project's audio *code* — `src/core/audio.js` only ever plays
 files.
@@ -11,7 +11,7 @@ The files have three provenances, and this document records each:
    (0.9 MB, all CC0 Kenney) plus **six full-length music beds (22.0 MB)**,
    documented separately below because their licences differ from one another
    and two of them require attribution.
-2. **15 field/foley recordings of real things** (the original eleven plus four adventure recordings): brakes, handbrake, gear
+2. **16 field/foley recordings of real things** (the original eleven, four adventure recordings and a car horn): brakes, handbrake, gear
    change, tyre squeal, rain, wipers, a cheering grandstand and four scene
    beds, downloaded from **freesound.org under Creative Commons 0** — real
    recordings, one per action the brief asked for. The brief allows AI
@@ -361,17 +361,17 @@ file. Then add the file to `AUDIO_MANIFEST` and remove it from `AUDIO_GAPS`.
 
 ## Mixing and intelligibility
 
-Speech must win. `DUCK_LEVELS` in `src/core/audio.js`:
+There is **no automatic ducking**. Speech does not change any group gain:
 
-| Bus | Normal | While speech is active |
+| Bus | Default | While speech is active |
 | --- | --- | --- |
-| Engine | 85% | **30%** |
-| Music | 50% × setting | **22%** |
-| SFX | 85% × setting | 60% |
-| Voice | 100% | 100% |
+| Engine | 70% (effects setting) | unchanged |
+| Music | 20% | unchanged |
+| SFX, including horn | 70% | unchanged |
+| Voice | 100% | unchanged |
 
-The duck is released ~420 ms after speech ends (`audio.tick()`), so the engine
-does not pump up and down between words.
+`duck()`/`unduck()` remain compatibility no-ops; no release tail or restoration
+timer exists. Manual volume edits are smoothed only to avoid clicks.
 
 **Speech, music and sound effects have independent volume settings**, and music
 and SFX each have their own on/off switch, so a player who wants only guidance can
@@ -402,7 +402,7 @@ detail. The dev server logs only the request line and refuses to serve dotfiles.
 
 ## Forest and combat recordings (CC0)
 
-Four additional files are vendored in `assets/audio/adventure/`. Each source page
+Five additional files are vendored in `assets/audio/adventure/`. Each source page
 was checked for the CC0 public-domain licence before downloading its HQ MP3
 preview. No AI generation, oscillator or synthetic Web Audio tone is involved.
 The files are played locally; no third-party service is contacted during play.
@@ -410,6 +410,7 @@ The files are played locally; no third-party service is contacted during play.
 
 | File | Creator | Source and use |
 | --- | --- | --- |
+| `car-horn.mp3` | DeVern | [Car Horn Honk.wav](https://freesound.org/people/DeVern/sounds/349922/), real stationary car horn recorded with a Sennheiser MKE 600, CC0 1.0; 3.201-second HQ MP3, loops only while the confirmed second press remains held |
 | `forest-birds.mp3` | Magnesus | [Forest birds - ambient seamless loop](https://freesound.org/people/Magnesus/sounds/723913/), 27-second recorded bird bed |
 | `sword-hit.mp3` | loudernoises | [Sword Clash](https://freesound.org/people/loudernoises/sounds/334169/), recorded metal/blade clash; also the physical cursor clink replacing the old digital tick |
 | `sword-swing.mp3` | Angrycrazii | [Sword swing.wav](https://freesound.org/people/Angrycrazii/sounds/277322/), short recorded swing/foley |
@@ -420,5 +421,5 @@ loot reuses `coins-2.ogg`, and path turns reuse `cloth.ogg`. These intentional
 aliases are documented in the manifest tests. Walking uses the existing grass
 and concrete footstep recordings. Sword swings and contact are layered with a
 short delay, not synthesized. Existing full-length credited music now plays in
-the new areas; forest birds sit underneath and both duck under speech. Exit and
+the new areas; forest birds sit underneath. Speech changes neither bed’s volume. Exit and
 background/pagehide still stop all playback and invalidate pending loop starts.

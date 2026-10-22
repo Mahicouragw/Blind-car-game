@@ -16,8 +16,8 @@
  *    every chapter mounts the same `story` screen. The story screen emits
  *    `scene:music` with the track for its chapter, which overrides the default.
  *
- * Music always ducks under Game TalkBack (see DUCK_LEVELS in core/audio.js), so
- * a bed never competes with an announcement.
+ * Speech never changes the music mix. Music and SFX retain independent manual
+ * levels (20% and 70% by default), including while Game TalkBack speaks.
  *
  * @module core/musicDirector
  */

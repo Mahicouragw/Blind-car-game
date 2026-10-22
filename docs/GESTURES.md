@@ -23,7 +23,7 @@ see [EASY-PLAY.md](EASY-PLAY.md). Their menus use the same cursor rule.
 | Press and hold | driving surface | `pressStart` on contact, `pressEnd` on lift | **Accelerate** while held; release **coasts** |
 | Single tap | driving surface | `tap` | **Brake** (held ~620 ms, like a pedal tap; announced "Brake") |
 | Tap twice quickly | driving surface | `doubleTap` | **Brake too** — play-testing showed people instinctively double-tap to brake |
-| **Tap twice and hold** | driving surface | `doubleTapHold` | **Handbrake / drift** (1.1 s burst; the rears lock and the car slides) |
+| **Tap twice and hold** | driving surface | `doubleTapHold` | **Recorded car horn** after a second press held ≥1 s; release stops the horn, no drift |
 | Drag left / right | driving surface | `dragStart`, `drag`, `dragEnd` | **Steer gradually** toward the drag offset |
 | Circular drag | driving surface | `circle` | **Request a U-turn** where the track allows it |
 | Swipe straight down (`\|dx\| ≤ 60`) | driving surface | `swipe` (`direction: 'down'`) | **Reverse** for 1.8 s, then stop on its own |
@@ -38,21 +38,24 @@ see [EASY-PLAY.md](EASY-PLAY.md). Their menus use the same cursor rule.
 | Tap three times | simulation / menus | `tripleTap` | **Nothing** — see rule R6 |
 | Long press | settings hotspot | `longPressStart` | Open Game TalkBack settings (alternative) |
 
-Every gesture has a keyboard equivalent in `src/input/keyboard.js`; see
-[ACCESSIBILITY.md](../ACCESSIBILITY.md#keyboard-map). While racing, **double
-tap and hold is the handbrake and must never open a menu over a moving car**;
-the race menu is the down-and-left swipe, and the pause menu is Escape, P, or
-the Pause button.
+Driving and menu keyboard controls are in `src/input/keyboard.js`; see
+[ACCESSIBILITY.md](../ACCESSIBILITY.md#keyboard-map). While racing,
+**double tap and hold sounds the car horn and never opens settings over a moving car**.
+Keyboard Space remains the handbrake. The race menu is down-and-left; Escape,
+P or the Pause button also pauses.
 
-**Brake and handbrake are two different controls.** One tap - or a quick double
-tap - is the brake: a pedal tap, held briefly and released, and always announced
-("Brake") with its own recorded sound. Double tap and HOLD the second tap pulls
-the handbrake: the physics lose rear grip and the car slides, so the held double
-tap is the drift input. Each press is talked back ("Brake", "Handbrake") and has
-its own recorded sound effect, so the player always hears which control they
-just used. The recognizer separates them (R2/R4): a quick double tap resolves as
-the double tap when the second contact lifts inside `doubleTapHoldMs`, and only
-the hold past that threshold is the handbrake.
+**Brake and horn are separate.** Single tap or a quick double tap brakes, with
+immediate safety feedback. A held second contact is reserved for the horn:
+it cancels the rest of the first contact's brake burst in the simulation, or
+restores the prior easy-ground cruise, without applying throttle. Only after
+one second does the recorded horn start. Release/cancel/menu/background/Exit
+stops it. Horn release never triggers a short-hold stop or >3-second acceleration.
+The driving/easy-ground zones override `doubleTapHoldMs` to 1000; settings
+hotspots retain their separate, existing hold timing.
+
+After a missed turn or crash, the car stops and the menu selects **Try again**.
+There is no timed restart. Single tap anywhere confirms the cursor; double tap
+explicitly activates Try again. Back cannot silently resume the crashed car.
 
 **Reverse is a swipe, not a held control.** The physics model already reverses
 when throttle and brake are applied together below the standstill threshold, but
@@ -192,7 +195,7 @@ individually, including:
 - drag versus tap at exactly `tapMaxDistPx`
 - immediate-tap zones firing on lift, and `tapSuperseded` on a following tap
 - delayed single tap resolving after `doubleTapWindowMs`
-- double-tap-and-hold firing at `doubleTapHoldMs` and suppressing the brake
+- double-tap-and-hold using the zone-specific `doubleTapHoldMs` (1000ms for car horn), with no brake/acceleration on release
 - early release of the second tap producing a plain double tap
 - hold after a completed double tap being a long press
 - three taps producing `tripleTap` and no `tap`

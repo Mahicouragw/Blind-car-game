@@ -48,36 +48,17 @@ test('braking is announced on every press', () => {
 
 // ------------------------------------------------------ turning is coached
 
-test('the director coaches turn-in and the straighten-up afterwards', () => {
-  const track = getTrack();
-  const g = track.geometry;
-  const director = createAnnouncementDirector({ getSettings: () => ({ talkback: true }), now: () => t });
-  let t = 0;
-
-  const corner = track.zones.find((z) => z.id === 'zone.corner.t1');
-  assert.ok(corner, 'the first corner should exist');
-
-  // Approach from the preceding braking zone: one frame there, one inside the
-  // corner. The corner frame must say when to steer and which way.
-  const brakeSpot = g.pointAt(g.normaliseS(corner.from - 60));
-  director.update(navigationFacts(track, { x: brakeSpot.x, z: brakeSpot.z, heading: brakeSpot.heading, speed: 30 }, {}), { lap: 1, totalLaps: 2, phase: 'racing' });
-
-  const inside = g.pointAt(g.normaliseS(corner.from + 12));
-  t += 100;
-  const items = director.update(navigationFacts(track, { x: inside.x, z: inside.z, heading: inside.heading, speed: 30 }, {}), { lap: 1, totalLaps: 2, phase: 'racing' });
-  const turnIn = items.find((i) => String(i.key ?? '').startsWith('turnin.'));
-  assert.ok(turnIn, 'entering a corner must produce a turn-in call');
-  assert.match(turnIn.text, /Steer (left|right) now/);
-
-  // Leaving the corner for the next straight must produce the after-turn
-  // coaching the player asked for: let go, the wheel centres, accelerate.
-  const straightSpot = g.pointAt(g.normaliseS(corner.to + 25));
-  t += 100;
-  const exitItems = director.update(navigationFacts(track, { x: straightSpot.x, z: straightSpot.z, heading: straightSpot.heading, speed: 30 }, {}), { lap: 1, totalLaps: 2, phase: 'racing' });
-  const exit = exitItems.find((i) => String(i.key ?? '').startsWith('exit.'));
-  assert.ok(exit, 'leaving a corner must produce the straighten-up call');
-  assert.match(exit.text, /Let go of the steering/);
-  assert.match(exit.text, /accelerate/i);
+test('the director uses the 50m turn-now cue, not repeated turn-in coaching', () => {
+  const track=getTrack(), g=track.geometry;
+  const corner=track.zones.find(z=>z.id==='zone.corner.t1');
+  const sample=metres=>{const p=g.pointAt(g.normaliseS(corner.from-metres));return navigationFacts(track,{x:p.x,z:p.z,heading:p.heading,speed:30},{});};
+  const director=createAnnouncementDirector({getSettings:()=>({talkback:true})});
+  const race={lap:1,totalLaps:2,phase:'racing'};
+  director.update(sample(100),race);
+  assert.equal(director.update(sample(60),race).length,0);
+  const items=director.update(sample(49),race);
+  assert.equal(items.length,1); assert.match(items[0].text,/Turn (left|right) now/);
+  assert.equal(director.update(sample(30),race).length,0);
 });
 
 test('brake-now tells the driver what comes after braking', () => {
@@ -140,7 +121,7 @@ test('a down-and-left swipe does not reverse, a straight-down swipe does', () =>
   di.state.reversing = 0;
 });
 
-test('double tap brakes and double-tap-and-hold drifts, through the bus', () => {
+test('double tap brakes and double-tap-and-hold sounds horn, through the bus', () => {
   bus.emit('gesture:doubleTap', { zone: DRIVING_ZONE });
   assert.equal(di.state.brake, 1, 'a quick double tap brakes');
   assert.equal(di.state.handbrake, false, 'a quick double tap is not the handbrake');
@@ -148,7 +129,8 @@ test('double tap brakes and double-tap-and-hold drifts, through the bus', () => 
   di.state.braking = false;
 
   bus.emit('gesture:doubleTapHold', { zone: DRIVING_ZONE });
-  assert.equal(di.state.handbrake, true, 'the hold pulls the handbrake');
+  assert.equal(di.state.handbrake, false); assert.equal(di.state.horn,true);
+  bus.emit('gesture:pressEnd', {zone:DRIVING_ZONE}); assert.equal(di.state.horn,false);
 });
 
 // --------------------------------------------------------------- rain/wipers
@@ -311,63 +293,17 @@ test('the side scout reads real geometry and the turn is called out in METRES', 
   assert.ok(!/seconds/i.test(callout.text), 'the callout must speak METRES, never seconds');
 });
 
-test('distance callouts keep the 3-5 second pacing and say the current count', () => {
-  const track = getTrack();
-  const g = track.geometry;
-  let clock = 0;
-  const director = createAnnouncementDirector({
-    getSettings: () => ({ talkback: true }),
-    now: () => clock,
-  });
-  const race = { lap: 1, totalLaps: 2, phase: 'racing' };
-  // Approach WHICHEVER corner is actually next from this point, so wrapping
-  // around the circuit can never swap the corner under the test.
-  const probe = g.pointAt(g.normaliseS(track.zones.find((z) => z.id === 'zone.corner.t1').from - 480));
-  const first = navigationFacts(track, { x: probe.x, z: probe.z, heading: probe.heading, speed: 20 }, {});
-  const next = first.nextCorner;
-  assert.ok(next, 'a corner is ahead');
-  // The summary carries no `from`; resolve the real zone by id.
-  const nextZone = track.zones.find((z) => z.id === next.id);
-  assert.ok(nextZone);
-  const at = (m) => {
-    const p = g.pointAt(g.normaliseS(nextZone.from - m));
-    const f = navigationFacts(track, { x: p.x, z: p.z, heading: p.heading, speed: 20 }, {});
-    assert.equal(f.nextCorner?.id, next.id, `still approaching ${next.id} at ${m} m`);
-    return f;
-  };
-  // Far out on the approach: the first callout lands at once, in metres.
-  let facts = at(480);
-  let items = director.update(facts, race);
-  let calls = items.filter((i) => String(i.key ?? '').startsWith('calls.'));
-  assert.equal(calls.length, 1, 'the first callout lands immediately');
-  assert.match(calls[0].text, /Turn (left|right) in \d+ metres/i);
-  const saidOf = (c) => Number(c.text.match(/in (\d+) metres/i)[1]);
-  let lastSaid = saidOf(calls[0]);
-  assert.ok(Math.abs(lastSaid - facts.nextCorner.distanceM) <= 60, 'and the number is the current distance');
-
-  // 200 ms later: nothing - the player asked for 3-5 s pacing.
-  clock += 200;
-  facts = at(470);
-  items = director.update(facts, race);
-  assert.equal(items.filter((i) => String(i.key ?? '').startsWith('calls.')).length, 0, 'no callout inside 3 seconds');
-
-  // 5 s later, still between steps: the live number is re-said (silence never
-  // lasts past 5 s), and it is the CURRENT distance, not the stale one.
-  clock += 5000;
-  facts = at(410);
-  items = director.update(facts, race);
-  calls = items.filter((i) => String(i.key ?? '').startsWith('calls.'));
-  assert.equal(calls.length, 1, 'silence never lasts past the pacing');
-  assert.ok(Math.abs(saidOf(calls[0]) - facts.nextCorner.distanceM) <= 60, 'the number said is the current distance');
-  assert.ok(saidOf(calls[0]) < lastSaid, 'the count goes down as the corner approaches');
-  lastSaid = saidOf(calls[0]);
-
-  // Crossing the next named step: said once, with the pace respected.
-  clock += 3000;
-  facts = at(295);
-  items = director.update(facts, race);
-  calls = items.filter((i) => String(i.key ?? '').startsWith('calls.'));
-  assert.equal(calls.length, 1);
-  assert.ok(Math.abs(saidOf(calls[0]) - facts.nextCorner.distanceM) <= 60, 'and still the current distance');
-  assert.ok(saidOf(calls[0]) < lastSaid);
+test('distance calls stay quiet from 500m to 50m regardless of time elapsed', () => {
+  const track=getTrack(),g=track.geometry; let clock=0;
+  const d=createAnnouncementDirector({getSettings:()=>({talkback:true}),now:()=>clock});
+  const corner=track.zones.find(z=>z.id==='zone.corner.t1');
+  const sample=m=>{const p=g.pointAt(g.normaliseS(corner.from-m));return navigationFacts(track,{x:p.x,z:p.z,heading:p.heading,speed:20},{});};
+  const race={lap:1,totalLaps:2,phase:'racing'};
+  assert.match(d.update(sample(480),race)[0].text,/in 500 metres/);
+  for(const m of [470,410,295,200,100,55]) {
+    clock+=10000; assert.deepEqual(d.update(sample(m),race),[],`silence at ${m}m, despite elapsed time`);
+  }
+  const urgent=d.update(sample(49),race); assert.equal(urgent.length,1);
+  assert.match(urgent[0].text,/Turn (left|right) now/);
+  assert.deepEqual(d.update(sample(30),race),[]);
 });

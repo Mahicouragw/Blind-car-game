@@ -1,18 +1,5 @@
-/**
- * The audio mix: ducking behaviour and the engine's response to speed and load.
- *
- * This suite exists because of a specific, user-visible failure. Game TalkBack
- * was inaudible while driving: `duck()` timed the duck at 420 ms, which is
- * shorter than almost every announcement, so the engine returned to full volume
- * mid-sentence and masked the guidance. Corner warnings and collision callouts
- * were queued, spoken, and effectively unheard. The duck is now latched for the
- * duration of the utterance, and the first test below is the regression guard.
- *
- * It also covers the brief's requirement that engine audio is speed dependent:
- * a recorded loop pitched up with rpm and crossfaded from a low layer to a high
- * layer, getting louder under load. No synthesis anywhere - only playback rate
- * and gain on recorded samples.
- */
+/** Fixed independent mix: speech never attenuates recordings. Also checks
+ * recorded engine pitch/crossfade, music loading and lifecycle silence. */
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -53,100 +40,52 @@ async function makeRunningEngine(settings = {}) {
 
 // ------------------------------------------------------------------- ducking
 
-test('the duck is held for the whole utterance, not 420ms (regression)', async () => {
-  const { audio, fake } = makeAudio();
-  await audio.unlock();
-  const unduckedEngine = audio.levels.engine;
-  const duckedEngine = unduckedEngine * DUCK_LEVELS.engine;
-  const clock = createFakeClock();
-  try {
-    audio.duck();
-    assert.equal(audio.ducked, true, 'ducking should latch immediately');
-    assert.ok(audio.levels.engine <= duckedEngine + 1e-9, 'the engine should drop as soon as speech starts');
-
-    // A typical corner announcement runs two to four seconds. Under the old
-    // timing the engine was back at full volume by 420ms, masking the rest of
-    // it - so step well past that and assert the mix never comes back up.
-    for (let elapsed = 500; elapsed <= 8000; elapsed += 500) {
-      clock.advance(500);
-      fake.advance(0.1);
-      audio.tick();
-      assert.equal(audio.ducked, true, `still speaking at ${elapsed}ms: the duck must not have released`);
-      assert.ok(
-        audio.levels.engine <= duckedEngine + 1e-9,
-        `engine must stay ducked at ${elapsed}ms, got ${audio.levels.engine} (unducked ${unduckedEngine})`,
-      );
-    }
-  } finally {
-    clock.release();
-  }
-});
-
-test('the duck releases a short tail after the utterance settles', async () => {
-  const { audio } = makeAudio();
-  await audio.unlock();
-  const clock = createFakeClock();
-  try {
-    audio.duck();
-    audio.unduck();
-    audio.tick();
-    assert.equal(audio.ducked, true, 'the tail should keep the mix down briefly so it does not jump back');
-
-    clock.advance(DUCK_LEVELS.recoveryMs + 50);
-    audio.tick();
-    assert.equal(audio.ducked, false, 'the duck should be gone once the tail has elapsed');
-  } finally {
-    clock.release();
-  }
-});
-
-test('a hung utterance cannot leave the game permanently quiet', async () => {
-  const { audio } = makeAudio();
-  await audio.unlock();
-  const clock = createFakeClock();
-  try {
-    audio.duck();
-    clock.advance(DUCK_LEVELS.holdMs + 1000);
-    audio.tick();
-    assert.equal(audio.ducked, false, 'the safety net must release a duck that was never unducked');
-    assert.ok(DUCK_LEVELS.holdMs > 12000, 'the net must outlast the speech module own 12s timer');
-  } finally {
-    clock.release();
-  }
-});
-
-test('voice is never ducked, and engine/music/effects are', async () => {
-  const { audio } = makeAudio();
-  await audio.unlock();
+test('speech leaves every group at a fixed gain for a long utterance', async () => {
+  const { audio, fake } = makeAudio(); await audio.unlock();
   const before = audio.levels;
   audio.duck();
-  const during = audio.levels;
-
-  assert.equal(during.voice, 1, 'the accessibility surface must never be attenuated');
-  assert.ok(during.engine < before.engine * 0.5, `engine should duck hard, ${before.engine} -> ${during.engine}`);
-  assert.ok(during.music < before.music * 0.5, `music should duck hard, ${before.music} -> ${during.music}`);
-  assert.ok(during.sfx < before.sfx, 'effects should duck');
-  // A collision sound is information, not atmosphere, so it ducks less than the engine.
-  assert.ok(during.sfx > during.engine, 'impact effects should stay more audible than the engine');
+  for (let elapsed = 0; elapsed < 20; elapsed++) {
+    fake.advance(1); audio.tick();
+    assert.deepEqual(audio.levels, before); assert.equal(audio.ducked, false);
+  }
+  audio.unduck(); audio.tick(); assert.deepEqual(audio.levels, before);
 });
 
-test('ducked levels actually reach the gain nodes, as ramps not jumps', async () => {
-  const { audio, fake } = makeAudio();
-  await audio.unlock();
-  // Creation order in ensureContext: master, sfx, music, voice, engine.
-  const [master, sfx, music, voice, engine] = fake.gains;
-  assert.ok(master && sfx && music && voice && engine, 'the four group gains should exist');
+test('speech end has no recovery tail, rise, or timer', async () => {
+  const { audio, fake } = makeAudio(); await audio.unlock();
+  const before = fake.gains.slice(0,5).map(g => [g.gain.value,g.gain.ramps.length]);
+  audio.duck(); audio.unduck(); fake.advance(20); audio.tick();
+  assert.deepEqual(fake.gains.slice(0,5).map(g => [g.gain.value,g.gain.ramps.length]), before);
+});
 
-  const unduckedEngine = engine.gain.value;
-  audio.duck();
-  const duckedEngine = engine.gain.value;
+test('overlapping and hung speech cannot change any group level', async () => {
+  const { audio } = makeAudio(); await audio.unlock(); const before = audio.levels;
+  const clock = createFakeClock();
+  try {
+    audio.duck(); audio.duck(); audio.unduck(); clock.advance(30000); audio.tick();
+    assert.deepEqual(audio.levels,before); assert.equal(audio.ducked,false);
+  } finally { clock.release(); }
+});
 
-  assert.ok(duckedEngine < unduckedEngine, `engine gain should drop, ${unduckedEngine} -> ${duckedEngine}`);
-  assert.equal(voice.gain.value, 1, 'the voice group should be untouched');
-  assert.ok(
-    engine.gain.ramps.length > 0,
-    'the change should go through setTargetAtTime so ducking does not click',
-  );
+test('voice, engine, music and effects are never speech-ducked', async () => {
+  const { audio } = makeAudio(); await audio.unlock(); const before=audio.levels;
+  audio.duck(); assert.deepEqual(audio.levels,before);
+  assert.equal(audio.levels.voice,1); assert.equal(audio.levels.sfx,0.85);
+  assert.equal(audio.levels.music,0.5); assert.equal(audio.levels.engine,0.85);
+});
+
+test('manual volume changes reach their own gain nodes, independently and smoothly', async () => {
+  const { audio, fake, state } = makeAudio(); await audio.unlock();
+  const [,sfx,music,voice,engine] = fake.gains;
+  state.musicVolume=0.2; audio.setVolumes();
+  assert.equal(music.gain.value,0.2); assert.equal(sfx.gain.value,0.85);
+  state.sfxVolume=0.7; audio.setVolumes();
+  assert.equal(music.gain.value,0.2); assert.equal(sfx.gain.value,0.7); assert.equal(engine.gain.value,0.7);
+  assert.equal(voice.gain.value,1);
+  assert.ok(sfx.gain.ramps.at(-1).timeConstant>0);
+  const before=fake.gains.map(g=>g.gain.ramps.length);
+  audio.duck(); audio.unduck(); audio.tick();
+  assert.deepEqual(fake.gains.map(g=>g.gain.ramps.length),before);
 });
 
 test('turning sound effects off silences the engine too', async () => {
@@ -228,11 +167,9 @@ test('stopping the engine fades both layers rather than cutting them', async () 
   assert.equal(audio.engine.handleHigh, null);
 });
 
-test('duck levels are sane for an audio-first game', () => {
-  assert.ok(DUCK_LEVELS.engine < 0.35, 'the engine must drop far enough for speech to be intelligible');
-  assert.ok(DUCK_LEVELS.music < DUCK_LEVELS.engine, 'music should sit under the engine while speaking');
-  assert.ok(DUCK_LEVELS.holdMs > DUCK_LEVELS.recoveryMs, 'the safety net must outlast the release tail');
-  assert.ok(DUCK_LEVELS.rampSeconds > 0, 'gain changes should be smoothed');
+test('legacy duck compatibility multipliers are all unity', () => {
+  assert.equal(DUCK_LEVELS.engine,1); assert.equal(DUCK_LEVELS.music,1); assert.equal(DUCK_LEVELS.sfx,1);
+  assert.ok(DUCK_LEVELS.rampSeconds>0);
 });
 
 // ------------------------------------------------------- full-length music
@@ -446,4 +383,33 @@ test('stopAll stops recorded loops AND one-shots, including delayed sounds', asy
   assert.equal(audio.engine.handleLow, null);
   assert.equal(audio.play('ui-click'), false); assert.equal(audio.loop('engine-loop'), null);
   audio.setActive(true); assert.equal(audio.play('ui-click'), true);
+});
+
+test('new audio defaults are effects/engine 70%, music 20%, never speech-triggered', async () => {
+  const fake=createFakeAudioContext(); const audio=createAudio({AudioContext:fake.AudioContext});
+  await audio.unlock(); assert.deepEqual(audio.levels,{voice:1,sfx:0.7,music:0.2,engine:0.7});
+  audio.duck(); audio.unduck(); audio.tick();
+  assert.deepEqual(audio.levels,{voice:1,sfx:0.7,music:0.2,engine:0.7});
+});
+
+test('horn is a recorded SFX loop, starts once, stops on release and restarts cleanly', async () => {
+  const {audio,fake}=makeAudio(); await audio.unlock();
+  audio.buffers.set('car-horn',fakeBuffer(3.2));
+  assert.match(AUDIO_MANIFEST['car-horn'],/adventure\/car-horn\.mp3$/);
+  const first=audio.horn.start(); assert.ok(first); assert.equal(fake.sources.at(-1).loop,true);
+  assert.equal(audio.horn.start(),first); assert.equal(fake.sources.length,1);
+  audio.horn.stop(); assert.equal(audio.horn.handle,null); assert.ok(fake.sources[0].stoppedAt!==null);
+  assert.notEqual(audio.horn.start(),first); assert.equal(fake.sources.length,2);
+  audio.stopAll(); assert.equal(audio.horn.handle,null); assert.equal(audio.horn.wanted,false);
+  audio.setActive(false); assert.equal(audio.horn.start(),null);
+  audio.setActive(true); assert.equal(audio.horn.handle,null,'foreground does not restart a horn');
+});
+
+test('late horn download cannot begin after release, Exit or background', async () => {
+  const fake=createFakeAudioContext(); let complete;
+  const fetch=()=>new Promise(resolve=>{complete=()=>resolve({ok:true,arrayBuffer:async()=>new ArrayBuffer(8)});});
+  const audio=createAudio({AudioContext:fake.AudioContext,fetch}); await audio.unlock();
+  audio.horn.start(); const pending=audio.horn.pending; assert.ok(pending);
+  audio.horn.stop(); complete(); await pending;
+  assert.equal(audio.horn.handle,null); assert.equal(fake.sources.length,0);
 });

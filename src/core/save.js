@@ -152,11 +152,18 @@ export function coerceSave(raw) {
         }
       : null;
 
-  const settings = coerceSettings(raw.settings);
+  // One-time upgrade of previous DEFAULT mix only. Preserve customised levels,
+  // and never re-migrate a user's later choice of 50%/85%.
+  const mix = { ...(raw.settings ?? {}) };
+  if (raw.audioMixVersion !== 1 && mix.musicVolume === 0.5 && mix.sfxVolume === 0.85) {
+    mix.musicVolume = 0.2; mix.sfxVolume = 0.7;
+  }
+  const settings = coerceSettings(mix);
   rejected.push(...settings.rejected);
 
   const save = {
     version: SAVE_VERSION,
+    audioMixVersion: 1,
     savedAt: clampInt(raw.savedAt, 0, Number.MAX_SAFE_INTEGER, Date.now()),
     heroName,
     xp,

@@ -191,7 +191,7 @@ The short version:
 - Built-in spoken guidance that works with **no screen reader enabled**
 - Every announcement is derived from real car position, heading, speed, track
   geometry, opponent positions and race state — **never random**
-- Adjustable corner warning distance, announcement frequency and concise mode
+- Fixed 500m early / 50m turn-now guidance without intermediate chatter; adjustable announcement frequency and concise mode
 - A priority queue with per-message cooldowns, so warnings never nag and a
   hairpin is never stuck behind a flavour line
 - Turning Game TalkBack off stops game speech but **never silences the settings
@@ -282,3 +282,14 @@ items:
 ## Licence
 
 Game code MIT. Three.js MIT (`vendor/three/LICENSE`). All audio CC0 1.0.
+
+### Current phone driving controls
+
+- Music **20%**, effects **70%** by default; separate increase/decrease buttons.
+- **No automatic audio ducking** during speech.
+- Turn warning once at **500m**, then **Turn left/right now** at **50m**.
+- **Double tap, holding the second press over one second:** recorded real car horn;
+  release stops it. Single tap still brakes; left/right swipes still select easy-ground turns.
+- Crash/missed turn: stop and wait for **Try again**, never automatic restart.
+
+See [Easy play](docs/EASY-PLAY.md) for the accessible ground, forest and city modes.

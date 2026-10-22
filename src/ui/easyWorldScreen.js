@@ -1,4 +1,5 @@
 import { createEasyWorld } from '../play/easyWorld.js';
+import { stepSetting } from '../a11y/settings.js';
 import { makeButton } from './screens.js';
 
 export const PLAY_ZONE = {
@@ -7,7 +8,7 @@ export const PLAY_ZONE = {
 };
 const TITLES = { ground: 'Easy Racing Ground', forest: 'Forest Adventure', city: 'City Walk' };
 export const EASY_CONTROLS = {
-  ground: 'The car drives automatically. Hold more than three seconds and release to accelerate and keep driving. Single tap, or hold one or two seconds and release, to stop. Hear the metres, then swipe left or right to select the next turn; the car turns at the junction. Missing a turn causes a crash and a restart. Coins come as you drive. Petrol runs out; its menu opens automatically.',
+  ground: 'The car drives automatically. Hold more than three seconds and release to accelerate and keep driving. Single tap, or hold one or two seconds and release, to stop. At 500 metres hear the direction, then no automatic chatter until 50 metres: turn now. Double tap and hold the second press over one second to sound the recorded car horn; release to stop the horn. Swipe left or right to select the next turn; the car turns at the junction. After a missed turn or crash the car stops. Choose Try again yourself; it never restarts automatically. Coins come as you drive. Petrol runs out; its menu opens automatically.',
   forest: 'Hold to walk; release to stop. Double tap to sit or stand. Swipe left or right to follow a path. Monsters are announced ahead, left or right. Single tap to strike the announced nearby monster with your sword. Aiming is automatic; swipes can also aim. Triple tap to use a healing potion. You start with three potions. Monsters take two hits. Your health is spoken after each attack.',
   city: 'Hold to walk; release to stop. Double tap to sit or stand. Swipe left or right to follow a path. Collect coins as you walk. Open the menu to buy healing potions, buy a city shop, visit the forest or enter racing. There is no timer and no combat in the city.',
 };
@@ -49,19 +50,21 @@ export function buildEasyWorldScreen({ area, gameState, screens, speech, audio, 
   let keyStart = null;
   let engineRunning = false;
   let footstepClock = 0;
+  let beforeTapSpeed = 0, secondPress = false;
   const api = {
     id: area, title: TITLES[area], summary: `${area === 'ground' ? 'Automatic driving with spoken metre countdowns. Single tap stops. Hold over three seconds to accelerate. Swipe left or right to take a turn.' : area === 'forest' ? 'Hold to walk, release to stop. Single tap strikes a monster, double tap sits, triple tap heals.' : 'Hold to walk, release to stop. Collect coins and open the menu for shops and racing.'} Down-left opens the menu. Up then left goes back. Choose Start when ready. How to play reads all controls.`,
-    element: root, focusItems: [], zone: area === 'ground' ? { ...PLAY_ZONE, immediateTap: true, deferDoubleTap: false } : PLAY_ZONE, world,
+    element: root, focusItems: [], zone: area === 'ground' ? { ...PLAY_ZONE, immediateTap: true, deferDoubleTap: false, doubleTapHoldTarget: true, doubleTapHoldMs: 1000 } : PLAY_ZONE, world,
     get isMenu() { return world.state.menu; },
     get playing() { return started && !world.state.menu && !suspended && !destroyed; },
     onMount() { onControlsChanged?.(api); },
     openMenu(fuel = false) {
       if (destroyed) return;
-      world.menu(); stopEngine(); buildMenu(fuel ? 'Petrol' : null); flush();
+      world.menu(); stopEngine(); audio?.horn?.stop(); secondPress = false; buildMenu(area === 'ground' && world.state.out ? 'Try again' : fuel ? 'Petrol' : null); flush();
     },
     closeMenu() {
       if (destroyed) return;
-      started = true; world.closeMenu(); controls.textContent = '';
+      if (!world.closeMenu()) { flush(); return; }
+      started = true; controls.textContent = '';
       api.focusItems = [];
       const menu = makeButton({ label: 'Open game menu', hint: 'Or swipe down and left', onActivate: () => api.openMenu() });
       controls.appendChild(menu.element);
@@ -69,7 +72,18 @@ export function buildEasyWorldScreen({ area, gameState, screens, speech, audio, 
     },
     handleGesture(type, d = {}) {
       if (!api.playing) return false;
-      if (type === 'pressStart' && area === 'ground') world.pressStart();
+      if (type === 'pressStart' && area === 'ground') {
+        secondPress = d.tapCount >= 2;
+        if (secondPress) {
+          speech?.stop?.(); // The first tap is now part of a new compound gesture.
+          // The first tap brakes immediately for safety. A second held contact
+          // belongs to the compound horn gesture: restore its previous cruise,
+          // never accelerate or apply the short-hold stop on this release.
+          world.state.speed = world.state.fuel > 0 ? beforeTapSpeed : 0;
+          world.state.holding = false;
+        } else { beforeTapSpeed = world.state.speed; world.pressStart(); }
+      }
+      if (type === 'doubleTapHold' && area === 'ground') audio?.horn?.start();
       if (type === 'longPressStart' && area !== 'ground') {
         world.pressStart();
         if (world.state.speed > 0) {
@@ -77,7 +91,11 @@ export function buildEasyWorldScreen({ area, gameState, screens, speech, audio, 
           footstepClock = 0;
         }
       }
-      if (type === 'pressEnd' && (area === 'ground' || world.state.holding)) world.pressEnd(d.durationMs, d.cancelled || (area === 'ground' && d.moved));
+      if (type === 'pressEnd') {
+        audio?.horn?.stop();
+        if (area === 'ground' && secondPress) { secondPress = false; world.state.holding = false; }
+        else if (area === 'ground' || world.state.holding) world.pressEnd(d.durationMs, d.cancelled || (area === 'ground' && d.moved));
+      }
       if (type === 'tap') world.tap();
       if (type === 'doubleTap') world.doubleTap();
       if (type === 'tripleTap') world.heal();
@@ -108,10 +126,10 @@ export function buildEasyWorldScreen({ area, gameState, screens, speech, audio, 
           audio?.play(area === 'forest' ? 'footstep-grass-0' : 'footstep-concrete-0', { group: 'sfx', volume: 0.3 });
         }
       }
-      if (world.state.menu) { stopEngine(); buildMenu('Petrol'); }
+      if (world.state.menu) { stopEngine(); audio?.horn?.stop(); secondPress = false; buildMenu(area === 'ground' && world.state.out ? 'Try again' : 'Petrol'); }
       render(); flush(); audio?.tick?.();
     },
-    suspend() { suspended = true; world.pause(); stopEngine(); persist(); },
+    suspend() { suspended = true; world.pause(); stopEngine(); audio?.horn?.stop(); secondPress = false; persist(); },
     resume() {
       suspended = false;
       // Never resume movement in the background or unexpectedly after settings.
@@ -119,7 +137,7 @@ export function buildEasyWorldScreen({ area, gameState, screens, speech, audio, 
     },
     destroy() {
       destroyed = true; if (tickId !== null) clearInterval(tickId);
-      stopEngine(); persist();
+      stopEngine(); audio?.horn?.stop(); persist();
     },
   };
   function persist() {
@@ -176,7 +194,8 @@ export function buildEasyWorldScreen({ area, gameState, screens, speech, audio, 
     function button(label, hint, fn) {
       const b = makeButton({ label, hint, onActivate: fn }); buttons.push(b); controls.appendChild(b.element); return b;
     }
-    button(started ? 'Return to game' : `Start ${TITLES[area]}`, 'Close this menu and play', () => api.closeMenu());
+    if (area === 'ground' && world.state.out) button('Try again', 'Start a new attempt only when you choose', () => { world.retry(); api.closeMenu(); });
+    else button(started ? 'Return to game' : `Start ${TITLES[area]}`, 'Close this menu and play', () => api.closeMenu());
     if (area === 'ground') button('Petrol', 'Fill for five coins. Free emergency refill if you cannot afford it.', () => { world.buyPetrol(); flush(); render(); });
     button('Where am I', 'Read current position, health and coins', () => { speech?.say(world.describe(), { hardInterrupt: true, replace: true, cooldownMs: 0 }); });
     button('Experience and level', 'Read your saved progress', () => speech?.say(`Experience ${gameState.save.xp}. Level ${gameState.save.level}. Monsters give 25 experience and five coins each.`, { hardInterrupt: true, replace: true, cooldownMs: 0 }));
@@ -186,6 +205,13 @@ export function buildEasyWorldScreen({ area, gameState, screens, speech, audio, 
       button('Buy city coin shop', '25 coins. Earn one coin per thirty seconds of city walking.', () => { world.buyShop(); flush(); render(); });
       button('Enter a racing event', 'Open the existing race level selection', () => screens.openLevelSelect());
       button('Cars and upgrades', 'Open the existing garage', () => screens.openGarage());
+    }
+    for (const [key, name] of [['sfxVolume', 'sound effects'], ['musicVolume', 'music']]) {
+      for (const [delta, verb] of [[-1, 'Decrease'], [1, 'Increase']]) button(`${verb} ${name} volume`, 'Change by five percent, independently', () => {
+        const result = stepSetting(gameState.settings, key, delta);
+        gameState.setSettingValue(key, result.settings[key]); audio?.setVolumes?.();
+        speech?.say(`${name} volume ${Math.round(gameState.settings[key] * 100)} percent.`, { hardInterrupt: true, replace: true, cooldownMs: 0 });
+      });
     }
     button('Easy quest', 'Collect ten coins, with no time limit', () => {
       speech?.say(world.inventory.questDone ? 'Quest complete. You have already received the ten-coin bonus. Keep exploring for unlimited coins.' : `Collect ten coins in a single visit to any area. ${Math.min(10, world.state.collected)} of ten collected. Reward: ten bonus coins.`, { hardInterrupt: true, replace: true, cooldownMs: 0 });

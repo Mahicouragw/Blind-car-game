@@ -163,17 +163,15 @@ test('a quick double tap on the driving surface brakes too, not the handbrake', 
   });
 });
 
-test('a double tap AND HOLD pulls the handbrake', () => {
+test('a double tap AND HOLD over one second sounds horn, never handbrake or throttle', () => {
   withRig((r) => {
-    r.down(200, 400);
-    r.up(200, 400);
-    r.advance(80);
-    r.down(200, 400);
-    // The second contact stays down past the hold threshold: the e-brake.
-    r.advance(GESTURE_DEFAULTS.doubleTapHoldMs + 60);
-    assert.equal(r.drivingInput.state.handbrake, true, 'holding the second tap pulls the handbrake');
-    assert.equal(r.drivingInput.state.braking, true);
-    assert.ok(r.drivingInput.state.brake > 0, 'the handbrake also retards the car');
+    r.down(200,400); r.up(200,400); r.advance(80); r.down(200,400);
+    r.advance(950); assert.equal(r.drivingInput.state.horn,false,'not before one second');
+    r.advance(100); assert.equal(r.drivingInput.state.horn,true);
+    assert.equal(r.drivingInput.state.handbrake,false); assert.equal(r.drivingInput.state.brake,0);
+    assert.equal(r.drivingInput.state.throttle,0);
+    r.up(200,400); assert.equal(r.drivingInput.state.horn,false);
+    assert.equal(r.drivingInput.state.brake,0,'horn release must not brake');
   });
 });
 
@@ -452,4 +450,13 @@ test('pressEnd follows pressStart exactly once, for every kind of press', () => 
       r.detach();
     }
   }
+});
+
+test('keyboard Space retains the handbrake independently of the touch horn', () => {
+  withRig(r=>{
+    bus.emit('key:down',{action:'handbrake',code:'Space'});
+    assert.equal(r.drivingInput.state.handbrake,true);assert.equal(r.drivingInput.state.horn,false);
+    bus.emit('key:up',{action:'handbrake',code:'Space'});
+    assert.equal(r.drivingInput.state.handbrake,false);
+  });
 });

@@ -602,7 +602,6 @@ export function buildSettingsScreen({ gameState, screens, speech, audio, onSetti
     'speechVoice',
     'conciseSpeech',
     'navFrequency',
-    'warningDistance',
     'speakSpeedLaps',
     'speakPosition',
     'speakOpponents',
@@ -804,10 +803,10 @@ const TUTORIAL_STEPS = [
     require: 'braked',
   },
   {
-    id: 'handbrake',
-    title: 'Handbrake: double tap and hold',
-    text: 'Tap twice, but hold the second tap down for a moment. That pulls the handbrake: the car slides and the tyres chirp. A quick double tap only brakes - the hold is what makes the drift. It is deliberately separate from the brake.',
-    require: 'handbraked',
+    id: 'horn',
+    title: 'Car horn: double tap and hold',
+    text: 'Tap twice, holding the second tap for over one second. Hear a real recorded car horn. Release to stop the horn. This gesture does not accelerate or pull the handbrake. A quick double tap still brakes. Keyboard Space remains the handbrake.',
+    require: 'horned',
   },
   {
     id: 'steer',

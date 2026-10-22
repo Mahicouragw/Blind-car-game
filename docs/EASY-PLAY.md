@@ -26,14 +26,14 @@ menu reads that area's controls. There is no time limit or tutorial gate.
 - The car starts driving automatically at a gentle speed.
 - Hold **more than three seconds** to accelerate; release and it keeps driving.
 - Single tap, or hold one/two seconds and release, to stop and stay stopped.
-- Directions use current rounded metres, paced every 3–5 seconds while moving.
+- Each default ground leg is 500 metres. One early call says **Turn left/right in 500 metres**; no automatic coin/distance chatter follows until **50 metres**, when it says **Turn left/right now**. Forest/city walking guidance is unchanged.
+- **Double tap and hold the second press over one second** for a real recorded car horn. Release stops the horn. It is not acceleration or a handbrake; it does not trigger the short-hold stop on release. Single tap still brakes immediately. The first contact brakes for safety; the second contact restores the previous cruise for the compound horn gesture.
 - Swipe the announced direction to select the upcoming turn, even before reaching
   it. The actual turn happens automatically at the junction, not at the swipe.
 - A wrong-direction swipe is explained so it can be corrected. Missing a junction
-  causes a barrier crash, an out announcement, and an automatic restart after
-  three seconds. Earned coins are kept.
+  causes a barrier crash and stops the car. The menu selects **Try again** and waits indefinitely. Single tap only confirms it; double tap starts a new attempt. Back does not resume a wreck. Earned coins are kept.
 - One coin every 25 metres, with no finite limit on the route. Pickup sounds play
-  for every coin; speech counts groups of five to leave room for directions.
+  for every coin; automatic coin speech is silent in the ground to leave room for directions. Where am I reads the total on request.
 - Petrol burns with distance, not while paused or stationary. Low fuel is spoken.
   When empty, the car stops and the local menu opens **with Petrol selected**.
   Single tap anywhere still says Petrol; double tap refills it.
@@ -108,3 +108,18 @@ Menu tap chains follow the cursor across physical button boundaries. A 600 ms
 window and position-independent taps support a deliberate rhythm. Forest double
 tap waits through the third-tap window, so a triple tap only heals. Short taps no
 longer start walking or overwrite attack/heal feedback with “Standing”.
+
+## Independent audio controls
+
+Music defaults to **20%**, sound effects (including engine/horn) to **70%**.
+Every local game menu has separate Increase/Decrease music volume and
+Increase/Decrease sound effects volume buttons, in 5% steps, clamped to 0–100%.
+They save immediately; the main settings screen has the same independent controls.
+**Speech never ducks, lowers or restores any of these groups.** Background/Exit
+silence still applies. The exact old default pair (50% music, 85% effects) is
+upgraded once; other custom pairs are preserved, and the saved migration marker
+prevents a later deliberate choice of 50%/85% from being re-migrated.
+
+Crash/missed-turn manual Try again also applies to the original 3D simulation.
+Keyboard Space still holds its handbrake; touch double-tap-and-hold is now horn.
+Forest health-zero recovery remains the separate, safe entrance recovery.

@@ -58,8 +58,6 @@ export function bootApp(config = {}) {
   const gameState = createGameState({ storage: config.storage });
   const speech = createSpeech({
     getSettings: () => gameState.settings,
-    onDuck: () => audio.duck(),
-    onUnduck: () => audio.unduck(),
   });
   speech.attach(liveRegion);
   speech.setEnabled(gameState.settings.talkback !== false);
@@ -117,6 +115,7 @@ export function bootApp(config = {}) {
   let previewRaf = null;
   let storyReturnChapter = null;
   let lastRaceLevel = null;
+  let lastRaceOptions = {};
 
   // ---------------------------------------------------------------- pointers
   const pointerBus = createPointerBus({
@@ -263,6 +262,8 @@ export function bootApp(config = {}) {
   }
   bus.on('gesture:pressStart', d => { unlockAudio(); routePlayGesture('pressStart', d); });
   bus.on('gesture:pressEnd', d => routePlayGesture('pressEnd', d));
+  bus.on('race:hornStarted', () => { if (raceScreen && !raceScreen.state.paused) audio.horn.start(); });
+  bus.on('race:hornStopped', () => audio.horn.stop());
 
   bus.on('gesture:tap', (d) => {
     unlockAudio();
@@ -372,9 +373,9 @@ export function bootApp(config = {}) {
 
   bus.on('gesture:doubleTapHold', (d) => {
     unlockAudio();
-    if (screens.current?.playing) return;
+    if (routePlayGesture('doubleTapHold', d)) return;
     // While racing, the driving surface owns this gesture: double-tap-and-hold
-    // is the HANDBRAKE (drivingInput.js pulls the e-brake and the car drifts).
+    // sounds the recorded horn, never the handbrake.
     // It must never open a menu over a moving car. The race menu is the
     // down-and-left swipe, and the pause menu is Escape, P, or the Pause button.
     if (raceScreen && !raceScreen.state.paused) return;
@@ -414,8 +415,7 @@ export function bootApp(config = {}) {
     if (d.zone?.role === ZONE_ROLE.DRIVING) tutorialHarness.record('braked');
   });
   bus.on('gesture:doubleTapHold', (d) => {
-    // Double-tap-and-hold pulls the handbrake and the car drifts.
-    if (d.zone?.role === ZONE_ROLE.DRIVING) tutorialHarness.record('handbraked');
+    if (d.zone?.role === ZONE_ROLE.DRIVING) tutorialHarness.record('horned');
   });
   bus.on('gesture:dragEnd', (d) => {
     // `dragEnd` carries `dx`, not `totalDx`. Reading a field that does not exist
@@ -649,6 +649,7 @@ export function bootApp(config = {}) {
 
   // ------------------------------------------------------------- race flow
   function beginRace(level, opts = {}) {
+    lastRaceLevel = level; lastRaceOptions = opts;
     // If WebGL is unavailable the race cannot be rendered, and the honest thing
     // is to say so rather than to show a black screen or pretend it started.
     if (!webglAvailable()) {
@@ -680,6 +681,7 @@ export function bootApp(config = {}) {
       getCar,
       quality: pickQuality(),
       onFinish: (result) => endRace(result, level, opts),
+      onRetryNeeded: () => pauseRace('retry'),
       onAbort: () => abortRace(level, opts),
     });
     raceScreen.hud.pauseButton.addEventListener('click', () => pauseRace());
@@ -839,10 +841,13 @@ export function bootApp(config = {}) {
     // up or down moves between them exactly like in the menus.
     const buttons = [
       makeButton({
-        label: 'Go back and resume the race',
-        hint: 'Close this menu and keep driving',
+        label: reason === 'retry' ? 'Try again' : 'Go back and resume the race',
+        hint: reason === 'retry' ? 'Start a new attempt only when you choose' : 'Close this menu and keep driving',
         className: 'ui-button-primary',
-        onActivate: () => resumeRace(),
+        onActivate: () => {
+          if (reason !== 'retry') return resumeRace();
+          dismissPanel(panel); pauseRing = null; destroyRace(); beginRace(lastRaceLevel, lastRaceOptions);
+        },
       }),
       makeButton({
         label: 'Where am I on the track',
@@ -954,12 +959,14 @@ export function bootApp(config = {}) {
     const first = buttons[0].label;
     // "Paused." comes from its AI voice clip when available; the options list is
     // dynamic text and is always synthesised. One clip, one line, no doubles.
-    if (reason === 'race-menu') {
+    if (reason === 'retry') {
+      speech.say('The car is stopped after a crash or missed turn. Choose Try again when you are ready.', { priority: 4, essential: true, hardInterrupt: true, replace: true });
+    } else if (reason === 'race-menu') {
       speech.say('Race menu.', { priority: 4, essential: true, interrupt: true, replace: true });
     } else {
       speakCue('Paused.', 'voice-paused', { priority: 4, essential: true, interrupt: true, replace: true });
     }
-    speech.say(`${buttons.length} options. ${first} is first. Swipe up or down to move between them, single tap to select, double tap to activate. To go back to the race, swipe up then left.`, {
+    speech.say(`${buttons.length} options. ${first} is first. Swipe up or down to move between them, single tap to select, double tap to activate. ${reason === 'retry' ? 'The game will not restart automatically.' : 'To go back to the race, swipe up then left.'}`, {
       priority: 2,
       essential: true,
       cooldownMs: 0,
@@ -971,6 +978,7 @@ export function bootApp(config = {}) {
   /** Leave the pause panel and go back to driving. */
   function resumeRace() {
     if (!raceScreen || !raceScreen.state.paused) return;
+    if (raceScreen.state.awaitingRetry) { speech.sayEssential('Choose Try again to start a new attempt.', { hardInterrupt: true, replace: true }); return; }
     dismissPanel(document.getElementById('pause-panel'));
     pauseRing = null;
     raceScreen.resume();
@@ -989,7 +997,7 @@ export function bootApp(config = {}) {
     return [
       'Press and hold anywhere to accelerate, and release to coast.',
       'Tap once - or twice quickly - to brake. The game says Brake when you do.',
-      'Double tap and hold the second tap for the handbrake, which makes the car slide.',
+      'Double tap and hold the second tap for over one second to sound the recorded car horn. Release to stop the horn. Keyboard Space still controls the handbrake.',
       'Drag left or right to steer gradually. Hold the drag through the corner. After the turn, let go of the steering: the wheel straightens itself. Then accelerate.',
       'Draw a circle for a U-turn where the track allows it.',
       'Swipe straight down to reverse.',
@@ -1174,6 +1182,7 @@ export function bootApp(config = {}) {
   document.documentElement.style.setProperty('--text-scale', String(gameState.settings.textScale ?? 1));
   document.documentElement.classList.toggle('talkback-off', !gameState.settings.talkback);
   bus.on('settings:applied', ({ key, settings }) => {
+    audio.setVolumes();
     if (key === 'textScale') document.documentElement.style.setProperty('--text-scale', String(settings.textScale));
     document.documentElement.classList.toggle('talkback-off', !settings.talkback);
     screens.remeasure();
@@ -1287,7 +1296,7 @@ export function createTutorialHarness() {
         accelerated: seen.has('accelerated'),
         coasted: seen.has('coasted'),
         braked: seen.has('braked'),
-        handbraked: seen.has('handbraked'),
+        horned: seen.has('horned'),
         steered: seen.has('steered'),
         uturned: seen.has('uturned'),
         openedSettings: seen.has('openedSettings'),

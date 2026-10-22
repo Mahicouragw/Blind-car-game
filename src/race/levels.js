@@ -18,7 +18,7 @@
  * @property {number} gripMultiplier    > 1 = more forgiving for the player
  * @property {number} steeringAssist    0..1
  * @property {number} recoveryMarginM   how far off-track before recovery is offered
- * @property {number} respawnGraceS     seconds of off-track before auto-recovery
+ * @property {number} respawnGraceS     off-track grace before a manual recovery/retry offer
  * @property {number} aiSpeedScale      global multiplier on AI target speed
  * @property {number} rubberBand        0 = none, 1 = strong
  * @property {number} unlockLevel       driver level required

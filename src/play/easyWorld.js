@@ -6,8 +6,8 @@ import { levelForXp } from '../race/levels.js';
 
 export const ACCELERATE_HOLD_MS = 3000;
 export const GROUND_ROUTE = [
-  { metres: 500, direction: 'right' }, { metres: 300, direction: 'left' },
-  { metres: 400, direction: 'right' }, { metres: 300, direction: 'left' },
+  { metres: 500, direction: 'right' }, { metres: 500, direction: 'left' },
+  { metres: 500, direction: 'right' }, { metres: 500, direction: 'left' },
 ];
 export const WALK_ROUTE = [
   { metres: 40, direction: 'left' }, { metres: 35, direction: 'right' },
@@ -35,7 +35,7 @@ export function createEasyWorld({ area = 'ground', wallet = {}, inventory = {}, 
     fuel: 100, health: 100, seated: false, monster: null, aim: 'ahead',
     queuedTurn: null, turns: 0, collected: 0, kills: 0, out: false, restartIn: 0,
     nextCoinAt: driving ? 25 : 10, nextMonsterAt: 24, attackClock: 0, shopClock: 0,
-    lastGuideAt: -Infinity, lastNumber: null, lowFuelSaid: false,
+    lastGuideAt: -Infinity, lastNumber: null, lowFuelSaid: false, earlySaid: false, nowSaid: false,
   };
   let events = [];
   function emit(text, sound, priority = 3) { events.push({ text, sound, priority }); }
@@ -50,7 +50,7 @@ export function createEasyWorld({ area = 'ground', wallet = {}, inventory = {}, 
     return Math.max(5, Math.round(d / step) * step);
   }
   function describe() {
-    if (state.out) return driving ? 'You are out. Restarting the racing ground.' : 'You are resting safely at the forest entrance.';
+    if (state.out) return driving ? 'The car is stopped after a crash. Choose Try again when you are ready. Your coins are safe.' : 'You are resting safely at the forest entrance.';
     if (state.monster) return `Monster ${state.monster.side}. Monster health ${state.monster.health}. Your health ${state.health}. Single tap to strike it. Triple tap to heal.`;
     if (driving) return `${state.speed > 0 ? 'Driving' : 'Stopped'}. Turn ${segment().direction} in ${metres()} metres. Petrol ${Math.ceil(state.fuel)} percent. ${wallet.coins} coins.`;
     return `${area === 'forest' ? 'Forest' : 'City'}. ${state.seated ? 'Seated' : state.speed > 0 ? 'Walking' : 'Standing'}. Path turns ${segment().direction} in ${metres()} metres. Health ${state.health}. ${wallet.coins} coins.`;
@@ -60,7 +60,7 @@ export function createEasyWorld({ area = 'ground', wallet = {}, inventory = {}, 
       remaining: path[0].metres, leg: 0, queuedTurn: null, speed: driving ? 12 : 0,
       cruiseSpeed: 12, holding: false, fuel: 100, health: 100, seated: false,
       monster: null, aim: 'ahead', out: false, restartIn: 0, lastGuideAt: -Infinity,
-      lastNumber: null, lowFuelSaid: false, distance: 0, nextCoinAt: driving ? 25 : 10,
+      lastNumber: null, lowFuelSaid: false, earlySaid: true, nowSaid: false, distance: 0, nextCoinAt: driving ? 25 : 10,
       nextMonsterAt: 24, attackClock: 0,
     });
     state.lastGuideAt = state.elapsed; state.lastNumber = metres();
@@ -68,10 +68,23 @@ export function createEasyWorld({ area = 'ground', wallet = {}, inventory = {}, 
   }
   function crash() {
     if (state.out) return;
-    state.out = true; state.restartIn = 3; state.speed = 0; state.holding = false;
-    emit('You missed the turn and hit the barrier. You are out. Restarting in three seconds. Your coins are safe.', 'barrier-heavy', 4);
+    state.out = true; state.restartIn = 0; state.speed = 0; state.holding = false;
+    api.menu();
+    emit('You missed the turn and hit the barrier. The car is stopped. Choose Try again when you are ready. Your coins are safe.', 'barrier-heavy', 4);
   }
   function guide() {
+    if (driving) {
+      // Two calls per junction, measured from the actual distance, never time.
+      // Short legs announce their honest starting distance instead of a false 500m.
+      if (state.remaining <= 50 && !state.nowSaid) {
+        state.earlySaid = true; state.nowSaid = true;
+        emit(`Turn ${segment().direction} now.`, null, 4);
+      } else if (state.remaining <= 500 && !state.earlySaid) {
+        state.earlySaid = true;
+        emit(`Turn ${segment().direction} in ${metres()} metres.`, null, 3);
+      }
+      return;
+    }
     const value = metres();
     const since = state.elapsed - state.lastGuideAt;
     if ((value !== state.lastNumber && since >= 3) || since >= 5) {
@@ -83,7 +96,7 @@ export function createEasyWorld({ area = 'ground', wallet = {}, inventory = {}, 
     // One simple, optional task. No time limit and no progress is required to play.
     if (!inventory.questDone && state.collected >= 10) {
       inventory.questDone = true; gain(10);
-      emit('Easy quest complete: collect ten coins. Ten bonus coins added.', 'ui-confirm', 3);
+      emit(driving ? '' : 'Easy quest complete: collect ten coins. Ten bonus coins added.', 'ui-confirm', 3);
     }
   }
   const api = {
@@ -92,10 +105,17 @@ export function createEasyWorld({ area = 'ground', wallet = {}, inventory = {}, 
     pause() { state.paused = true; state.holding = false; if (!driving) state.speed = 0; },
     resume() { state.paused = false; },
     menu() { api.pause(); state.menu = true; },
+    retry() {
+      if (!driving || !state.out) return false;
+      reset(); state.menu = false; api.resume(); return true;
+    },
     closeMenu() {
+      if (driving && state.out) { emit('The car is stopped. Choose Try again when you are ready.', null, 4); return false; }
       state.menu = false; api.resume();
       state.lastGuideAt = state.elapsed; state.lastNumber = metres();
-      emit(describe());
+      if (driving && state.remaining <= 500) { state.earlySaid = true; if (state.remaining <= 50) state.nowSaid = true; }
+      emit(driving && state.remaining <= 50 ? `Turn ${segment().direction} now.` : describe());
+      return true;
     },
     pressStart() {
       if (state.paused || state.out) return;
@@ -185,6 +205,7 @@ export function createEasyWorld({ area = 'ground', wallet = {}, inventory = {}, 
       if (state.paused || state.menu) return;
       const dt = clamp(n(seconds), 0, 0.25); // no background-time catch-up
       state.elapsed += dt;
+      if (state.out && driving) return;
       if (state.out) { state.restartIn -= dt; if (state.restartIn <= 0) reset(); return; }
       if (state.monster) {
         state.speed = 0; state.attackClock += dt;
@@ -221,7 +242,7 @@ export function createEasyWorld({ area = 'ground', wallet = {}, inventory = {}, 
       if (state.distance >= state.nextCoinAt) {
         state.nextCoinAt += driving ? 25 : 10; gain(1);
         // Sound for each coin; speech only every five to keep directions clear.
-        events.push({ sound: 'ui-pluck', text: state.collected % 5 === 0 ? `Five more coins. ${wallet.coins} coins total.` : '', priority: 1 });
+        events.push({ sound: 'ui-pluck', text: !driving && state.collected % 5 === 0 ? `Five more coins. ${wallet.coins} coins total.` : '', priority: 1 });
         quest();
       }
       if (area === 'forest' && state.distance >= state.nextMonsterAt) {
@@ -243,6 +264,7 @@ export function createEasyWorld({ area = 'ground', wallet = {}, inventory = {}, 
         const direction = segment().direction;
         state.leg++; state.turns++; state.remaining = segment().metres;
         state.queuedTurn = null; state.lastGuideAt = state.elapsed; state.lastNumber = metres();
+        state.earlySaid = segment().metres <= 500; state.nowSaid = false;
         emit(`${driving ? 'Turning' : 'Walking'} ${direction}. Next: ${segment().direction} in ${metres()} metres.`, 'path-turn', 4);
       } else guide();
     },

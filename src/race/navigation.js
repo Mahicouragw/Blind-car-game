@@ -303,6 +303,7 @@ export function createAnnouncementDirector(config = {}) {
       const s = getSettings();
       const out = [];
       const t = now();
+      if (race.lap !== state.calloutLap) { state.callouts.clear(); state.calloutLap = race.lap; }
       const warn = warningMetres();
       const ff = frequencyFactor();
 
@@ -455,61 +456,20 @@ export function createAnnouncementDirector(config = {}) {
         });
       }
 
-      // --------------------------- distance callouts ("Turn left in 500 m")
-      // The driver asked for METRES, not seconds - "it should say like you
-      // should turn left 500 m, 300 m, 100 m", held to every 3-5 seconds on
-      // the approach - and only the CURRENT distance, never a count that has
-      // gone stale. The number said is the live distance snapped to 50 m bands
-      // (25 m, then 10 m, close in), so it walks 500, 450, 400 ... 300 ... 100
-      // as the corner arrives and can never describe a moment that has passed.
-      if (racingNow && corner && facts.speed > 2.5) {
-        const dist = corner.distanceM;
-        if (dist <= 500 && dist > 25) {
-          const rec =
-            state.callouts.get(corner.id) ?? { lastAt: -Infinity, lastNumber: null, first: false };
-          const snap = (d) =>
-            d <= 60 ? Math.round(d / 10) * 10 : d <= 150 ? Math.round(d / 25) * 25 : Math.round(d / 50) * 50;
-          const number = snap(dist);
-          const since = t - rec.lastAt;
-          // The player's pacing: "hold per 3 second 5 seconds". A new number is
-          // said at most every 3 s; silence never lasts more than 5 s.
-          if ((number !== rec.lastNumber && since >= 3000) || since >= 5000) {
-            rec.lastAt = t;
-            rec.lastNumber = number;
-            let kindHint = '';
-            let sideHint = '';
-            if (!rec.first) {
-              kindHint =
-                corner.kind === 'chicane'
-                  ? 'Speed breakers ahead. Slow down. '
-                  : corner.severity === 'hairpin'
-                    ? 'Watch out. Sharp turn. '
-                    : '';
-              const look = facts.look;
-              if (look) {
-                const leftTight = look.left.barrier || look.left.tight;
-                const rightTight = look.right.barrier || look.right.tight;
-                if (leftTight && !rightTight) sideHint = ' The left is tight. The right is clear, so you can go right.';
-                else if (rightTight && !leftTight) sideHint = ' The right is tight. The left is clear, so you can go left.';
-                else if (leftTight && rightTight) sideHint = ' Both sides are tight. Keep in the middle.';
-              }
-            }
-            rec.first = true;
-            state.callouts.set(corner.id, rec);
-            out.push({
-              text: `${kindHint}Turn ${corner.direction} in ${number} metres.${sideHint}`,
-              concise: `Turn ${corner.direction}, ${number} metres.`,
-              priority: 3,
-              key: `calls.${corner.id}`,
-              cooldownMs: 0,
-              ttlMs: 6000,
-              interrupt: true,
-              tag: 'corner',
-            });
-          } else {
-            state.callouts.set(corner.id, rec);
-          }
+      // Exactly two routine turn calls: first at 500m, final at 50m.
+      // If visibility starts on a shorter leg, state its actual distance.
+      if (racingNow && corner && facts.speed > 2.5 && corner.distanceM <= 500) {
+        const rec = state.callouts.get(corner.id) ?? { early: false, now: false };
+        const urgent = corner.distanceM <= 50;
+        if ((urgent && !rec.now) || (!urgent && !rec.early)) {
+          const number = Math.max(50, Math.round(corner.distanceM / 50) * 50);
+          const text = urgent ? `Turn ${corner.direction} now.` : `Turn ${corner.direction} in ${number} metres.`;
+          rec.early = true; if (urgent) rec.now = true;
+          out.push({ text, concise: text, priority: urgent ? 4 : 3,
+            key: `calls.${corner.id}.${urgent ? 'now' : 'early'}`, cooldownMs: 0,
+            ttlMs: urgent ? 1500 : 5000, interrupt: true, tag: 'corner' });
         }
+        state.callouts.set(corner.id, rec);
       }
 
       // ------------------------------------------------- the side scout
@@ -561,7 +521,7 @@ export function createAnnouncementDirector(config = {}) {
                     ? `Steer ${rec.steer} to get back on. ${rec.facingTrackWay ? '' : 'You are facing the wrong way, so turn around first. '}`
                     : ''
                 }${facts.surface === 'gravel' ? 'You are in the gravel trap.' : 'You are on the grass.'}`
-              : `Still off the track. Steer ${rec?.steer ?? 'left'} and keep your speed down. Recovery will place you back on the racing line if you stop.`,
+              : `Still off the track. Steer ${rec?.steer ?? 'left'} and keep your speed down. If you cannot recover, stop and choose Try again when it is offered.`,
             concise: `Off track. Steer ${rec?.steer ?? 'left'}.`,
             priority: 4,
             key: 'offTrack',
@@ -672,7 +632,16 @@ export function createAnnouncementDirector(config = {}) {
         }
       }
 
-      return out;
+      // Old corner warnings, coaches, speed/position reports and barrier scout
+      // must not fill the 500m→50m silence. Critical off-track/wrong-way safety
+      // events are retained; explicit player requests are outside this director.
+      return out.filter(item => {
+        if (/^(warn\.|brake\.|brakenow\.|turnin\.)/.test(item.key ?? '')) return false;
+        if (racingNow && corner && corner.distanceM <= 500) {
+          return item.key?.startsWith('calls.') || item.essential === true;
+        }
+        return true;
+      });
     },
 
     /** Explicit lines the game triggers on discrete events. */

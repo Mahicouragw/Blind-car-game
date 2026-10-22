@@ -151,7 +151,7 @@ test('demonstrating a gesture is what unlocks the tutorial step', () => {
   // menu button behind the tutorial, which is not what is under test here.
   bus.emit('gesture:tap', { zone: { role: 'driving', element: { click() {} } } });
   bus.emit('gesture:doubleTap', { zone: { role: 'driving', element: { click() {} } } });
-  // Double-tap-and-HOLD is the handbrake (a quick double tap only brakes).
+  // Double-tap-and-HOLD sounds the horn (a quick double tap only brakes).
   bus.emit('gesture:doubleTapHold', { zone: { role: 'driving', element: { click() {} } } });
   // `dx`, not `totalDx`: this test used to hand-write a field the recognizer
   // never emits, which is precisely why the suite stayed green while the real
@@ -160,7 +160,7 @@ test('demonstrating a gesture is what unlocks the tutorial step', () => {
   bus.emit('gesture:dragEnd', { zone: { role: 'driving', id: 'drivingSurface' }, dx: -140 });
   bus.emit('gesture:circle', { zone: { role: 'driving' } });
   const report = harness.report();
-  for (const key of ['accelerated', 'coasted', 'braked', 'handbraked', 'steered', 'uturned']) {
+  for (const key of ['accelerated', 'coasted', 'braked', 'horned', 'steered', 'uturned']) {
     assert.ok(report[key], `${key} should be recorded once performed`);
   }
 });
@@ -181,7 +181,7 @@ test('Game TalkBack settings opens, and stays speaking when guidance is off', ()
   app.screens.openSettings();
   assert.equal(app.screens.current.id, 'settings');
   const body = document.body.textContent;
-  for (const label of ['Game TalkBack', 'Speech volume', 'Speech rate', 'Music', 'Sound effects', 'Navigation announcements', 'Corner warning distance', 'Spoken speed and lap updates', 'Close and return']) {
+  for (const label of ['Game TalkBack', 'Speech volume', 'Speech rate', 'Music', 'Sound effects', 'Navigation announcements', 'Music volume', 'Sound effects volume', 'Spoken speed and lap updates', 'Close and return']) {
     assert.ok(body.includes(label), `settings screen is missing "${label}"`);
   }
 

@@ -72,6 +72,7 @@ export function createRaceScreen(config) {
     quality = 'medium',
     onFinish,
     onAbort,
+    onRetryNeeded,
   } = config;
 
   const q = QUALITY[quality] ?? QUALITY.medium;
@@ -172,7 +173,7 @@ export function createRaceScreen(config) {
     lastThrottleSay: -99,
     direction: null,
     lastDirectionSay: -99,
-    recoverIn: 0,
+    awaitingRetry: false,
     recoveries: 0,
     countdown: 3.999,
     countdownStep: 3,
@@ -300,7 +301,7 @@ export function createRaceScreen(config) {
       `On the grid, position ${race.player.gridPosition} of ${race.racers.length}, for ${intToWords(laps)} ${laps === 1 ? 'lap' : 'laps'} of the Vettaru circuit.`,
       'Hold your finger anywhere on the screen to accelerate. Release to coast.',
       'Tap once to brake. A quick double tap brakes too.',
-      'Double tap and hold for the handbrake, which makes the car slide.',
+      'Double tap and hold the second press over one second for the recorded car horn. Release to stop the horn. Keyboard Space is still the handbrake.',
       'Drag left or right to steer. The car turns gradually, so hold the drag through the corner. After the turn, let go of the steering: the wheel straightens itself. Then accelerate.',
       'Draw a circle with your finger to turn around.',
       'Swipe straight down to reverse.',
@@ -505,6 +506,7 @@ export function createRaceScreen(config) {
     }
 
     if (next === previous) return;
+    if (S.quietApproach && !reversing && Math.abs(errDeg) < 90) { S.direction = next; return; }
     // A stationary car has no useful direction to report, and the car is jostled
     // around on the grid and while being respawned.
     if (speedKph < DIRECTION_MIN_SPEED_KPH && next !== 'backward') {
@@ -533,7 +535,15 @@ export function createRaceScreen(config) {
     });
   }
 
+  function requestRetry() {
+    if (S.awaitingRetry) return;
+    S.awaitingRetry = true; vehicle.speed = 0; race.player.speed = 0;
+    drivingInput?.reset?.(); audio?.horn?.stop();
+    if (onRetryNeeded) onRetryNeeded();
+    else { S.paused = true; audio?.engine?.stop(); say('The car is stopped. Choose Try again when ready.', { priority: 4, essential: true, interrupt: true }); }
+  }
   function stepPlayer(dt) {
+    if (S.awaitingRetry) return;
     const input = drivingInput.update(dt);
     const surf = resolveSurface(track, vehicle.x, vehicle.z);
 
@@ -591,13 +601,6 @@ export function createRaceScreen(config) {
         if (audio?.crash) audio.crash(severity);
         else audio?.play('barrier-medium', { group: 'sfx', volume: severity });
 
-        // Come back automatically. Leaving a player stopped against a barrier with
-        // no visible cue is a dead end, so a solid hit schedules a return to the
-        // racing line: announced, at a modest speed, with the car in full working
-        // order. The delay lets the crash be felt before the car is moved.
-        if (res.impactSpeed > 9 && S.phase === RACE_PHASE.RACING) {
-          S.recoverIn = Math.min(S.recoverIn > 0 ? S.recoverIn : 1.1, 1.1);
-        }
         navigator.vibrate?.(gameState?.settings?.haptics ? (hard ? [60, 30, 90] : 45) : 0);
         say(hard ? 'Heavy barrier contact. Check your speed.' : 'Barrier contact.', {
           priority: SPEECH_PRIORITY.CRITICAL,
@@ -606,6 +609,7 @@ export function createRaceScreen(config) {
           interrupt: true,
           essential: true,
         });
+        if (S.phase === RACE_PHASE.RACING) { requestRetry(); return; }
       }
     }
 
@@ -640,48 +644,18 @@ export function createRaceScreen(config) {
           else audio?.play('barrier-medium', { group: 'sfx', volume: hit });
           navigator.vibrate?.(gameState?.settings?.haptics ? 30 : 0);
           say(`Contact with ${other.name}.`, { priority: SPEECH_PRIORITY.HIGH, key: 'carContact', cooldownMs: 2200, interrupt: true });
-          // A hard hit on another car schedules the same automatic repair as a
-          // barrier, so being wedged against an opponent is not a dead end.
-          if (res.impactSpeed > 9 && S.phase === RACE_PHASE.RACING) {
-            S.recoverIn = Math.min(S.recoverIn > 0 ? S.recoverIn : 1.1, 1.1);
-          }
+          if (S.phase === RACE_PHASE.RACING) { requestRetry(); return; }
         }
       }
     }
 
     // --- off-track recovery ---
-    // ------------------------------------------------- automatic post-crash return
-    // A car left wedged against a barrier cannot be recovered by a player who
-    // cannot see where the wall is, so a significant hit returns it to the racing
-    // line by itself. This is deliberately generous: it is a recovery, not a
-    // penalty, and the car comes back fully working.
-    if (S.recoverIn > 0 && S.phase === RACE_PHASE.RACING) {
-      S.recoverIn -= dt;
-      if (S.recoverIn <= 0) {
-        S.recoverIn = 0;
-        S.recoveries += 1;
-        respawnOnTrack(vehicle, track, surf.near.s, { speed: 10 });
-        drivingInput?.reset?.();
-        S.direction = null;
-        S.offTrackTimer = 0;
-        S.recoveryOffered = false;
-        say('Repaired and back on the racing line. Carry on.', {
-          priority: SPEECH_PRIORITY.CRITICAL,
-          interrupt: true,
-          essential: true,
-          key: 'repaired',
-          cooldownMs: 1500,
-        });
-        audio?.play('ui-confirm', { group: 'sfx', volume: 0.5 });
-      }
-    }
-
     if (surf.offTrack) {
       S.offTrackTimer += dt;
       const limit = level.respawnGraceS ?? 3.5;
       if (S.offTrackTimer > limit * 0.55 && !S.recoveryOffered) {
         S.recoveryOffered = true;
-        say('You are off the track. Keep driving toward the racing line, or stop and the marshals will recover you.', {
+        say('You are off the track. Return toward the racing line. If you cannot recover, the car stops and offers Try again.', {
           priority: SPEECH_PRIORITY.CRITICAL,
           key: 'recoveryOffer',
           cooldownMs: 6000,
@@ -689,10 +663,11 @@ export function createRaceScreen(config) {
           essential: true,
         });
       }
-      // Stopped off track, or well past the level's margin: safe respawn.
+      // Stopped or stranded off track: stop and offer manual Try again. R remains an explicit recovery request.
       const tooFar = Math.abs(surf.near.lateral) > (level.recoveryMarginM ?? 12);
       const stopped = Math.abs(vehicle.speed) < 1.2 && S.offTrackTimer > limit * 0.7;
-      if (input.consumeRespawn || tooFar || stopped || S.offTrackTimer > limit * 2.4) {
+      if (!input.consumeRespawn && (tooFar || stopped || S.offTrackTimer > limit * 2.4)) { requestRetry(); return; }
+      if (input.consumeRespawn) {
         respawnOnTrack(vehicle, track, surf.near.s, { speed: 8 });
         S.offTrackTimer = 0;
         S.recoveryOffered = false;
@@ -782,7 +757,7 @@ export function createRaceScreen(config) {
             priority: SPEECH_PRIORITY.HIGH,
             cooldownMs: 0,
           });
-        } else if (who) {
+        } else if (who && !S.quietApproach) {
           say(`${who} completed a lap.`, { priority: SPEECH_PRIORITY.LOW, key: `lapOther.${who}.${e.lap}`, cooldownMs: 9000 });
         }
       } else if (e.type === 'finish') {
@@ -866,6 +841,7 @@ export function createRaceScreen(config) {
   function updateVoice() {
     const surf = resolveSurface(track, vehicle.x, vehicle.z);
     const facts = navigationFacts(track, vehicle, { surface: surf.surface, car: playerCar.physics, gripMultiplier: level.gripMultiplier ?? 1 });
+    S.quietApproach = !!(facts.nextCorner && facts.nextCorner.distanceM <= 500);
     const opponents = opponentsNearPlayer(race, relativeBearing, 55);
     const items = director.update(
       facts,
@@ -924,6 +900,7 @@ export function createRaceScreen(config) {
       } else if (S.phase === RACE_PHASE.COUNTDOWN) tickCountdown(FIXED_DT);
       else if (S.phase === RACE_PHASE.RACING) {
         stepPlayer(FIXED_DT);
+        if (S.paused || S.awaitingRetry) return;
         stepAi(FIXED_DT);
       } else if (S.phase === RACE_PHASE.FINISHED) {
         // Roll to a stop; no more inputs.
@@ -1068,13 +1045,14 @@ export function createRaceScreen(config) {
     pause() {
       S.paused = true;
       audio?.engine?.stop();
+      audio?.horn?.stop();
       audio?.skid?.stop();
       audio?.stopGroup?.('sfx');
       speech?.stop();
       return api;
     },
     resume() {
-      if (!S.paused) return api;
+      if (!S.paused || S.awaitingRetry) return api;
       S.paused = false;
       S.lastFrame = performance.now();
       if (S.phase === RACE_PHASE.RACING) {
@@ -1094,6 +1072,7 @@ export function createRaceScreen(config) {
       S.running = false;
       if (rafId) cancelAnimationFrame(rafId);
       audio?.engine?.stop();
+      audio?.horn?.stop();
       audio?.skid?.stop();
       audio?.stopGroup?.('sfx');
       speech?.stop();
@@ -1105,6 +1084,7 @@ export function createRaceScreen(config) {
       window.removeEventListener('resize', resize);
       window.removeEventListener('orientationchange', resize);
       audio?.engine?.stop();
+      audio?.horn?.stop();
       audio?.skid?.stop();
       audio?.stopGroup?.('sfx');
       for (const mesh of carMeshes.values()) mesh.dispose();

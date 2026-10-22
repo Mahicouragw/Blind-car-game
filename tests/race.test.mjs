@@ -288,61 +288,34 @@ function director(settings = {}) {
   return { d, tick: (ms) => (t += ms) };
 }
 
-test('a corner is warned once, at the configured distance, and not repeated', () => {
-  const { d } = director();
-  const hairpin = track.zones.find((z) => z.id === 'zone.corner.hairpin');
-  const far = g.pointAt(g.normaliseS(hairpin.from - 400));
-  let items = d.update(navigationFacts(track, { x: far.x, z: far.z, heading: far.heading, speed: 30 }, {}), { lap: 1, totalLaps: 2, phase: 'racing' });
-  // Nothing about the HAIRPIN at 400 m (a nearer corner may legitimately be
-  // previewed here - the 5-10 second look-ahead works on whatever is close).
-  const aboutHairpin = (i) => /hairpin/i.test(String(i.key ?? '') + String(i.text ?? ''));
-  assert.equal(items.filter((i) => i.tag === 'corner' && aboutHairpin(i)).length, 0, 'nothing at 400 m');
-
-  const near = g.pointAt(g.normaliseS(hairpin.from - 90));
-  items = d.update(navigationFacts(track, { x: near.x, z: near.z, heading: near.heading, speed: 30 }, {}), { lap: 1, totalLaps: 2, phase: 'racing' });
-  // Count only the warn.* items: the turn-in and straighten-up coaching lines
-  // also carry the corner tag and may share the frame with the warning.
-  const isWarn = (i) => String(i.key ?? '').startsWith('warn.');
-  const warnings = items.filter(isWarn);
-  assert.equal(warnings.length, 1, 'one warning inside the warning distance');
-  assert.match(warnings[0].text, /Hairpin/);
-
-  items = d.update(navigationFacts(track, { x: near.x, z: near.z, heading: near.heading, speed: 30 }, {}), { lap: 1, totalLaps: 2, phase: 'racing' });
-  assert.equal(items.filter(isWarn).length, 0, 'the same corner is not warned twice');
+test('fixed turn guidance warns once early, once at 50m, never intermediate distances', () => {
+  const {d,tick}=director();
+  const p=g.pointAt(200);
+  const base=navigationFacts(track,{x:p.x,z:p.z,heading:p.heading,speed:30},{});
+  const facts=m=>({...base,nextCorner:{...base.nextCorner,distanceM:m}});
+  const race={lap:1,totalLaps:2,phase:'racing'};
+  const early=d.update(facts(500),race); assert.equal(early.length,1); assert.match(early[0].text,/in 500 metres/);
+  for(const m of [450,300,100,51]) {tick(15000); assert.deepEqual(d.update(facts(m),race),[]);}
+  const now=d.update(facts(50),race); assert.equal(now.length,1); assert.match(now[0].text,/Turn (left|right) now/);
+  assert.deepEqual(d.update(facts(30),race),[]);
+  assert.ok(d.update(facts(500),{...race,lap:2}).some(i=>i.key.startsWith('calls.')),'new lap can warn again');
 });
 
-test('the warning distance setting moves the announcement', () => {
-  // Find a corner with a clear approach, then a distance at which that corner is
-  // genuinely the next one. Sampling blindly can land on a different corner and
-  // would then prove nothing about the setting.
-  const corner = track.zones.find((z) => z.id === 'zone.corner.t7');
-  let clearDistance = 0;
-  for (let d = 10; d <= 260; d += 5) {
-    const p = g.pointAt(g.normaliseS(corner.from - d));
-    const f = navigationFacts(track, { x: p.x, z: p.z, heading: p.heading, speed: 30 }, {});
-    if (f.nextCorner?.id !== corner.id) break;
-    clearDistance = d;
+test('legacy warning-distance preference cannot reintroduce intermediate chatter', () => {
+  const p=g.pointAt(200);
+  const base=navigationFacts(track,{x:p.x,z:p.z,heading:p.heading,speed:30},{});
+  for(const warningDistance of ['short','normal','long']) {
+    const {d,tick}=director({warningDistance}); const race={lap:1,totalLaps:2,phase:'racing'};
+    d.update({...base,nextCorner:{...base.nextCorner,distanceM:500}},race); tick(10000);
+    assert.deepEqual(d.update({...base,nextCorner:{...base.nextCorner,distanceM:120}},race),[]);
+    assert.match(d.update({...base,nextCorner:{...base.nextCorner,distanceM:49}},race)[0].text,/now/);
   }
-  assert.ok(clearDistance >= 130, `the approach to ${corner.name} is clear for ${clearDistance} m`);
-  const sample = 120; // between the short (70 m) and long (190 m) settings
-  assert.ok(sample < clearDistance, 'the sample point is inside the clear approach');
-
-  const p = g.pointAt(g.normaliseS(corner.from - sample));
-  const facts = navigationFacts(track, { x: p.x, z: p.z, heading: p.heading, speed: 30 }, {});
-  const early = director({ warningDistance: 'long' });
-  const late = director({ warningDistance: 'short' });
-  assert.equal(early.d.warningMetres(), 190);
-  assert.equal(late.d.warningMetres(), 70);
-
-  const about = (items) => items.filter((i) => i.tag === 'corner' && i.text.includes('Lighthouse'));
-  assert.equal(about(early.d.update(facts, { lap: 1, totalLaps: 2, phase: 'racing' })).length, 1, 'the long setting warns at 120 m');
-  assert.equal(about(late.d.update(facts, { lap: 1, totalLaps: 2, phase: 'racing' })).length, 0, 'the short setting does not warn yet at 120 m');
 });
 
 test('an overtake is only announced when the position really changed', () => {
   const { d } = director();
   const p = g.pointAt(200);
-  const facts = navigationFacts(track, { x: p.x, z: p.z, heading: p.heading, speed: 30 }, {});
+  const facts = { ...navigationFacts(track, { x: p.x, z: p.z, heading: p.heading, speed: 30 }, {}), nextCorner: null };
   let items = d.update(facts, { lap: 1, totalLaps: 2, position: 3, fieldSize: 3, phase: 'racing' });
   assert.equal(items.filter((i) => /overtook/i.test(i.text)).length, 0, 'no overtake claim on the first report');
 
@@ -358,7 +331,7 @@ test('an overtake is only announced when the position really changed', () => {
 test('a lap is only announced when the lap count really increases', () => {
   const { d } = director();
   const p = g.pointAt(200);
-  const facts = navigationFacts(track, { x: p.x, z: p.z, heading: p.heading, speed: 30 }, {});
+  const facts = { ...navigationFacts(track, { x: p.x, z: p.z, heading: p.heading, speed: 30 }, {}), nextCorner: null };
   d.update(facts, { lap: 1, totalLaps: 2, position: 1, phase: 'racing' });
   let items = d.update(facts, { lap: 1, totalLaps: 2, position: 1, phase: 'racing' });
   assert.equal(items.filter((i) => /Lap \d+ of/.test(i.text)).length, 0, 'no lap claim while the lap is unchanged');
@@ -386,7 +359,7 @@ test('off-track guidance is essential and repeats only after a pause', () => {
 test('opponents are announced with their real name, side and closing speed', () => {
   const { d, tick } = director();
   const p = g.pointAt(600);
-  const facts = navigationFacts(track, { x: p.x, z: p.z, heading: p.heading, speed: 30 }, {});
+  const facts = { ...navigationFacts(track, { x: p.x, z: p.z, heading: p.heading, speed: 30 }, {}), nextCorner: null };
   const opp = [{ id: 'ai0', name: 'Joseph', side: 'left', distanceM: 12, closingSpeedKph: 20 }];
   const items = d.update(facts, { lap: 1, totalLaps: 2, phase: 'racing' }, opp);
   const mention = items.filter((i) => /Joseph/.test(i.text));
@@ -403,7 +376,7 @@ test('concise speech shortens the wording', () => {
   const p = g.pointAt(g.normaliseS(hairpin.from - 80));
   const items = d.update(navigationFacts(track, { x: p.x, z: p.z, heading: p.heading, speed: 25 }, {}), { lap: 1, totalLaps: 2, phase: 'racing' });
   const warn = items.find((i) => i.tag === 'corner');
-  assert.ok(warn.concise.length < warn.text.length, `concise "${warn.concise}" is shorter than "${warn.text}"`);
+  assert.equal(warn.concise,warn.text,'turn cues are already concise; no extra wording');
 });
 
 test('the countdown lines are three, two, one and go', () => {

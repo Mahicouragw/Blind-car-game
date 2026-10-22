@@ -60,7 +60,7 @@ Last run: **307 tests, 307 pass, 0 fail**, Node v22.22.3, ~20 s.
 | `tests/dom.smoke.test.mjs` | 24 | Boots the real game in jsdom and drives it with gesture events |
 | `tests/garage.test.mjs` | 21 | Pricing and every refusal path, tyre grip measured through the real physics step, save round-trip and tamper rejection, and grime reaching the car's materials |
 | `tests/publish.test.mjs` | 37 | Deployment safety: relative asset paths, the module graph, what the staged artefact does and does not contain, the dev server's path guard over a real socket, and the post-deploy verifier in both directions |
-| `tests/audio.test.mjs` | 26 | The audio mix against a fake Web Audio graph: ducking held for a whole utterance, engine response to rpm, load and road speed, lazy loading of the music beds, and per-track licence and attribution obligations |
+| `tests/audio.test.mjs` | 26 | The audio mix against a fake Web Audio graph: no speech-driven gain changes, independent manual volumes and horn lifecycle, engine response to rpm, load and road speed, lazy loading of the music beds, and per-track licence and attribution obligations |
 | `tests/music.test.mjs` | 16 | The music director: scene and chapter to track mapping, deliberate silence, settings interaction, and teardown |
 | `tests/integration.test.mjs` | 23 | **No mocks**: real touch events through the real recognizer, onto the real bus, into the real driving input. Holding applies throttle, releasing cuts it, a single tap and a quick double tap both brake, a double-tap-and-hold pulls the handbrake, dragging steers gradually, the wheel self-centres, swiping down reverses, a circle asks for a U-turn, menu gestures never touch the car, and pressEnd follows pressStart exactly once for every kind of press |
 | **Total** | **307** | |
@@ -134,8 +134,7 @@ mentions the opposite one. Going off track produces a recovery direction, and it
 is the correct one. "Too fast" is only reported when the car genuinely cannot make
 the corner. Bearings are computed in the player's frame.
 
-A corner is warned **once**, at the configured distance, and not repeated. **The
-warning distance setting measurably moves the announcement.** An overtake is
+A corner is called **once at 500m and once at 50m**, with no intermediate chatter. Legacy warning-distance preferences cannot add extra calls. An overtake is
 announced **only when the position really changed**. A lap is announced **only
 when the lap count really increases**. Off-track guidance is essential and repeats
 only after a pause. Opponents are announced with their real name, side and closing
@@ -361,8 +360,7 @@ but not touch hardware, scroll physics, `pointer` event coalescing, or a real GP
    **they must be the same instant**.
 8. Drive a lap. Confirm corner warnings name the real next corner and direction.
 9. Deliberately drive off track. Confirm the recovery guidance names the correct
-   side and direction, and that stopping places you back on the line facing
-   forwards.
+   side and direction, and that a crash/stranding stops and selects Try again. Verify nothing restarts until you activate it.
 10. Rotate the device and resize. Confirm the HUD, minimap and gesture zones
     follow.
 11. Switch apps mid-race and come back. **The throttle must be released** and the
@@ -370,9 +368,9 @@ but not touch hardware, scroll physics, `pointer` event coalescing, or a real GP
 12. Finish. Confirm the result matches where you actually crossed the line.
 13. Refresh. Confirm your chapters, level, car and settings are restored.
 
-### 2. The rendered 3D frame — **UNTESTED**
+### 2. Physical-device 3D rendering — **UNTESTED** (software-WebGL smoke verified below)
 
-**Why:** no WebGL in the sandbox. The scene graph, geometry, materials, lighting
+**Why:** the sandbox smoke uses software WebGL, not a physical phone GPU. The scene graph, geometry, materials, lighting
 and object counts are all constructed and asserted headless (896 scene objects,
 ~316 draw calls, 11 instanced meshes), but **the drawn image was never observed**.
 
@@ -389,8 +387,7 @@ Watch the frame rate on a mid-range phone; drop to `low` quality in
 **Why:** jsdom has no speech synthesiser; the tests use a fake one.
 
 **How to test:** confirm a voice is picked, that rate/pitch/volume apply, that
-interrupts actually cut off the previous utterance, and that ducking makes speech
-clearly intelligible over the engine. Then remove all TTS voices from the device
+interrupts actually cut off the previous utterance, and that engine/music/effects stay steady throughout speech, with no dip or recovery rise. Then remove all TTS voices from the device
 and confirm the fallback message appears **and** the caption strip still shows
 every line.
 
@@ -403,7 +400,7 @@ playback was not heard.
 
 **How to test:** confirm the engine loop's pitch rises with rpm, the two layers
 crossfade, tyre squeal tracks slip, the gear-change click is audible, impacts are
-graded by severity, and music ducks under speech. Then block one asset in devtools
+graded by severity, the horn sounds recorded and stops on release, and music does not change with speech. Then block one asset in devtools
 and confirm the game reports it missing, stays silent for that sound, **does not
 substitute anything**, and remains playable.
 
@@ -498,7 +495,7 @@ each one is covered:
 | Accelerate hold and release | **Automated** (`dom.smoke`: `pressStart`/`pressEnd` recorded by the harness) |
 | Braking while moving | **Automated** (`race.test`: `doubleTap` sets brake; physics test brakes from 100 km/h) |
 | U-turn | **Automated** (`gestures.test` circle detection; `race.test` asserts no instant lateral teleport) |
-| Spoken corner warnings | **Automated** (`race.test`: real corner, real direction, once, at the configured distance) |
+| Spoken corner warnings | **Automated** (`race.test`: real direction, fixed 500m/50m, no intermediate chatter) |
 | Opponent announcements | **Automated** (`race.test`: real name, side, closing speed, no nagging) |
 | Countdown sync | **Partly automated.** `race.test` asserts the Three/Two/One/Go lines; `raceScreen.js` fires the spoken count, the recorded voice sample and the lights from the same event. **The visual/audio simultaneity on hardware is untested.** |
 | Race completion and restart | **Automated** (`race.test` finish order; `dom.smoke` results screen has Restart and Return to menu) |
@@ -510,3 +507,38 @@ each one is covered:
 | Keyboard navigation and focus management | **Partly automated.** `dom.smoke` proves swipe moves the focus ring and taps click real buttons; the keyboard map is exercised through the same bus events. **Tab order in a real browser is untested.** |
 | Resize and orientation change | **Not tested.** `raceScreen.resize()` and the zone remeasure are wired to both events; no automated coverage |
 | Recovery from invalid states | **Automated** (`story.test`: corrupted save repaired, unparseable storage falls back, no storage still runs, cheated unlocks rejected) |
+
+## Round 8 verification (2026-10-22)
+
+- **396/396 Node tests**: fixed real/fake gain graphs; 20%/70% defaults; independent
+  persistent 5% controls and clamps; one-time default-pair migration; horn threshold,
+  no handbrake/throttle/short-hold-stop on release, cancel/background handling;
+  500m→50m silence across elapsed time, new legs/laps; manual retry cursor and
+  indefinite stopped state. Existing forest combat/loot/heal/phone regressions pass.
+- **Chromium Pixel-7 touch emulation:** real mobile taps plus CDP touch hold decoded
+  the CC0 horn (3.2006576s), sounded it after >1s, stopped on release, retained cruise,
+  retained single-tap brake, confirmed single-tap retry vs double-tap activation,
+  exercised independent volume buttons, and verified Exit silence. **Actual Web Audio
+  group gains before/during/after speech were identical:** SFX .7, music .2, voice 1,
+  engine .7 (floating-point representation within 1e-6). No page exceptions.
+- **Original 3D simulation:** drove into a barrier through real keyboard input;
+  collision stopped at 0m/s, froze the clock and position for >3 seconds, and a real
+  phone single tap did not retry. A phone double tap on the Try again cursor made
+  a new attempt. No page exceptions. Software WebGL, not physical phone performance.
+- Round-7 Chromium phone forest/attack/sit/heal/XP/audio/Exit regression reran PASS.
+- **Not verified:** listening by a human, physical Android, TalkBack touch exploration,
+  actual loudness/intelligibility on a phone speaker, or hardware frame/audio timing.
+
+Optional browser regressions (Node22+, local server on8080):
+
+```sh
+npm install --no-save --package-lock=false playwright
+npx playwright install --with-deps chromium
+npm run serve -- 8080
+# In another terminal:
+node scripts/phone-smoke.mjs
+node scripts/simulation-retry-smoke.mjs
+```
+
+Set `GAME_TEST_URL` if using another local test server. These checks are not part
+of `npm test`, which intentionally does not require a browser installation.

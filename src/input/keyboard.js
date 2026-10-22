@@ -49,7 +49,7 @@ export function keyboardHelpLines() {
   return [
     'Keyboard controls. Accelerate: W or the up arrow, and it accelerates only while you hold it.',
     'Brake: S or the down arrow, held.',
-    'Handbrake: the space bar, held. The handbrake makes the car slide, the same as a double tap on the driving surface.',
+    'Handbrake: the space bar, held. The handbrake makes the car slide. The touch double-tap-and-hold now sounds the horn, not the handbrake.',
     'Steer gradually: A and D, or the left and right arrows. Steering is never instant.',
     'Request a U-turn: U. It only turns where the track allows it.',
     'Recover onto the track: R.',

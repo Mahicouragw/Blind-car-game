@@ -36,16 +36,15 @@ export const DRIVING_ZONE = {
   // never 300 ms later. Tap and double tap now mean the same thing (brake), so
   // there is no longer any reason to delay the first tap to disambiguate - and
   // the delay is exactly what made taps feel dead in play-testing. The
-  // double-tap-and-hold handbrake chain still resolves on top of this.
+  // double-tap-and-hold horn chain still resolves on top of this.
   immediateTap: true,
   hold: true,
   allowCircle: true,
   allowSwipe: true,
   preventScroll: true,
-  // The driving surface owns a double-tap-and-hold meaning (the handbrake), so
-  // a quick double tap still brakes while a held second tap drifts. See R4 in
-  // input/gestures.js.
+  // A quick double tap brakes; holding the second tap for one second sounds the horn.
   doubleTapHoldTarget: true,
+  doubleTapHoldMs: 1000,
 };
 
 /** How fast a swipe moves the steering target, per second. */
@@ -114,6 +113,7 @@ export function createDrivingInput(config = {}) {
     respawnRequest: false,
     holding: false,
     braking: false,
+    horn: false,
   };
 
   // Full lock needs about 130 CSS px of drag, roughly a third of a phone
@@ -125,6 +125,7 @@ export function createDrivingInput(config = {}) {
   let dragActive = false;
   let dragStartX = 0;
   let off = [];
+  let brakeTimer = null;
 
   function on(type, fn) {
     bus.on(type, fn);
@@ -134,10 +135,14 @@ export function createDrivingInput(config = {}) {
   // ---- press and hold to accelerate; release to coast ----
   on('gesture:pressStart', (d) => {
     if (d.zone?.role !== DRIVING_ROLE) return;
-    state.holding = true;
-    state.throttle = 1;
+    if (d.tapCount >= 2) {
+      clearTimeout(brakeTimer); brakeTimer = null;
+      state.holding = false; state.throttle = 0;
+      state.braking = false; state.brake = 0;
+    } else { state.holding = true; state.throttle = 1; }
   });
   on('gesture:pressEnd', () => {
+    if (state.horn) { state.horn = false; bus.emit('race:hornStopped', {}); }
     state.holding = false;
     state.throttle = 0;
   });
@@ -158,39 +163,26 @@ export function createDrivingInput(config = {}) {
     bus.emit('race:brakePressed', {});
   });
 
-  // ---- double tap AND HOLD is the handbrake ----
-  //
-  // The second tap held for a moment pulls the e-brake: the car slides (see
-  // HANDBRAKE_BURST_SECONDS). A quick double tap is NOT this - it brakes - so
-  // the recognizer's doubleTapHold is exactly the right gesture: same rhythm as
-  // braking, but the finger stays down for the drift.
+  // ---- double tap AND HOLD: recorded car horn, never handbrake ----
   on('gesture:doubleTapHold', (d) => {
     if (d.zone?.role !== DRIVING_ROLE) return;
-    startHandbrake();
-    bus.emit('race:handbrakeStarted', { seconds: HANDBRAKE_BURST_SECONDS });
+    state.horn = true; state.holding = false; state.throttle = 0;
+    state.braking = false; state.brake = 0;
+    clearTimeout(brakeTimer); brakeTimer = null;
+    bus.emit('race:hornStarted', {});
   });
 
   /** Brake pedal tap: held briefly, then released, exactly like tapping a pedal. */
   function startBrake() {
     state.braking = true;
     state.brake = 1;
-    setTimeout(() => {
+    clearTimeout(brakeTimer);
+    brakeTimer = setTimeout(() => {
+      brakeTimer = null;
       if (state.handbrake) return; // the handbrake owns the pedal right now
       state.braking = false;
       state.brake = 0;
     }, BRAKE_TAP_MS);
-  }
-
-  /** Handbrake pull: strong, brief, and it engages the drift physics. */
-  function startHandbrake() {
-    state.handbrake = true;
-    state.braking = true;
-    state.brake = Math.max(state.brake, 0.55);
-    setTimeout(() => {
-      state.handbrake = false;
-      state.braking = false;
-      state.brake = 0;
-    }, Math.round(HANDBRAKE_BURST_SECONDS * 1000));
   }
 
   // ---- gradual steering by drag ----
@@ -275,6 +267,9 @@ export function createDrivingInput(config = {}) {
   // Losing window focus must never leave the throttle or the handbrake on.
   on('key:up', (d) => {
     if (d.code === 'blur') {
+      clearTimeout(brakeTimer); brakeTimer = null;
+      if (state.horn) bus.emit('race:hornStopped', {});
+      state.horn = false;
       state.throttle = 0;
       state.brake = 0;
       state.holding = false;
@@ -322,6 +317,9 @@ export function createDrivingInput(config = {}) {
       return { ...state, consumeRespawn: false };
     },
     reset() {
+      clearTimeout(brakeTimer); brakeTimer = null;
+      if (state.horn) bus.emit('race:hornStopped', {});
+      state.horn = false;
       state.reversing = 0;
       state.throttle = 0;
       state.brake = 0;
@@ -336,6 +334,9 @@ export function createDrivingInput(config = {}) {
       dragActive = false;
     },
     detach() {
+      clearTimeout(brakeTimer);
+      if (state.horn) bus.emit('race:hornStopped', {});
+      state.horn = false;
       for (const [type, fn] of off) bus.off(type, fn);
       off = [];
       keyboard?.detach?.();

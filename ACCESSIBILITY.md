@@ -77,11 +77,11 @@ with the old value and the new value: *"Speech rate. 1.0 changed to 1.4."*
 | Speech voice | device voices | device default |
 | Concise speech | on/off | off |
 | Music | on/off | on |
-| Music volume | 0-100% | 50% |
+| Music volume | 0-100% | 20% |
 | Sound effects | on/off | on |
-| Sound effects volume | 0-100% | 85% |
+| Sound effects volume | 0-100% | 70% |
 | Navigation announcements | minimal / balanced / detailed | balanced |
-| Corner warning distance | short (70 m) / normal (120 m) / long (190 m) | normal |
+| Turn guidance | fixed early / final | 500 m / 50 m |
 | Car pace | slower (0.8x) / normal / faster (1.18x) | normal |
 | Race length | race default / 1 / 2 / 3 / 5 laps | race default |
 | Spoken throttle feedback | on/off | on |
@@ -94,12 +94,11 @@ with the old value and the new value: *"Speech rate. 1.0 changed to 1.4."*
 | Text size | 90-160% | 100% |
 | Hero name | text | Aarav |
 
-Volumes for **speech, music and sound effects are independent**, which is what
-keeps guidance intelligible over an engine. Independence is not enough on its
-own, though: while an announcement is being spoken, the engine drops to 22%,
-music to 16% and effects to 55% of their set volumes, and the **voice channel is
-never attenuated**. The duck is held for the whole utterance and released only
-when it finishes, so a long corner warning is not drowned out halfway through.
+Volumes for **speech, music and sound effects are independent**. Music defaults
+to 20%, effects/engine/horn to 70%. Main settings and the local game menus have
+separate increase/decrease buttons. **No speech ducking:** music, effects and
+engine gains remain unchanged during and after speech. Only manual settings,
+normal driving dynamics and lifecycle stops change their playback.
 
 **Car pace** scales the player's car and the opponents by the same factor. That
 is deliberate: slowing only the player would make *slower* mean *harder to win*.
@@ -140,7 +139,8 @@ Full rules, thresholds and conflict resolution are in
 | Swipe left / right | car selection | Previous / next car |
 | Swipe up / down | garage | Move between cars, tyres and the wash |
 | **Press and hold** | driving surface | **Accelerate**; release coasts |
-| **Double tap** | driving surface | **Handbrake / drift** — the rears lock and the car slides |
+| **Double tap** | driving surface | **Brake** |
+| **Double tap and hold >1s** | driving surface | **Recorded car horn**; release stops it |
 | Drag left / right | driving surface | **Steer, gradually** |
 | Circular drag | driving surface | Request a U-turn (only where the track allows) |
 | **Double tap and hold** | settings area | **Open Game TalkBack settings** |
@@ -177,13 +177,13 @@ demonstrated. Chapter 7 refuses to start a race until then, and says why.
 - **Per-message cooldowns**, keyed, so the same corner warning cannot nag.
 - **Frequency setting** scales every cooldown: minimal ×1.75, balanced ×1.0,
   detailed ×0.7.
-- **Warning distance setting** moves corner announcements to 70 / 120 / 190 m.
+- **Fixed turn calls:** once at 500 metres, then silence until 50 metres: Turn left/right now. No intermediate distance/coach/coin chatter. Critical recovery events and player-requested information remain available.
 - **Bounded queue** (12). When full, the *least* important queued line is
   dropped — never the more important arrival, and never the start of a passage.
 - **Preemption**: a critical warning cancels lower-priority speech; equal or
   lower priority never interrupts.
-- **Ducking**: while speech is active, music drops to 22% and engine to 30%,
-  then recovers (`DUCK_LEVELS` in `src/core/audio.js`).
+- **No ducking:** speech never lowers/restores music, effects or engine.
+- **Manual retry:** a crash/missed turn stops driving and selects Try again; only explicit activation starts a new attempt.
 
 Off-track recovery guidance is marked `essential`, so it survives even a player
 who has turned guidance off — being stranded in a gravel trap with no information

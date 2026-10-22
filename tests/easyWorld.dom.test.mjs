@@ -206,3 +206,64 @@ test('monster loot persists coins, XP, level and healing drops to the shared sav
   assert.equal(restored.easyWorld.potions,4); assert.ok(restored.coins>=15);
   app.destroy();
 });
+
+test('local sound controls independently change, clamp, announce and persist both volumes', () => {
+  const {app,store}=boot(); app.screens.openEasyWorld('ground'); const s=app.screens.current;
+  assert.equal(app.gameState.settings.musicVolume,0.2); assert.equal(app.gameState.settings.sfxVolume,0.7);
+  const activate=label=>{pick(app,label);bus.emit('gesture:doubleTap',{zone:{role:'menu'}});};
+  activate('Increase sound effects volume');
+  assert.equal(app.gameState.settings.sfxVolume,0.75); assert.equal(app.gameState.settings.musicVolume,0.2);
+  activate('Decrease music volume');
+  assert.equal(app.gameState.settings.musicVolume,0.15); assert.equal(app.gameState.settings.sfxVolume,0.75);
+  assert.match(window.speechSynthesis.spoken.join(' '),/music volume 15 percent/i);
+  assert.equal(JSON.parse(store.getItem(SAVE_KEY)).settings.musicVolume,0.15);
+  for(let i=0;i<25;i++)activate('Increase sound effects volume'); assert.equal(app.gameState.settings.sfxVolume,1);
+  for(let i=0;i<25;i++)activate('Decrease music volume'); assert.equal(app.gameState.settings.musicVolume,0);
+  assert.equal(s.isMenu,true); app.destroy();
+});
+
+test('crash selects Try again; single tap anywhere only confirms; back cannot resume the wreck', () => {
+  const {app}=boot(10); const s=start(app); s.world.state.remaining=1; s.tick(0.1);
+  assert.equal(s.playing,false); assert.equal(s.isMenu,true); assert.equal(s.world.state.speed,0);
+  assert.equal(s.focusRing.current.label,'Try again');
+  for(let i=0;i<400;i++)s.tick(0.25);
+  assert.equal(s.world.state.out,true); assert.equal(s.world.state.speed,0);
+  const wrong=s.focusItems.find(b=>b.label==='Main menu').element;
+  bus.emit('gesture:tap',{zone:{role:'menu',element:wrong}});
+  assert.equal(s.focusRing.current.label,'Try again'); assert.equal(s.world.state.out,true);
+  s.closeMenu(); assert.equal(s.isMenu,true); assert.equal(s.world.state.out,true);
+  bus.emit('gesture:doubleTap',{zone:{role:'menu',element:wrong}});
+  assert.equal(s.world.state.out,false); assert.equal(s.playing,true); assert.equal(s.world.state.speed,12);
+  assert.equal(app.gameState.save.coins,10); app.destroy();
+});
+
+test('PHONE horn: second press held >1s, release never stops or accelerates; single tap still brakes', () => {
+  const {app}=boot(); const s=start(app); let starts=0,stops=0;
+  app.audio.horn.start=()=>{starts++;return true;}; app.audio.horn.stop=()=>{stops++;};
+  const r=app.pointerBus.recognizer; let clock=0;r.setClock(()=>clock);
+  r.pointerDown(1,100,100,s.zone);clock+=50;r.pointerUp(1,100,100);
+  assert.equal(s.world.state.speed,0,'first contact retains immediate safety braking');
+  clock+=100;r.pointerDown(1,100,100,s.zone);
+  assert.equal(s.world.state.speed,12,'compound second press restores cruise');
+  clock+=950;r.tick();assert.equal(starts,0);
+  clock+=100;r.tick();assert.equal(starts,1);assert.equal(s.world.state.holding,false);
+  s.tick(0.1);assert.equal(s.world.state.speed,12);
+  clock+=2500;r.tick();s.tick(0.25);assert.equal(s.world.state.speed,12,'horn is not >3s acceleration');
+  r.pointerUp(1,100,100);assert.equal(s.world.state.speed,12,'horn release does not apply 1–2s stop');
+  assert.ok(stops>0);clock+=700;r.tick();
+  r.pointerDown(1,100,100,s.zone);clock+=50;r.pointerUp(1,100,100);
+  assert.equal(s.world.state.speed,0,'independent single tap stops');app.destroy();
+});
+
+test('horn cancellation and pagehide stop the recorded loop, without accelerating on return', () => {
+  const {app}=boot();const s=start(app);let stops=0;
+  app.audio.horn.start=()=>true;app.audio.horn.stop=()=>{stops++;};
+  const r=app.pointerBus.recognizer;let clock=0;r.setClock(()=>clock);
+  r.pointerDown(1,100,100,s.zone);clock+=50;r.pointerUp(1,100,100);clock+=100;
+  r.pointerDown(1,100,100,s.zone);clock+=1100;r.tick();
+  const before=stops;r.pointerCancel(1);assert.ok(stops>before);
+  window.dispatchEvent(new window.Event('pagehide'));const d=s.world.state.distance;s.tick(0.25);
+  assert.equal(s.world.state.distance,d);
+  window.dispatchEvent(new window.Event('pageshow'));assert.equal(s.isMenu,true);
+  assert.equal(s.world.state.holding,false);app.destroy();
+});

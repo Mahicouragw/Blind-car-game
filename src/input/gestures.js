@@ -316,7 +316,7 @@ export function createGestureRecognizer(config = {}) {
       if (chain.count >= 2) clearTimer('tapResolve');
 
       if (chain.count >= 2 && z.doubleTapHoldTarget) {
-        setTimer('doubleTapHold', T.doubleTapHoldMs, () => {
+        setTimer('doubleTapHold', z.doubleTapHoldMs ?? T.doubleTapHoldMs, () => {
           if (!touch || touch.isDrag) return;
           brakeSuppressed = true;
           clearTimer('tapResolve');
