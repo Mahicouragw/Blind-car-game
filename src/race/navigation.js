@@ -467,7 +467,7 @@ export function createAnnouncementDirector(config = {}) {
           rec.early = true; if (urgent) rec.now = true;
           out.push({ text, concise: text, priority: urgent ? 4 : 3,
             key: `calls.${corner.id}.${urgent ? 'now' : 'early'}`, cooldownMs: 0,
-            ttlMs: urgent ? 1500 : 5000, interrupt: true, tag: 'corner' });
+            ttlMs: urgent ? 1500 : 5000, interrupt: true, hardInterrupt: true, replace: true, tag: 'corner' });
         }
         state.callouts.set(corner.id, rec);
       }

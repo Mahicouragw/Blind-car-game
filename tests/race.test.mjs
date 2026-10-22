@@ -297,6 +297,8 @@ test('fixed turn guidance warns once early, once at 50m, never intermediate dist
   const early=d.update(facts(500),race); assert.equal(early.length,1); assert.match(early[0].text,/in 500 metres/);
   for(const m of [450,300,100,51]) {tick(15000); assert.deepEqual(d.update(facts(m),race),[]);}
   const now=d.update(facts(50),race); assert.equal(now.length,1); assert.match(now[0].text,/Turn (left|right) now/);
+  assert.equal(now[0].hardInterrupt,true,'50m instruction replaces older speech immediately');
+  assert.equal(now[0].replace,true);assert.equal(now[0].ttlMs,1500);
   assert.deepEqual(d.update(facts(30),race),[]);
   assert.ok(d.update(facts(500),{...race,lap:2}).some(i=>i.key.startsWith('calls.')),'new lap can warn again');
 });
