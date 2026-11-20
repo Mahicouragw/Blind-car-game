@@ -1,6 +1,6 @@
 # Audio credits, licences and honest gaps
 
-**111 sound files, 39.7 MB.** Every one is a real *file* that the game plays back;
+**121 sound files, 41.0 MB.** Every one is a real *file* that the game plays back;
 there is no oscillator, no generated noise buffer and no synthesised tone
 anywhere in this project's audio *code* — `src/core/audio.js` only ever plays
 files.
@@ -19,11 +19,11 @@ The files have three provenances, and this document records each:
    synthesised sound effect ships**: the eleven synthesised `.wav` fills this
    project once carried were deleted and replaced by these recordings. See
    [Field recordings (CC0)](#field-recordings-cc0) below.
-3. **20 AI voice clips** (1.3 MB): ten short spoken cues plus ten recorded
-   Chapter 1 story-dialogue files, all generated as `.mp3` files and preferred
-   over device speech synthesis whenever the line is one of them. These are the
-   ONLY generated audio in the project (AI voices are allowed). See
-   [AI voice clips](#ai-voice-clips) and
+3. **30 AI voice clips** (2.6 MB): ten short spoken cues plus twenty recorded
+   story-dialogue files (chapter 1 fully, chapter 2 partly), all generated as
+   `.mp3` files and preferred over device speech synthesis whenever the line
+   is one of them. These are the ONLY generated audio in the project (AI voices
+   are allowed). See [AI voice clips](#ai-voice-clips) and
    [Recorded story dialogue](#recorded-story-dialogue-ai-character-voices) below.
 
 There is no AI-generated music, no AI-generated sound effect and no placeholder
@@ -316,7 +316,7 @@ voice asset and no third-party licence applies.
 
 ## Recorded story dialogue (AI character voices)
 
-Chapter 1 of the campaign is fully recorded with AI character voices, one file
+Chapter 1 of the campaign is fully recorded with AI character voices, and chapter 2 is partly recorded, one file
 per story node in `assets/audio/story/`, played by `src/story/storyVoice.js`
 instead of device speech synthesis. Women are voiced by women and men by men;
 the cast is documented in [STORY.md](STORY.md#voice-cast) and spoken aloud on
@@ -334,6 +334,16 @@ the in-game Audio and credits screen.
 | `story/ch1_sister.mp3` | Divya | ch1_sister |
 | `story/ch1_night.mp3` | Narrator | ch1_night |
 | `story/ch1_end.mp3` | Narrator | ch1_end |
+| `story/ch2_search.mp3` | Narrator | ch2_search |
+| `story/ch2_prep.mp3` | Narrator | ch2_prep |
+| `story/ch2_prep_mother.mp3` | Sudha | ch2_prep_mother |
+| `story/ch2_prep_father.mp3` | Ramesh | ch2_prep_father |
+| `story/ch2_travel.mp3` | Narrator | ch2_travel |
+| `story/ch2_reception.mp3` | Narrator | ch2_reception |
+| `story/ch2_interview.mp3` | Narrator | ch2_interview |
+| `story/ch2_passed.mp3` | Qureshi | ch2_passed |
+| `story/ch2_failed.mp3` | Qureshi | ch2_failed |
+| `story/ch2_end.mp3` | Narrator | ch2_end |
 
 Like the UI cues above, these are original generated speech: no performer's
 recording, no corporate voice asset, no third-party licence. They bake in the
