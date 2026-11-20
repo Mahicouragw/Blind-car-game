@@ -81,6 +81,12 @@ export function createStoryVoice(config = {}) {
     clearPending();
     stopFile();
     if (!node) return { mode: 'skipped', voice: null, key: null };
+    // The beat owns the ears. A tap's leftover ("Continue") or any backlog is
+    // cut the moment the new line starts, so a recording never plays over (or
+    // under) speech that belongs to the previous moment. This is the "action
+    // supersedes the press" rule from main.js, extended to recordings, which
+    // issue no speech of their own to do the superseding.
+    stopSpeech();
 
     const profile = voiceForNode(node);
     const choicesSpoken = opts.choicesSpoken ?? '';
@@ -181,6 +187,9 @@ export function createStoryVoice(config = {}) {
     }
     const my = token;
     if (!text) return { mode: 'skipped', voice: null };
+    // A new beat cuts leftover speech like speakNode does; a follow line joins
+    // the beat it answers, so it must never silence it.
+    if (!opts.follow) stopSpeech();
     if (!storyVoicesOn()) {
       speech?.say(text, { priority: opts.priority ?? 3, essential: true, cooldownMs: 0, interrupt: true });
       if (opts.followSpoken) sayChoices(opts.followSpoken);
@@ -276,16 +285,21 @@ export function createStoryVoice(config = {}) {
     });
   }
 
+  /** Cut whatever speech is still talking: the tap's leftover, the backlog. */
+  function stopSpeech() {
+    try {
+      speech?.stop?.();
+    } catch {
+      /* a speech stub without stop */
+    }
+  }
+
   /** Silence the story voice: pending starts, the recording, and synthesis. */
   function stop() {
     token++;
     clearPending();
     stopFile();
-    try {
-      speech?.stop?.();
-    } catch {
-      /* ignore */
-    }
+    stopSpeech();
   }
 
   return { speakNode, speak, stop };

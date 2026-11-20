@@ -87,7 +87,7 @@ test('voiceForNode never returns null', () => {
 
 // ------------------------------------------------------------- recorded files
 
-test('recorded voice files cover chapters one to three', () => {
+test('recorded voice files cover chapters one to three plus the chapter four opening', () => {
   const recorded = [
     'ch1_intro', 'ch1_market', 'ch1_home', 'ch1_letter', 'ch1_argument',
     'ch1_argument_choice', 'ch1_offer', 'ch1_sister', 'ch1_night', 'ch1_end',
@@ -98,12 +98,14 @@ test('recorded voice files cover chapters one to three', () => {
     'ch2_result_unknown', 'ch3_offer', 'ch3_negotiation',
     'ch3_walked', 'ch3_saturdays', 'ch3_signed_late', 'ch3_end',
     'ch1_kindness', 'ch1_hurry', 'ch1_onions', 'ch1_quiet', 'ch1_after_fight',
+    'ch4_morning', 'ch4_floor', 'ch4_joseph', 'ch4_joseph_name', 'ch4_mithin',
+    'ch4_mithin_respect', 'ch4_lunch', 'ch4_friends', 'ch4_afternoon', 'ch4_qureshi',
   ];
   for (const id of recorded) {
     assert.equal(storyVoiceKey(id), `story-${id}`);
   }
-  assert.equal(storyVoiceKey('ch4_morning'), null);
-  assert.equal(storyVoiceKey('ch4_floor'), null);
+  assert.equal(storyVoiceKey('ch4_joseph_mumble'), null);
+  assert.equal(storyVoiceKey('ch4_keen'), null);
   assert.equal(storyVoiceKey('no-such-node'), null);
 });
 
@@ -137,7 +139,7 @@ test('a renamed hero falls back to synthesis rather than hearing the wrong name'
   assert.equal(bakedVoiceUsable('ch1_home', {}), true);
   assert.equal(bakedVoiceUsable('ch1_home', { heroName: 'Meera' }), false);
   assert.equal(bakedVoiceUsable('ch1_letter', { heroName: 'Meera' }), true);
-  assert.equal(bakedVoiceUsable('ch4_morning', { heroName: 'Aarav' }), false);
+  assert.equal(bakedVoiceUsable('ch4_keen', { heroName: 'Aarav' }), false);
 });
 
 test('the scene effect plays before the voice starts', () => {
@@ -339,7 +341,7 @@ test('an unrecorded node speaks in its character synthesis voice, never guidance
     getStoryState: () => ({ heroName: 'Aarav' }),
   });
   const res = await player.speakNode(
-    { id: 'ch4_joseph', speaker: 'Joseph', text: 'Do not stand there.', sfx: null },
+    { id: 'ch4_keen', speaker: 'Joseph', text: 'Sit down and eat.', sfx: null },
     { choicesSpoken: '3 choices.' }
   );
   assert.equal(res.mode, 'synthesis');
@@ -402,7 +404,8 @@ test('stop() cancels a recording that has not started yet', async () => {
   player.stop();
   await tick(600);
   assert.equal(audio.played.length, 0, 'a stopped line must never start late');
-  assert.equal(speech.stops, 1);
+  // One cut from the beat start, one from stop() itself.
+  assert.equal(speech.stops, 2);
 });
 
 test('a follow line joins the beat instead of cutting it', async () => {
@@ -519,4 +522,76 @@ test('character voices off still delivers follow lines and the chain', () => {
   assert.equal(res.mode, 'guidance');
   assert.equal(speech.said.length, 2);
   assert.equal(done, 1);
+});
+
+test('a new beat cuts leftover speech so a recording never plays over the tap', async () => {
+  // Double-tapping Continue used to stack the label over the narration: the
+  // tap said "Continue", the press said "Continue", and the recording played
+  // over both because the file path issued no speech to supersede them.
+  const speech = makeSpeechStub();
+  const audio = makeAudioStub();
+  const player = createStoryVoice({
+    audio,
+    speech,
+    getSettings: () => ({ storyVoices: true, speechVolume: 1 }),
+    getStoryState: () => ({ heroName: 'Aarav' }),
+  });
+  await player.speakNode({ id: 'ch1_letter', speaker: null, text: 'First.', sfx: null }, {});
+  await tick(20);
+  assert.equal(speech.stops, 1, 'the beat must cut leftover speech before the recording');
+  assert.equal(audio.played.length, 1);
+});
+
+test('a one-off recording cuts leftover speech before it starts', async () => {
+  const speech = makeSpeechStub();
+  const audio = makeAudioStub();
+  const player = createStoryVoice({
+    audio,
+    speech,
+    getSettings: () => ({ storyVoices: true, speechVolume: 1 }),
+    getStoryState: () => ({}),
+  });
+  player.speak('Good morning. Please sit down.', { speaker: 'Ms. Farida Qureshi', fileKey: 'story-interview-q_intro' });
+  await tick(20);
+  assert.equal(speech.stops, 1);
+  assert.equal(audio.played.length, 1);
+});
+
+test('a synthesis beat cuts leftover speech too', () => {
+  const speech = makeSpeechStub();
+  const player = createStoryVoice({
+    audio: makeAudioStub({ buffer: null }),
+    speech,
+    getSettings: () => ({ storyVoices: true }),
+    getStoryState: () => ({}),
+  });
+  player.speak('The man argued for forty minutes.', { speaker: 'Mithin' });
+  assert.equal(speech.stops, 1);
+  assert.equal(speech.said.length, 1);
+});
+
+test('a follow line never silences the beat it joins', () => {
+  const speech = makeSpeechStub();
+  const player = createStoryVoice({
+    audio: makeAudioStub(),
+    speech,
+    getSettings: () => ({ storyVoices: true }),
+    getStoryState: () => ({}),
+  });
+  player.speak('Nine thousand rupees.', { speaker: 'Ms. Farida Qureshi', follow: true });
+  assert.equal(speech.stops, 0, 'a follow line joins the beat instead of cutting it');
+  assert.equal(speech.said.length, 1);
+});
+
+test('skipped lines leave speech alone', async () => {
+  const speech = makeSpeechStub();
+  const player = createStoryVoice({
+    audio: makeAudioStub(),
+    speech,
+    getSettings: () => ({ storyVoices: true }),
+    getStoryState: () => ({}),
+  });
+  await player.speakNode(null, {});
+  player.speak('', { speaker: null });
+  assert.equal(speech.stops, 0);
 });

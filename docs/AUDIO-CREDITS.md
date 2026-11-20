@@ -1,6 +1,6 @@
 # Audio credits, licences and honest gaps
 
-**150 sound files, 44.0 MB.** Every one is a real *file* that the game plays back;
+**160 sound files, 45.6 MB.** Every one is a real *file* that the game plays back;
 there is no oscillator, no generated noise buffer and no synthesised tone
 anywhere in this project's audio *code* — `src/core/audio.js` only ever plays
 files.
@@ -19,9 +19,9 @@ The files have three provenances, and this document records each:
    synthesised sound effect ships**: the eleven synthesised `.wav` fills this
    project once carried were deleted and replaced by these recordings. See
    [Field recordings (CC0)](#field-recordings-cc0) below.
-3. **59 AI voice clips** (5.4 MB): ten short spoken cues plus forty-nine recorded
+3. **69 AI voice clips** (7.4 MB): ten short spoken cues plus fifty-nine recorded
    story-dialogue files (chapters 1 and 2 fully, chapter 3 apart from its dynamic
-   salary line), all generated as
+   salary line, chapter 4 started), all generated as
    `.mp3` files and preferred over device speech synthesis whenever the line
    is one of them. These are the ONLY generated audio in the project (AI voices
    are allowed). See [AI voice clips](#ai-voice-clips) and
@@ -317,7 +317,7 @@ voice asset and no third-party licence applies.
 
 ## Recorded story dialogue (AI character voices)
 
-Chapters 1 and 2 are fully recorded with AI character voices, including the interview questions, and chapter 3 is recorded apart from its dynamic salary line, one file
+Chapters 1 and 2 are fully recorded with AI character voices, including the interview questions, and chapter 3 is recorded apart from its dynamic salary line, and chapter 4 is started with Joseph and Mithin voiced, one file
 per story node in `assets/audio/story/`, played by `src/story/storyVoice.js`
 instead of device speech synthesis. Women are voiced by women and men by men;
 the cast is documented in [STORY.md](STORY.md#voice-cast) and spoken aloud on
@@ -374,6 +374,16 @@ the in-game Audio and credits screen.
 | `story/ch1_onions.mp3` | Narrator | ch1_onions |
 | `story/ch1_quiet.mp3` | Narrator | ch1_quiet |
 | `story/ch1_after_fight.mp3` | Narrator | ch1_after_fight |
+| `story/ch4_morning.mp3` | Narrator | ch4_morning |
+| `story/ch4_floor.mp3` | Narrator | ch4_floor |
+| `story/ch4_joseph.mp3` | Joseph | ch4_joseph |
+| `story/ch4_joseph_name.mp3` | Joseph | ch4_joseph_name |
+| `story/ch4_mithin.mp3` | Mithin | ch4_mithin |
+| `story/ch4_mithin_respect.mp3` | Mithin | ch4_mithin_respect |
+| `story/ch4_lunch.mp3` | Narrator | ch4_lunch |
+| `story/ch4_friends.mp3` | Mithin | ch4_friends |
+| `story/ch4_afternoon.mp3` | Narrator | ch4_afternoon |
+| `story/ch4_qureshi.mp3` | Qureshi | ch4_qureshi |
 
 Like the UI cues above, these are original generated speech: no performer's
 recording, no corporate voice asset, no third-party licence. They bake in the

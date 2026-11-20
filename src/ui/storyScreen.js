@@ -254,8 +254,16 @@ export function buildStoryScreen(config) {
     gameState.syncStory();
     audio?.play('voice-mission-complete', { group: 'voice', volume: 0.9 });
     audio?.play('music-achievement', { group: 'music', volume: 0.6 });
-    // The fanfare lands first, then the narrator closes the chapter.
-    storyVoice.speak(`${node.text} Progress saved.`, { speaker: null, priority: 4, leadMs: 900 });
+    // The fanfare lands first, then the narrator closes the chapter - a
+    // recording when one exists, with "Progress saved." chained after it, so
+    // the chapter-end files are heard instead of downloaded and never played.
+    storyVoice.speak(node.text, {
+      speaker: null,
+      priority: 4,
+      leadMs: 900,
+      fileKey: storyVoiceKey(node.id),
+      followSpoken: 'Progress saved.',
+    });
     const items = [
       makeButton({
         label: 'Return to menu',
