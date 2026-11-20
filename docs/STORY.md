@@ -58,7 +58,8 @@ the story: women are voiced by women and men by men. The cast lives in
 
 Two layers deliver this. **Chapter 1 is fully recorded** with AI character
 voices (`assets/audio/story/`, one file per node, lazy-loaded like the music
-beds). Every other line — later chapters, interview questions, negotiation
+beds), and **chapter 2 is partly recorded** (its main path: search, preparation,
+travel, reception, interview, both interview outcomes, chapter end). Every other line — later chapters, interview questions, negotiation
 answers — uses **distinct per-character synthesis** (each cast member's own
 pitch, rate and device-voice hints), so nothing ever collapses back into the
 single guidance voice. Recordings bake in the default hero name ("Aarav"); if

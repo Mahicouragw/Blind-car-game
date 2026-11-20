@@ -88,6 +88,16 @@ export const AUDIO_MANIFEST = {
   'story-ch1_sister': `${A}/story/ch1_sister.mp3`,
   'story-ch1_night': `${A}/story/ch1_night.mp3`,
   'story-ch1_end': `${A}/story/ch1_end.mp3`,
+  'story-ch2_search': `${A}/story/ch2_search.mp3`,
+  'story-ch2_prep': `${A}/story/ch2_prep.mp3`,
+  'story-ch2_prep_mother': `${A}/story/ch2_prep_mother.mp3`,
+  'story-ch2_prep_father': `${A}/story/ch2_prep_father.mp3`,
+  'story-ch2_travel': `${A}/story/ch2_travel.mp3`,
+  'story-ch2_reception': `${A}/story/ch2_reception.mp3`,
+  'story-ch2_interview': `${A}/story/ch2_interview.mp3`,
+  'story-ch2_passed': `${A}/story/ch2_passed.mp3`,
+  'story-ch2_failed': `${A}/story/ch2_failed.mp3`,
+  'story-ch2_end': `${A}/story/ch2_end.mp3`,
   // ui
   'ui-click': `${A}/ui/click.ogg`,
   'ui-select': `${A}/ui/select.ogg`,
@@ -213,6 +223,16 @@ export const LAZY_AUDIO = new Set([
   'story-ch1_sister',
   'story-ch1_night',
   'story-ch1_end',
+  'story-ch2_search',
+  'story-ch2_prep',
+  'story-ch2_prep_mother',
+  'story-ch2_prep_father',
+  'story-ch2_travel',
+  'story-ch2_reception',
+  'story-ch2_interview',
+  'story-ch2_passed',
+  'story-ch2_failed',
+  'story-ch2_end',
 ]);
 
 /**
@@ -273,6 +293,16 @@ export const STORY_VOICE_CREDITS = [
   { key: 'story-ch1_sister', node: 'ch1_sister', voice: 'Divya', licence: 'Original generated speech, no third-party rights' },
   { key: 'story-ch1_night', node: 'ch1_night', voice: 'Narrator', licence: 'Original generated speech, no third-party rights' },
   { key: 'story-ch1_end', node: 'ch1_end', voice: 'Narrator', licence: 'Original generated speech, no third-party rights' },
+  { key: 'story-ch2_search', node: 'ch2_search', voice: 'Narrator', licence: 'Original generated speech, no third-party rights' },
+  { key: 'story-ch2_prep', node: 'ch2_prep', voice: 'Narrator', licence: 'Original generated speech, no third-party rights' },
+  { key: 'story-ch2_prep_mother', node: 'ch2_prep_mother', voice: 'Sudha', licence: 'Original generated speech, no third-party rights' },
+  { key: 'story-ch2_prep_father', node: 'ch2_prep_father', voice: 'Ramesh', licence: 'Original generated speech, no third-party rights' },
+  { key: 'story-ch2_travel', node: 'ch2_travel', voice: 'Narrator', licence: 'Original generated speech, no third-party rights' },
+  { key: 'story-ch2_reception', node: 'ch2_reception', voice: 'Narrator', licence: 'Original generated speech, no third-party rights' },
+  { key: 'story-ch2_interview', node: 'ch2_interview', voice: 'Narrator', licence: 'Original generated speech, no third-party rights' },
+  { key: 'story-ch2_passed', node: 'ch2_passed', voice: 'Qureshi', licence: 'Original generated speech, no third-party rights' },
+  { key: 'story-ch2_failed', node: 'ch2_failed', voice: 'Qureshi', licence: 'Original generated speech, no third-party rights' },
+  { key: 'story-ch2_end', node: 'ch2_end', voice: 'Narrator', licence: 'Original generated speech, no third-party rights' },
 ];
 
 /**

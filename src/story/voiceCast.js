@@ -158,6 +158,16 @@ export const STORY_VOICE_FILES = {
   ch1_sister: 'story-ch1_sister',
   ch1_night: 'story-ch1_night',
   ch1_end: 'story-ch1_end',
+  ch2_search: 'story-ch2_search',
+  ch2_prep: 'story-ch2_prep',
+  ch2_prep_mother: 'story-ch2_prep_mother',
+  ch2_prep_father: 'story-ch2_prep_father',
+  ch2_travel: 'story-ch2_travel',
+  ch2_reception: 'story-ch2_reception',
+  ch2_interview: 'story-ch2_interview',
+  ch2_passed: 'story-ch2_passed',
+  ch2_failed: 'story-ch2_failed',
+  ch2_end: 'story-ch2_end',
 };
 
 /** The manifest key for a node's recording, or null when there is none yet. */
@@ -210,7 +220,7 @@ export function voiceLeadMs(node) {
 export function voiceCastLines() {
   return [
     'Story dialogue is performed in a distinct voice per character: women are voiced by women, and men by men.',
-    `Chapter one is fully recorded with character voices. The remaining chapters use distinct per-character synthesis voices until their recordings are added, and nothing is ever described as recorded when it is synthesised.`,
+    `Chapter one is fully recorded with character voices, and chapter two is partly recorded with the rest of its lines on the way. Unrecorded lines use distinct per-character synthesis voices until their recordings are added, and nothing is ever described as recorded when it is synthesised.`, 
     `The cast: ${CAST_IDS.map((id) => `${CHARACTER_VOICES[id].label}, ${CHARACTER_VOICES[id].description}`).join(' ')}`,
   ];
 }
