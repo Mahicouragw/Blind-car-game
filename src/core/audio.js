@@ -137,6 +137,12 @@ export const AUDIO_MANIFEST = {
   'story-ch4_friends': `${A}/story/ch4_friends.mp3`,
   'story-ch4_afternoon': `${A}/story/ch4_afternoon.mp3`,
   'story-ch4_qureshi': `${A}/story/ch4_qureshi.mp3`,
+  'story-ch4_joseph_mumble': `${A}/story/ch4_joseph_mumble.mp3`,
+  'story-ch4_joseph_joke': `${A}/story/ch4_joseph_joke.mp3`,
+  'story-ch4_keen': `${A}/story/ch4_keen.mp3`,
+  'story-ch4_mithin_fair': `${A}/story/ch4_mithin_fair.mp3`,
+  'story-ch4_mithin_neutral': `${A}/story/ch4_mithin_neutral.mp3`,
+  'story-ch4_alone_lunch': `${A}/story/ch4_alone_lunch.mp3`,
   // ui
   'ui-click': `${A}/ui/click.ogg`,
   'ui-select': `${A}/ui/select.ogg`,
@@ -311,6 +317,12 @@ export const LAZY_AUDIO = new Set([
   'story-ch4_friends',
   'story-ch4_afternoon',
   'story-ch4_qureshi',
+  'story-ch4_joseph_mumble',
+  'story-ch4_joseph_joke',
+  'story-ch4_keen',
+  'story-ch4_mithin_fair',
+  'story-ch4_mithin_neutral',
+  'story-ch4_alone_lunch',
 ]);
 
 /**
@@ -420,6 +432,12 @@ export const STORY_VOICE_CREDITS = [
   { key: 'story-ch4_friends', node: 'ch4_friends', voice: 'Mithin', licence: 'Original generated speech, no third-party rights' },
   { key: 'story-ch4_afternoon', node: 'ch4_afternoon', voice: 'Narrator', licence: 'Original generated speech, no third-party rights' },
   { key: 'story-ch4_qureshi', node: 'ch4_qureshi', voice: 'Qureshi', licence: 'Original generated speech, no third-party rights' },
+  { key: 'story-ch4_joseph_mumble', node: 'ch4_joseph_mumble', voice: 'Joseph', licence: 'Original generated speech, no third-party rights' },
+  { key: 'story-ch4_joseph_joke', node: 'ch4_joseph_joke', voice: 'Joseph', licence: 'Original generated speech, no third-party rights' },
+  { key: 'story-ch4_keen', node: 'ch4_keen', voice: 'Joseph', licence: 'Original generated speech, no third-party rights' },
+  { key: 'story-ch4_mithin_fair', node: 'ch4_mithin_fair', voice: 'Mithin', licence: 'Original generated speech, no third-party rights' },
+  { key: 'story-ch4_mithin_neutral', node: 'ch4_mithin_neutral', voice: 'Narrator', licence: 'Original generated speech, no third-party rights' },
+  { key: 'story-ch4_alone_lunch', node: 'ch4_alone_lunch', voice: 'Narrator', licence: 'Original generated speech, no third-party rights' },
 ];
 
 /**
