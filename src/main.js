@@ -278,6 +278,15 @@ export function bootApp(config = {}) {
     activeRing()?.announceCurrent?.();
   });
 
+  bus.on('gesture:tapSuperseded', () => {
+    // The first tap of a double (or triple) tap already read the cursor aloud,
+    // and the multi-tap meaning arrives next with its own speech. Cut the tap's
+    // announcement now, or the player hears the label twice: once from the tap
+    // and once from the press ("Continue... Continue."), with the reply buried
+    // underneath. A newer gesture always owns the ears.
+    speech.stop();
+  });
+
   bus.on('gesture:doubleTap', (d) => {
     unlockAudio();
     if (routePlayGesture('doubleTap', d)) return;

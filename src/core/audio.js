@@ -127,6 +127,16 @@ export const AUDIO_MANIFEST = {
   'story-ch1_onions': `${A}/story/ch1_onions.mp3`,
   'story-ch1_quiet': `${A}/story/ch1_quiet.mp3`,
   'story-ch1_after_fight': `${A}/story/ch1_after_fight.mp3`,
+  'story-ch4_morning': `${A}/story/ch4_morning.mp3`,
+  'story-ch4_floor': `${A}/story/ch4_floor.mp3`,
+  'story-ch4_joseph': `${A}/story/ch4_joseph.mp3`,
+  'story-ch4_joseph_name': `${A}/story/ch4_joseph_name.mp3`,
+  'story-ch4_mithin': `${A}/story/ch4_mithin.mp3`,
+  'story-ch4_mithin_respect': `${A}/story/ch4_mithin_respect.mp3`,
+  'story-ch4_lunch': `${A}/story/ch4_lunch.mp3`,
+  'story-ch4_friends': `${A}/story/ch4_friends.mp3`,
+  'story-ch4_afternoon': `${A}/story/ch4_afternoon.mp3`,
+  'story-ch4_qureshi': `${A}/story/ch4_qureshi.mp3`,
   // ui
   'ui-click': `${A}/ui/click.ogg`,
   'ui-select': `${A}/ui/select.ogg`,
@@ -291,6 +301,16 @@ export const LAZY_AUDIO = new Set([
   'story-ch1_onions',
   'story-ch1_quiet',
   'story-ch1_after_fight',
+  'story-ch4_morning',
+  'story-ch4_floor',
+  'story-ch4_joseph',
+  'story-ch4_joseph_name',
+  'story-ch4_mithin',
+  'story-ch4_mithin_respect',
+  'story-ch4_lunch',
+  'story-ch4_friends',
+  'story-ch4_afternoon',
+  'story-ch4_qureshi',
 ]);
 
 /**
@@ -390,6 +410,16 @@ export const STORY_VOICE_CREDITS = [
   { key: 'story-ch1_onions', node: 'ch1_onions', voice: 'Narrator', licence: 'Original generated speech, no third-party rights' },
   { key: 'story-ch1_quiet', node: 'ch1_quiet', voice: 'Narrator', licence: 'Original generated speech, no third-party rights' },
   { key: 'story-ch1_after_fight', node: 'ch1_after_fight', voice: 'Narrator', licence: 'Original generated speech, no third-party rights' },
+  { key: 'story-ch4_morning', node: 'ch4_morning', voice: 'Narrator', licence: 'Original generated speech, no third-party rights' },
+  { key: 'story-ch4_floor', node: 'ch4_floor', voice: 'Narrator', licence: 'Original generated speech, no third-party rights' },
+  { key: 'story-ch4_joseph', node: 'ch4_joseph', voice: 'Joseph', licence: 'Original generated speech, no third-party rights' },
+  { key: 'story-ch4_joseph_name', node: 'ch4_joseph_name', voice: 'Joseph', licence: 'Original generated speech, no third-party rights' },
+  { key: 'story-ch4_mithin', node: 'ch4_mithin', voice: 'Mithin', licence: 'Original generated speech, no third-party rights' },
+  { key: 'story-ch4_mithin_respect', node: 'ch4_mithin_respect', voice: 'Mithin', licence: 'Original generated speech, no third-party rights' },
+  { key: 'story-ch4_lunch', node: 'ch4_lunch', voice: 'Narrator', licence: 'Original generated speech, no third-party rights' },
+  { key: 'story-ch4_friends', node: 'ch4_friends', voice: 'Mithin', licence: 'Original generated speech, no third-party rights' },
+  { key: 'story-ch4_afternoon', node: 'ch4_afternoon', voice: 'Narrator', licence: 'Original generated speech, no third-party rights' },
+  { key: 'story-ch4_qureshi', node: 'ch4_qureshi', voice: 'Qureshi', licence: 'Original generated speech, no third-party rights' },
 ];
 
 /**

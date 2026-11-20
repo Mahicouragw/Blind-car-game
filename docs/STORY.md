@@ -58,7 +58,7 @@ the story: women are voiced by women and men by men. The cast lives in
 
 Two layers deliver this. **Chapter 1 is fully recorded** with AI character
 voices (`assets/audio/story/`, one file per node, lazy-loaded like the music
-beds), and **chapter 2 is fully recorded**, including the interview questions. **Chapter 3 is recorded** apart from its dynamic salary line (the signed contract speaks your exact figure, so it stays synthesis). Every other line — later chapters, interview questions, negotiation
+beds), and **chapter 2 is fully recorded**, including the interview questions. **Chapter 3 is recorded** apart from its dynamic salary line (the signed contract speaks your exact figure, so it stays synthesis). **Chapter 4 is started** (the opening run through the first day, with Joseph and Mithin voiced). Every other line — later chapters and negotiation
 answers — uses **distinct per-character synthesis** (each cast member's own
 pitch, rate and device-voice hints), so nothing ever collapses back into the
 single guidance voice. Recordings bake in the default hero name ("Aarav"); if
@@ -67,8 +67,9 @@ character's synthesis voice so the game never says the wrong name.
 
 Synchronization: the scene's sound effect plays first (the door opens, then
 Sudha speaks), music continues underneath at its own level, advancing stops
-the previous line so characters never overlap, and dialogue choices follow the
-line in the guidance voice — choices are interface, not character lines.
+the previous line and any leftover button speech so characters never overlap
+and a recording never plays over the tap that started it, and dialogue choices
+follow the line in the guidance voice — choices are interface, not character lines.
 `Character voices` in the settings switches the whole system back to the
 single guidance voice for players who prefer it.
 

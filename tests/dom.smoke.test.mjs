@@ -462,6 +462,72 @@ test('arriving on a new screen is heard even while a long passage is still being
   app.destroy();
 });
 
+test('double-tapping Continue cuts the label so the narration owns the ears', () => {
+  // The play-test: tapping Continue said "Continue... Continue." and Qureshi's
+  // recorded line played underneath both, because the file path issued no
+  // speech to supersede the tap and press announcements. A double tap on a
+  // menu zone emits tap, then tapSuperseded plus doubleTap.
+  bus.clear();
+  const app = boot();
+  app.screens.openStory(1);
+  const cont = buttons().find((b) => b.textContent.trim() === 'Continue');
+  assert.ok(cont, 'a Continue button is on screen');
+  app.screens.current.focusRing.focusAt(app.screens.current.focusRing.indexOf(cont));
+  const synth = window.speechSynthesis;
+  const realSpeak = synth.speak;
+  // Hold every utterance open: the fake synth settles synchronously, which
+  // hides stacking. A held utterance is what "still talking" looks like.
+  synth.speak = (u) => {
+    window.speechSynthesis.spoken.push(u.text);
+  };
+  app.speech.stop();
+  window.speechSynthesis.spoken.length = 0;
+
+  bus.emit('gesture:tap', { zone: { role: 'menu', element: cont } });
+  bus.emit('gesture:tapSuperseded', { zone: { role: 'menu', element: cont } });
+  assert.match(window.speechSynthesis.spoken.join(' '), /\[cancel\]/, 'the superseded tap announcement is cut at once');
+
+  bus.emit('gesture:doubleTap', { zone: { role: 'menu', element: cont } });
+  const speaking = app.speech.queue.state.speaking;
+  assert.ok(speaking, 'something is being said after the double tap');
+  assert.doesNotMatch(speaking.text, /Continue/, 'the label must not be what is talking');
+  const scene = document.querySelector('.story-text').textContent;
+  assert.ok(
+    scene.includes(speaking.text.slice(0, 40)),
+    `the narration must own the ears, heard: ${speaking.text.slice(0, 80)}`,
+  );
+
+  synth.speak = realSpeak;
+  app.speech.stop();
+  app.destroy();
+});
+
+test('finishing a chapter still confirms the save aloud', async () => {
+  // The chapter-end line now plays its recording with "Progress saved."
+  // chained after it; without audio (as here) the same words arrive through
+  // the cast voice instead. Either way the confirmation must be heard.
+  bus.clear();
+  const app = boot();
+  app.screens.openStory(1);
+  let guard = 0;
+  while (guard++ < 40) {
+    if (buttons().some((b) => /Return to menu/.test(b.textContent))) break;
+    const choice = document.querySelector('.story-choices .ui-button-choice');
+    if (choice) {
+      choice.click();
+      continue;
+    }
+    const cont = buttons().find((b) => b.textContent.trim() === 'Continue');
+    if (!cont) break;
+    cont.click();
+  }
+  assert.ok(buttons().some((b) => /Return to menu/.test(b.textContent)), 'chapter one completed');
+  // The fanfare moment (900 ms) passes before the narrator closes the chapter.
+  await new Promise((r) => setTimeout(r, 1300));
+  assert.match(window.speechSynthesis.spoken.join(' '), /Progress saved/, 'the save is confirmed aloud');
+  app.destroy();
+});
+
 test.after(() => {
   // Screens own timers (the tutorial polls for demonstrated gestures), so every
   // app has to be torn down or the test process never exits.
