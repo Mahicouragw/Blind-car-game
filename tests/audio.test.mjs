@@ -10,6 +10,7 @@ import {
   eagerAudioNames,
   LAZY_AUDIO,
   MUSIC_CREDITS,
+  STORY_VOICE_CREDITS,
   musicAttributionLines,
 } from '../src/core/audio.js';
 import { createFakeAudioContext, createFakeClock, createFakeFetch, fakeBuffer } from './helpers/audio.mjs';
@@ -192,9 +193,10 @@ test('every lazy track is a real manifest entry, and none is loaded eagerly', ()
   assert.ok(LAZY_AUDIO.size >= 6, 'the full-length beds should be marked lazy');
   for (const name of LAZY_AUDIO) {
     assert.ok(AUDIO_MANIFEST[name], `${name} is lazy but missing from the manifest`);
-    // Lazy means "long recording, load on demand": the full-length music beds
-    // and the long field-recorded scene beds (rain, wipers, ambience).
-    assert.match(AUDIO_MANIFEST[name], /music\/|scene\/|adventure\//, `${name} should point at a bed folder`);
+    // Lazy means "long recording, load on demand": the full-length music beds,
+    // the long field-recorded scene beds (rain, wipers, ambience) and the
+    // recorded story dialogue.
+    assert.match(AUDIO_MANIFEST[name], /music\/|scene\/|adventure\/|story\//, `${name} should point at a long-recording folder`);
   }
   const eager = eagerAudioNames();
   for (const name of eager) assert.ok(!LAZY_AUDIO.has(name), `${name} is both eager and lazy`);
@@ -302,9 +304,17 @@ test('every music bed has recorded licence evidence', () => {
     assert.ok(/^https:\/\//.test(credit.url ?? ''), `${credit.key} needs a source URL`);
     assert.equal(typeof credit.attributionRequired, 'boolean', `${credit.key} must state whether attribution is required`);
   }
-  // Every lazy music bed must be covered, so a new track cannot ship undocumented.
+  // Every lazy file must be covered, so a new track cannot ship undocumented.
+  // Third-party music and ambience carry MUSIC_CREDITS; the recorded story
+  // dialogue is original generated speech and carries STORY_VOICE_CREDITS.
   for (const name of LAZY_AUDIO) {
-    assert.ok(MUSIC_CREDITS.some((c) => c.key === name), `${name} ships without licence evidence`);
+    if (name.startsWith('story-')) {
+      const credit = STORY_VOICE_CREDITS.find((c) => c.key === name);
+      assert.ok(credit, `${name} ships without licence evidence`);
+      assert.ok(credit.voice && credit.licence, `${name} needs a voice and a licence`);
+    } else {
+      assert.ok(MUSIC_CREDITS.some((c) => c.key === name), `${name} ships without licence evidence`);
+    }
   }
 });
 

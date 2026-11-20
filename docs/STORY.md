@@ -39,6 +39,39 @@ speakers, and separate dialogue voices. Joseph is the one who greets the hero an
 asks their name; the hero answers with the configured name. A test asserts they
 are distinct.
 
+### Voice cast
+
+Every speaking character has their own distinct voice, and the casting follows
+the story: women are voiced by women and men by men. The cast lives in
+`src/story/voiceCast.js`, the synchronized player in `src/story/storyVoice.js`:
+
+| Voice | Character | Notes |
+| --- | --- | --- |
+| Narrator (male) | Scene narration, chapter endings | Warm storyteller; never the guidance voice |
+| Sudha (female) | Mother | Warm, direct, worried in chapter 1 |
+| Ramesh (male) | Father | Older, weary, flat-then-quiet |
+| Divya (female, young) | Sister, 13 | Quick and blunt, higher than the adults |
+| Ms. Farida Qureshi (female) | Workshop manager | Measured; conducts the interview and negotiation |
+| Joseph (male) | Colleague | Loud and direct |
+| Mithin (male) | Colleague | Quiet and measuring; slower and lower than Joseph |
+| Ms. Leela Varma (female) | Race official | Confident; explains the controls in chapter 5 |
+
+Two layers deliver this. **Chapter 1 is fully recorded** with AI character
+voices (`assets/audio/story/`, one file per node, lazy-loaded like the music
+beds). Every other line — later chapters, interview questions, negotiation
+answers — uses **distinct per-character synthesis** (each cast member's own
+pitch, rate and device-voice hints), so nothing ever collapses back into the
+single guidance voice. Recordings bake in the default hero name ("Aarav"); if
+the player renames the hero, nodes that speak the name fall back to the
+character's synthesis voice so the game never says the wrong name.
+
+Synchronization: the scene's sound effect plays first (the door opens, then
+Sudha speaks), music continues underneath at its own level, advancing stops
+the previous line so characters never overlap, and dialogue choices follow the
+line in the guidance voice — choices are interface, not character lines.
+`Character voices` in the settings switches the whole system back to the
+single guidance voice for players who prefer it.
+
 ### Sponsors (original, on the ad boards)
 
 Nexora Fuel · Brightline Tyres · Kalpesh Motors · Sunridge Bank · Volt & Vine ·

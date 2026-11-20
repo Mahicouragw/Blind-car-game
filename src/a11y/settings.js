@@ -134,6 +134,14 @@ export const SETTINGS_SCHEMA = {
     help: 'Shortens navigation sentences to their essentials.',
     announce: (v) => (v ? 'On' : 'Off'),
   },
+  storyVoices: {
+    type: 'boolean',
+    default: true,
+    label: 'Character voices',
+    options: ON_OFF,
+    help: 'Story dialogue is spoken in a distinct voice per character: women voiced by women and men by men. Chapter one uses recorded voices; other chapters use distinct synthesis voices until their recordings are added. Switching off uses the single guidance voice for everything.',
+    announce: (v) => (v ? 'On' : 'Off'),
+  },
   music: { type: 'boolean', default: true, label: 'Music', options: ON_OFF, announce: (v) => (v ? 'On' : 'Off') },
   musicVolume: {
     type: 'range',

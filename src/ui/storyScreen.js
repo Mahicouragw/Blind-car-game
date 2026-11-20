@@ -12,6 +12,7 @@
 
 import { bus } from '../core/bus.js';
 import { trackForChapter } from '../core/musicDirector.js';
+import { createStoryVoice } from '../story/storyVoice.js';
 import { makeButton, ZONE_ROLE } from './screens.js';
 import {
   evaluateInterview,
@@ -40,6 +41,18 @@ function el(tag, className, text) {
 export function buildStoryScreen(config) {
   const { gameState, screens, speech, audio, chapterId } = config;
   const story = gameState.story;
+  // One voice per character: recordings first, distinct synthesis per cast
+  // member otherwise. Choices stay in the guidance voice (see speakNode).
+  const storyVoice = createStoryVoice({
+    audio,
+    speech,
+    getSettings: () => gameState.settings,
+    getStoryState: () => gameState.story.state,
+    isSuspended: () => typeof document !== 'undefined' && !!document.hidden,
+  });
+  // Screen changes silence the story voice: without this a recording would
+  // keep playing over the tutorial, the race or the menu.
+  const offStopVoice = bus.on('story:stop-voice', () => storyVoice.stop());
   const root = el('section', 'screen screen-story');
 
   const chapterBar = el('div', 'story-chapter');
@@ -109,18 +122,22 @@ export function buildStoryScreen(config) {
   let nodeCount = 0;
 
   function speakNode() {
-    const speaker = speakerEl.textContent;
-    const text = textEl.textContent;
     const n = story.current();
     const choiceText = n?.choices?.length
-      ? ` ${n.choices.length} choices. ${n.choices.map((c, i) => `${i + 1}: ${c.text}`).join('. ')}. Swipe up or down to move between choices, single tap to choose.`
-      : ' Swipe up or tap to continue.';
-    speech?.say(`${speaker ? `${speaker} says: ` : ''}${text}${choiceText}`, {
-      priority: 3,
-      cooldownMs: 0,
-      interrupt: true,
-      essential: true,
-    });
+      ? `${n.choices.length} choices. ${n.choices.map((c, i) => `${i + 1}: ${c.text}`).join('. ')}. Swipe up or down to move between choices, single tap to choose.`
+      : 'Swipe up or tap to continue.';
+    // The character speaks the line in their own voice (a recording when one
+    // exists, otherwise their distinct synthesis voice); the choices are
+    // interface, so they follow in the guidance voice.
+    void storyVoice.speakNode(
+      {
+        id: n?.id ?? '',
+        speaker: speakerEl.textContent || null,
+        text: textEl.textContent,
+        sfx: n?.sfx ?? null,
+      },
+      { choicesSpoken: choiceText },
+    );
   }
 
   function ambienceLine(kind) {
@@ -236,7 +253,8 @@ export function buildStoryScreen(config) {
     gameState.syncStory();
     audio?.play('voice-mission-complete', { group: 'voice', volume: 0.9 });
     audio?.play('music-achievement', { group: 'music', volume: 0.6 });
-    speech?.say(`${node.text} Progress saved.`, { priority: 4, essential: true, interrupt: true, cooldownMs: 0 });
+    // The fanfare lands first, then the narrator closes the chapter.
+    storyVoice.speak(`${node.text} Progress saved.`, { speaker: null, priority: 4, leadMs: 900 });
     const items = [
       makeButton({
         label: 'Return to menu',
@@ -276,14 +294,8 @@ export function buildStoryScreen(config) {
     // there was nothing to replace, so the backlog only grew. The key makes the
     // newest beat supersede the queued one; hardInterrupt cuts the one already
     // being spoken.
-    speech?.say(node.text, {
-      priority: 4,
-      essential: true,
-      interrupt: true,
-      hardInterrupt: true,
-      key: 'storyBeat',
-      cooldownMs: 0,
-    });
+    // The interview primer is narration; the questions themselves are Qureshi's.
+    storyVoice.speak(node.text, { speaker: null, priority: 4 });
     renderInterviewQuestion();
   }
 
@@ -311,7 +323,7 @@ export function buildStoryScreen(config) {
           audio?.play('ui-select', { group: 'sfx', volume: 0.6 });
           st.answers.push({ questionId: q.id, optionId: opt.id });
           // Immediate feedback explaining WHY the answer landed as it did.
-          speech?.say(opt.feedback, { priority: 4, essential: true, cooldownMs: 0, interrupt: true });
+          storyVoice.speak(opt.feedback, { speaker: null, priority: 4 });
           audio?.play(opt.score >= 3 ? 'voice-correct' : opt.score >= 1 ? 'ui-tick' : 'voice-wrong', {
             group: opt.score >= 1 ? 'sfx' : 'voice',
             volume: 0.7,
@@ -325,11 +337,13 @@ export function buildStoryScreen(config) {
       storyButtons.push(b);
     });
 
-    speech?.say(`${q.asked} ${q.options.length} answers. ${q.options.map((o, i) => `${i + 1}: ${o.text}`).join('. ')}`, {
-      priority: 4,
+    // Qureshi asks in her own voice; the answers are choices, so they follow
+    // in the guidance voice like every other choice list.
+    storyVoice.speak(q.asked, { speaker: q.speaker ?? 'Ms. Farida Qureshi', priority: 4 });
+    speech?.say(`${q.options.length} answers. ${q.options.map((o, i) => `${i + 1}: ${o.text}`).join('. ')}`, {
+      priority: 2,
       essential: true,
       cooldownMs: 0,
-      interrupt: true,
     });
   }
 
@@ -349,11 +363,9 @@ export function buildStoryScreen(config) {
     ambienceEl.hidden = true;
 
     const branch = interviewBranch(merged);
-    speech?.say(`${interviewSpokenResult(merged)} Your result is ${merged.band}.`, {
+    storyVoice.speak(`${interviewSpokenResult(merged)} Your result is ${merged.band}.`, {
+      speaker: 'Ms. Farida Qureshi',
       priority: 4,
-      essential: true,
-      interrupt: true,
-      cooldownMs: 0,
     });
     audio?.play(merged.passed ? 'voice-congratulations' : 'voice-wrong', { group: 'voice', volume: 0.8 });
 
@@ -362,9 +374,9 @@ export function buildStoryScreen(config) {
     const feedbackBtn = makeButton({
       label: 'Hear why each answer scored the way it did',
       onActivate: () =>
-        speech?.say(
+        storyVoice.speak(
           merged.feedbackLines.map((f, i) => `${i + 1}. Score ${f.score} out of 3. ${f.feedback}`).join(' '),
-          { priority: 3, essential: true, cooldownMs: 0, interrupt: true }
+          { speaker: null, priority: 3 }
         ),
     });
     const continueBtn = makeButton({
@@ -428,11 +440,13 @@ export function buildStoryScreen(config) {
     textEl.textContent = `${node.text} ${negotiationState.openingSpoken}`;
     ambienceEl.textContent = negotiationState.leverageSpoken;
     ambienceEl.hidden = false;
-    speech?.say(`${node.text} ${negotiationState.openingSpoken} ${negotiationState.leverageSpoken}`, {
+    // The narrator sets up the negotiation, then Qureshi makes the offer in
+    // her own voice. The follow line queues behind the primer in order.
+    storyVoice.speak(node.text, { speaker: null, priority: 4 });
+    storyVoice.speak(`${negotiationState.openingSpoken} ${negotiationState.leverageSpoken}`, {
+      speaker: 'Ms. Farida Qureshi',
       priority: 4,
-      essential: true,
-      interrupt: true,
-      cooldownMs: 0,
+      follow: true,
     });
     renderNegotiationChoices();
   }
@@ -457,7 +471,7 @@ export function buildStoryScreen(config) {
           negotiationState = res.nego;
           textEl.textContent = res.response.text;
           ambienceEl.textContent = `Round ${Math.min(negotiationState.round, 3)} of 3.`;
-          speech?.say(res.response.spoken, { priority: 4, essential: true, interrupt: true, cooldownMs: 0 });
+          storyVoice.speak(res.response.spoken, { speaker: 'Ms. Farida Qureshi', priority: 4 });
           renderNegotiationChoices();
         },
       });
@@ -469,9 +483,9 @@ export function buildStoryScreen(config) {
       label: 'Explain my position again',
       className: 'ui-button-small',
       onActivate: () =>
-        speech?.say(
+        storyVoice.speak(
           `${negotiationState.openingRationale} ${negotiationState.leverageSpoken} The most she can reach is influenced by your interview and by what you have already done in this story.`,
-          { priority: 3, essential: true, cooldownMs: 0 }
+          { speaker: null, priority: 3 }
         ),
     });
     choicesWrap.appendChild(explain.element);
@@ -489,11 +503,10 @@ export function buildStoryScreen(config) {
     ambienceEl.textContent = '';
     ambienceEl.hidden = true;
     audio?.play(final.salary ? 'coins' : 'ui-error', { group: 'sfx', volume: 0.75 });
-    speech?.say(`${final.spoken} ${final.salary ? `Your salary is recorded as ${final.salary} rupees a month, and later chapters will use the same figure.` : 'No salary was agreed, so the story takes the workshop route.'}`, {
+    storyVoice.speak(`${final.spoken} ${final.salary ? `Your salary is recorded as ${final.salary} rupees a month, and later chapters will use the same figure.` : 'No salary was agreed, so the story takes the workshop route.'}`, {
+      speaker: 'Ms. Farida Qureshi',
       priority: 4,
-      essential: true,
-      interrupt: true,
-      cooldownMs: 0,
+      leadMs: final.salary ? 700 : 150,
     });
     choicesWrap.textContent = '';
     storyButtons.length = 0;
@@ -538,6 +551,12 @@ export function buildStoryScreen(config) {
     },
     speakNode,
     destroy() {
+      try {
+        offStopVoice?.();
+      } catch {
+        /* ignore */
+      }
+      storyVoice.stop();
       root.remove();
     },
   };

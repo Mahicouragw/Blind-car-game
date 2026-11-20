@@ -1,6 +1,6 @@
 # Audio credits, licences and honest gaps
 
-**101 sound files, 38.4 MB.** Every one is a real *file* that the game plays back;
+**111 sound files, 39.7 MB.** Every one is a real *file* that the game plays back;
 there is no oscillator, no generated noise buffer and no synthesised tone
 anywhere in this project's audio *code* — `src/core/audio.js` only ever plays
 files.
@@ -19,10 +19,12 @@ The files have three provenances, and this document records each:
    synthesised sound effect ships**: the eleven synthesised `.wav` fills this
    project once carried were deleted and replaced by these recordings. See
    [Field recordings (CC0)](#field-recordings-cc0) below.
-3. **10 AI voice clips** (0.1 MB): short spoken cues generated as `.mp3` files
-   and preferred over device speech synthesis whenever the line is one of them.
-   These are the ONLY generated audio in the project (AI voices are allowed).
-   See [AI voice clips](#ai-voice-clips) below.
+3. **20 AI voice clips** (1.3 MB): ten short spoken cues plus ten recorded
+   Chapter 1 story-dialogue files, all generated as `.mp3` files and preferred
+   over device speech synthesis whenever the line is one of them. These are the
+   ONLY generated audio in the project (AI voices are allowed). See
+   [AI voice clips](#ai-voice-clips) and
+   [Recorded story dialogue](#recorded-story-dialogue-ai-character-voices) below.
 
 There is no AI-generated music, no AI-generated sound effect and no placeholder
 beep. Nothing is hotlinked; nothing is synthesised in the browser.
@@ -310,9 +312,39 @@ are never both played for one line.
 | `voice/reversing.mp3` | "Reversing." | Reverse engaged |
 
 They are original generated speech, not any performer's recording: no corporate
-voice asset and no third-party licence applies. Dynamic lines (lap times,
-positions, story text) are still spoken by the device synthesiser and are
-labelled as synthesis.
+voice asset and no third-party licence applies.
+
+## Recorded story dialogue (AI character voices)
+
+Chapter 1 of the campaign is fully recorded with AI character voices, one file
+per story node in `assets/audio/story/`, played by `src/story/storyVoice.js`
+instead of device speech synthesis. Women are voiced by women and men by men;
+the cast is documented in [STORY.md](STORY.md#voice-cast) and spoken aloud on
+the in-game Audio and credits screen.
+
+| File | Voice | Node |
+| --- | --- | --- |
+| `story/ch1_intro.mp3` | Narrator | ch1_intro |
+| `story/ch1_market.mp3` | Narrator | ch1_market |
+| `story/ch1_home.mp3` | Sudha | ch1_home |
+| `story/ch1_letter.mp3` | Narrator | ch1_letter |
+| `story/ch1_argument.mp3` | Ramesh | ch1_argument |
+| `story/ch1_argument_choice.mp3` | Sudha | ch1_argument_choice |
+| `story/ch1_offer.mp3` | Ramesh | ch1_offer |
+| `story/ch1_sister.mp3` | Divya | ch1_sister |
+| `story/ch1_night.mp3` | Narrator | ch1_night |
+| `story/ch1_end.mp3` | Narrator | ch1_end |
+
+Like the UI cues above, these are original generated speech: no performer's
+recording, no corporate voice asset, no third-party licence. They bake in the
+default hero name ("Aarav"); when the hero is renamed, or a recording is
+missing, the line is spoken in the same character's distinct synthesis voice
+(own pitch, rate and device-voice hints), never the flat guidance voice.
+
+Unrecorded story lines (later chapters, interview questions, negotiation
+answers) use those per-character synthesis voices and are labelled as
+synthesis. Dynamic race lines (lap times, positions) are still spoken by the
+device synthesiser and are labelled as synthesis.
 
 ---
 
@@ -338,7 +370,7 @@ the device and labelled as such everywhere.
 | `brake` / `handbrake` | Distinct sounds for the two driving controls | **Filled.** CC0 field recordings (WavJunction.com, ninebilly), played on every press |
 | `rain-wipers` | Rain and working wipers for wet races | **Filled.** CC0 field recordings (unfa, itinerantmonk108); some races are run in light rain with the wipers looping |
 | `background-music` | Full-length looping music, 60 s+, plus a race variant | **Filled.** Six full-length recorded beds with per-track licence evidence, mapped to scenes by `src/core/musicDirector.js`. Two require attribution and are credited in-game. The nine short CC0 stingers remain for transitions and achievements |
-| `voice-acting` | Recorded voice acting for story dialogue | **Synthesised** by the device, and labelled as such everywhere |
+| `voice-acting` | Recorded voice acting for story dialogue | **Partly filled.** Chapter 1 is recorded AI character acting; other chapters use distinct per-character synthesis voices, labelled as such everywhere |
 
 ### How to fill a gap
 

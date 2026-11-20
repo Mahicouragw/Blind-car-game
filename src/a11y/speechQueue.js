@@ -237,6 +237,12 @@ export function createSpeechQueue(config = {}) {
         essential: !!item.essential,
         interrupt: !!item.interrupt,
         group: item.group ?? null,
+        // Per-utterance voice casting (story characters): a device-voice name
+        // hint plus prosody overrides. Guidance lines leave these null and use
+        // the player's own voice settings.
+        voice: item.voice ?? null,
+        pitch: Number.isFinite(item.pitch) ? item.pitch : null,
+        rate: Number.isFinite(item.rate) ? item.rate : null,
         offeredAt: t,
         preempts: !!preempts,
         // A screen change or a story beat can demand the line immediately. This

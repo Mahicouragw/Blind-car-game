@@ -75,7 +75,13 @@ export function createSpeech(config = {}) {
     }
   }
 
-  function pickVoice() {
+  function pickVoice(hint) {
+    // A per-utterance cast hint (story characters) outranks the player's
+    // chosen guidance voice: that is what makes characters distinct.
+    if (hint) {
+      const cast = findVoiceByHint(voices, hint);
+      if (cast) return cast;
+    }
     const want = getSettings().speechVoice;
     if (want && voices.length) {
       const exact = voices.find((v) => v.name === want || v.voiceURI === want);
@@ -123,10 +129,20 @@ export function createSpeech(config = {}) {
       onUnduck();
       return;
     }
-    const voice = pickVoice();
+    const voice = pickVoice(item.voice);
     if (voice) utterance.voice = voice;
-    utterance.rate = Number.isFinite(settings.speechRate) ? settings.speechRate : 1;
-    utterance.pitch = Number.isFinite(settings.speechPitch) ? settings.speechPitch : 1;
+    // A cast utterance carries its character's prosody; guidance lines use
+    // the player's own rate and pitch settings.
+    utterance.rate = Number.isFinite(item.rate)
+      ? item.rate
+      : Number.isFinite(settings.speechRate)
+        ? settings.speechRate
+        : 1;
+    utterance.pitch = Number.isFinite(item.pitch)
+      ? item.pitch
+      : Number.isFinite(settings.speechPitch)
+        ? settings.speechPitch
+        : 1;
     utterance.volume = Number.isFinite(settings.speechVolume) ? settings.speechVolume : 1;
 
     let settled = false;
@@ -236,7 +252,8 @@ export function createSpeech(config = {}) {
      * interruption can still land between sentences.
      *
      * @param {string} text
-     * @param {object} [opts] priority, key, cooldownMs, interrupt, essential, concise
+     * @param {object} [opts] priority, key, cooldownMs, interrupt, essential, concise,
+     *   voice (device-voice name hint for story characters), pitch, rate
      */
     /**
      * Show a line in the caption area WITHOUT speaking it.
@@ -358,6 +375,31 @@ export function createSpeech(config = {}) {
   };
 
   return api;
+}
+
+/**
+ * Match a cast hint against installed device voices.
+ *
+ * The hint is a name fragment or a list of them (see voiceCast.js); the first
+ * voice whose name contains any fragment, case-insensitively, wins. English
+ * voices are preferred when several match, so a character keeps a consistent
+ * identity across devices with crowded voice lists. Returns null when nothing
+ * matches, and the caller falls back to the default voice choice.
+ *
+ * @param {Array<{name?:string, lang?:string}>} voices
+ * @param {string|Array<string>} hint
+ */
+export function findVoiceByHint(voices, hint) {
+  const fragments = (Array.isArray(hint) ? hint : [hint])
+    .filter((h) => typeof h === 'string' && h.trim() !== '')
+    .map((h) => h.toLowerCase());
+  if (!fragments.length || !Array.isArray(voices)) return null;
+  const matches = voices.filter((v) => {
+    const name = String(v?.name ?? '').toLowerCase();
+    return name && fragments.some((f) => name.includes(f));
+  });
+  if (!matches.length) return null;
+  return matches.find((v) => /^en/i.test(v.lang ?? '')) ?? matches[0];
 }
 
 /**
