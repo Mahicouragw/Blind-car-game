@@ -1,6 +1,6 @@
 # Audio credits, licences and honest gaps
 
-**121 sound files, 41.0 MB.** Every one is a real *file* that the game plays back;
+**131 sound files, 42.4 MB.** Every one is a real *file* that the game plays back;
 there is no oscillator, no generated noise buffer and no synthesised tone
 anywhere in this project's audio *code* — `src/core/audio.js` only ever plays
 files.
@@ -19,8 +19,8 @@ The files have three provenances, and this document records each:
    synthesised sound effect ships**: the eleven synthesised `.wav` fills this
    project once carried were deleted and replaced by these recordings. See
    [Field recordings (CC0)](#field-recordings-cc0) below.
-3. **30 AI voice clips** (2.6 MB): ten short spoken cues plus twenty recorded
-   story-dialogue files (chapter 1 fully, chapter 2 partly), all generated as
+3. **40 AI voice clips** (3.8 MB): ten short spoken cues plus thirty recorded
+   story-dialogue files (chapters 1 and 2), all generated as
    `.mp3` files and preferred over device speech synthesis whenever the line
    is one of them. These are the ONLY generated audio in the project (AI voices
    are allowed). See [AI voice clips](#ai-voice-clips) and
@@ -316,7 +316,7 @@ voice asset and no third-party licence applies.
 
 ## Recorded story dialogue (AI character voices)
 
-Chapter 1 of the campaign is fully recorded with AI character voices, and chapter 2 is partly recorded, one file
+Chapters 1 and 2 of the campaign are recorded with AI character voices (chapter 2 apart from one rare recovery line), one file
 per story node in `assets/audio/story/`, played by `src/story/storyVoice.js`
 instead of device speech synthesis. Women are voiced by women and men by men;
 the cast is documented in [STORY.md](STORY.md#voice-cast) and spoken aloud on
@@ -344,6 +344,16 @@ the in-game Audio and credits screen.
 | `story/ch2_passed.mp3` | Qureshi | ch2_passed |
 | `story/ch2_failed.mp3` | Qureshi | ch2_failed |
 | `story/ch2_end.mp3` | Narrator | ch2_end |
+| `story/ch2_tea_stall.mp3` | Narrator | ch2_tea_stall |
+| `story/ch2_prep_alone.mp3` | Narrator | ch2_prep_alone |
+| `story/ch2_early.mp3` | Narrator | ch2_early |
+| `story/ch2_late.mp3` | Narrator | ch2_late |
+| `story/ch2_walk.mp3` | Narrator | ch2_walk |
+| `story/ch2_retry.mp3` | Qureshi | ch2_retry |
+| `story/ch2_saturday.mp3` | Narrator | ch2_saturday |
+| `story/ch2_saturday_result.mp3` | Qureshi | ch2_saturday_result |
+| `story/ch2_tea_stall_end.mp3` | Narrator | ch2_tea_stall_end |
+| `story/ch2_followups.mp3` | Narrator | ch2_followups |
 
 Like the UI cues above, these are original generated speech: no performer's
 recording, no corporate voice asset, no third-party licence. They bake in the
