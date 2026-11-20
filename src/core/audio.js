@@ -108,6 +108,16 @@ export const AUDIO_MANIFEST = {
   'story-ch2_saturday_result': `${A}/story/ch2_saturday_result.mp3`,
   'story-ch2_tea_stall_end': `${A}/story/ch2_tea_stall_end.mp3`,
   'story-ch2_followups': `${A}/story/ch2_followups.mp3`,
+  'story-ch2_result_unknown': `${A}/story/ch2_result_unknown.mp3`,
+  'story-ch3_offer': `${A}/story/ch3_offer.mp3`,
+  'story-ch3_negotiation': `${A}/story/ch3_negotiation.mp3`,
+  'story-interview-q_intro': `${A}/story/interview-q_intro.mp3`,
+  'story-interview-q_reliability': `${A}/story/interview-q_reliability.mp3`,
+  'story-interview-q_mistake': `${A}/story/interview-q_mistake.mp3`,
+  'story-interview-q_teamwork': `${A}/story/interview-q_teamwork.mp3`,
+  'story-interview-q_why_us': `${A}/story/interview-q_why_us.mp3`,
+  'story-interview-fu_pressure': `${A}/story/interview-fu_pressure.mp3`,
+  'story-interview-fu_conflict': `${A}/story/interview-fu_conflict.mp3`,
   // ui
   'ui-click': `${A}/ui/click.ogg`,
   'ui-select': `${A}/ui/select.ogg`,
@@ -253,6 +263,16 @@ export const LAZY_AUDIO = new Set([
   'story-ch2_saturday_result',
   'story-ch2_tea_stall_end',
   'story-ch2_followups',
+  'story-ch2_result_unknown',
+  'story-ch3_offer',
+  'story-ch3_negotiation',
+  'story-interview-q_intro',
+  'story-interview-q_reliability',
+  'story-interview-q_mistake',
+  'story-interview-q_teamwork',
+  'story-interview-q_why_us',
+  'story-interview-fu_pressure',
+  'story-interview-fu_conflict',
 ]);
 
 /**
@@ -333,6 +353,16 @@ export const STORY_VOICE_CREDITS = [
   { key: 'story-ch2_saturday_result', node: 'ch2_saturday_result', voice: 'Qureshi', licence: 'Original generated speech, no third-party rights' },
   { key: 'story-ch2_tea_stall_end', node: 'ch2_tea_stall_end', voice: 'Narrator', licence: 'Original generated speech, no third-party rights' },
   { key: 'story-ch2_followups', node: 'ch2_followups', voice: 'Narrator', licence: 'Original generated speech, no third-party rights' },
+  { key: 'story-ch2_result_unknown', node: 'ch2_result_unknown', voice: 'Narrator', licence: 'Original generated speech, no third-party rights' },
+  { key: 'story-ch3_offer', node: 'ch3_offer', voice: 'Narrator', licence: 'Original generated speech, no third-party rights' },
+  { key: 'story-ch3_negotiation', node: 'ch3_negotiation', voice: 'Narrator', licence: 'Original generated speech, no third-party rights' },
+  { key: 'story-interview-q_intro', node: 'interview q_intro', voice: 'Qureshi', licence: 'Original generated speech, no third-party rights' },
+  { key: 'story-interview-q_reliability', node: 'interview q_reliability', voice: 'Qureshi', licence: 'Original generated speech, no third-party rights' },
+  { key: 'story-interview-q_mistake', node: 'interview q_mistake', voice: 'Qureshi', licence: 'Original generated speech, no third-party rights' },
+  { key: 'story-interview-q_teamwork', node: 'interview q_teamwork', voice: 'Qureshi', licence: 'Original generated speech, no third-party rights' },
+  { key: 'story-interview-q_why_us', node: 'interview q_why_us', voice: 'Qureshi', licence: 'Original generated speech, no third-party rights' },
+  { key: 'story-interview-fu_pressure', node: 'interview fu_pressure', voice: 'Qureshi', licence: 'Original generated speech, no third-party rights' },
+  { key: 'story-interview-fu_conflict', node: 'interview fu_conflict', voice: 'Qureshi', licence: 'Original generated speech, no third-party rights' },
 ];
 
 /**

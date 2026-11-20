@@ -15,6 +15,7 @@ import {
   CAST_IDS,
   CHARACTER_VOICES,
   bakedVoiceUsable,
+  interviewVoiceKey,
   speakerKey,
   storyVoiceKey,
   voiceCastLines,
@@ -86,7 +87,7 @@ test('voiceForNode never returns null', () => {
 
 // ------------------------------------------------------------- recorded files
 
-test('recorded voice files cover chapters one and two', () => {
+test('recorded voice files cover chapters one and two plus the chapter three opening', () => {
   const recorded = [
     'ch1_intro', 'ch1_market', 'ch1_home', 'ch1_letter', 'ch1_argument',
     'ch1_argument_choice', 'ch1_offer', 'ch1_sister', 'ch1_night', 'ch1_end',
@@ -94,12 +95,13 @@ test('recorded voice files cover chapters one and two', () => {
     'ch2_reception', 'ch2_interview', 'ch2_passed', 'ch2_failed', 'ch2_end',
     'ch2_tea_stall', 'ch2_prep_alone', 'ch2_early', 'ch2_late', 'ch2_walk',
     'ch2_retry', 'ch2_saturday', 'ch2_saturday_result', 'ch2_tea_stall_end', 'ch2_followups',
+    'ch2_result_unknown', 'ch3_offer', 'ch3_negotiation',
   ];
   for (const id of recorded) {
     assert.equal(storyVoiceKey(id), `story-${id}`);
   }
   assert.equal(storyVoiceKey('ch1_kindness'), null);
-  assert.equal(storyVoiceKey('ch2_result_unknown'), null);
+  assert.equal(storyVoiceKey('ch3_walked'), null);
   assert.equal(storyVoiceKey('no-such-node'), null);
 });
 
@@ -112,6 +114,18 @@ test('every recorded-file key is a lazy manifest entry', () => {
   }
 });
 
+test('every interview question has a recorded Qureshi voice file', () => {
+  const questions = [...INTERVIEW_QUESTIONS, ...FOLLOW_UPS];
+  assert.equal(questions.length, 7);
+  for (const q of questions) {
+    const key = interviewVoiceKey(q.id);
+    assert.ok(key, `${q.id} has no recorded question file`);
+    assert.ok(AUDIO_MANIFEST[key], `${key} is announced but missing from the manifest`);
+    assert.ok(LAZY_AUDIO.has(key), `${key} must be lazy so dialogue never gates the boot`);
+  }
+  assert.equal(interviewVoiceKey('no-such-question'), null);
+});
+
 test('a renamed hero falls back to synthesis rather than hearing the wrong name', () => {
   assert.equal(BAKED_HERO_NAME, 'Aarav');
   // ch1_home speaks the hero's name; ch1_letter does not.
@@ -121,7 +135,7 @@ test('a renamed hero falls back to synthesis rather than hearing the wrong name'
   assert.equal(bakedVoiceUsable('ch1_home', {}), true);
   assert.equal(bakedVoiceUsable('ch1_home', { heroName: 'Meera' }), false);
   assert.equal(bakedVoiceUsable('ch1_letter', { heroName: 'Meera' }), true);
-  assert.equal(bakedVoiceUsable('ch2_result_unknown', { heroName: 'Aarav' }), false);
+  assert.equal(bakedVoiceUsable('ch3_walked', { heroName: 'Aarav' }), false);
 });
 
 test('the scene effect plays before the voice starts', () => {
@@ -405,4 +419,102 @@ test('a follow line joins the beat instead of cutting it', async () => {
   assert.equal(handle.stopped, false, 'a follow line must not cut the recording');
   assert.equal(speech.said.length, 1);
   assert.equal(speech.said[0].opts.interrupt, false);
+});
+
+test('speak() plays a recording when fileKey names one, then voices the follow lines', async () => {
+  const speech = makeSpeechStub();
+  const audio = makeAudioStub();
+  const player = createStoryVoice({
+    audio,
+    speech,
+    getSettings: () => ({ storyVoices: true, speechVolume: 1 }),
+    getStoryState: () => ({}),
+  });
+  let done = 0;
+  const res = player.speak('Good morning. Please sit down.', {
+    speaker: 'Ms. Farida Qureshi',
+    priority: 4,
+    fileKey: 'story-interview-q_intro',
+    followSpoken: '5 answers.',
+    onDone: () => { done++; },
+  });
+  assert.equal(res.mode, 'file');
+  assert.equal(res.voice, 'qureshi');
+  await tick(20);
+  assert.deepEqual(audio.loadedKeys, ['story-interview-q_intro']);
+  assert.equal(audio.played.length, 1);
+  // Nothing speaks over the recording.
+  assert.equal(speech.said.length, 0);
+  assert.equal(done, 0);
+  audio.handle.onended();
+  assert.equal(done, 1);
+  assert.equal(speech.said.length, 1);
+  assert.match(speech.said[0].text, /5 answers/);
+  assert.equal(speech.said[0].opts.voice, undefined, 'follow lines stay guidance');
+});
+
+test('speak() falls back to the cast voice when its file is missing', async () => {
+  const speech = makeSpeechStub();
+  const audio = makeAudioStub({ buffer: null });
+  const player = createStoryVoice({
+    audio,
+    speech,
+    getSettings: () => ({ storyVoices: true, speechVolume: 1 }),
+    getStoryState: () => ({}),
+  });
+  let done = 0;
+  const res = player.speak('Good morning. Please sit down.', {
+    speaker: 'Ms. Farida Qureshi',
+    fileKey: 'story-interview-q_intro',
+    followSpoken: '5 answers.',
+    onDone: () => { done++; },
+  });
+  assert.equal(res.mode, 'file');
+  await tick(20);
+  assert.equal(audio.played.length, 0);
+  assert.equal(speech.said.length, 2);
+  assert.match(speech.said[0].text, /Ms. Farida Qureshi:/);
+  assert.equal(speech.said[0].opts.pitch, CHARACTER_VOICES.qureshi.pitch);
+  assert.match(speech.said[1].text, /5 answers/);
+  assert.equal(done, 1);
+});
+
+test('speak() without a file runs the chain immediately behind the cast line', () => {
+  const speech = makeSpeechStub();
+  const player = createStoryVoice({
+    audio: makeAudioStub(),
+    speech,
+    getSettings: () => ({ storyVoices: true }),
+    getStoryState: () => ({}),
+  });
+  const order = [];
+  player.speak('Primer.', {
+    speaker: null,
+    followSpoken: 'Choices.',
+    onDone: () => { order.push('done'); },
+  });
+  assert.deepEqual(order, ['done']);
+  assert.equal(speech.said.length, 2);
+  assert.match(speech.said[0].text, /Primer/);
+  assert.match(speech.said[1].text, /Choices/);
+});
+
+test('character voices off still delivers follow lines and the chain', () => {
+  const speech = makeSpeechStub();
+  const player = createStoryVoice({
+    audio: makeAudioStub(),
+    speech,
+    getSettings: () => ({ storyVoices: false }),
+    getStoryState: () => ({}),
+  });
+  let done = 0;
+  const res = player.speak('Primer.', {
+    speaker: null,
+    fileKey: 'story-interview-q_intro',
+    followSpoken: 'Choices.',
+    onDone: () => { done++; },
+  });
+  assert.equal(res.mode, 'guidance');
+  assert.equal(speech.said.length, 2);
+  assert.equal(done, 1);
 });

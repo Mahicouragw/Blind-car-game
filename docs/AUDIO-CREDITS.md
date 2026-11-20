@@ -1,6 +1,6 @@
 # Audio credits, licences and honest gaps
 
-**131 sound files, 42.4 MB.** Every one is a real *file* that the game plays back;
+**141 sound files, 42.9 MB.** Every one is a real *file* that the game plays back;
 there is no oscillator, no generated noise buffer and no synthesised tone
 anywhere in this project's audio *code* — `src/core/audio.js` only ever plays
 files.
@@ -19,8 +19,8 @@ The files have three provenances, and this document records each:
    synthesised sound effect ships**: the eleven synthesised `.wav` fills this
    project once carried were deleted and replaced by these recordings. See
    [Field recordings (CC0)](#field-recordings-cc0) below.
-3. **40 AI voice clips** (3.8 MB): ten short spoken cues plus thirty recorded
-   story-dialogue files (chapters 1 and 2), all generated as
+3. **50 AI voice clips** (4.3 MB): ten short spoken cues plus forty recorded
+   story-dialogue files (chapters 1 and 2 fully, chapter 3 started), all generated as
    `.mp3` files and preferred over device speech synthesis whenever the line
    is one of them. These are the ONLY generated audio in the project (AI voices
    are allowed). See [AI voice clips](#ai-voice-clips) and
@@ -316,7 +316,7 @@ voice asset and no third-party licence applies.
 
 ## Recorded story dialogue (AI character voices)
 
-Chapters 1 and 2 of the campaign are recorded with AI character voices (chapter 2 apart from one rare recovery line), one file
+Chapters 1 and 2 are fully recorded with AI character voices, including the interview questions, and chapter 3 is started, one file
 per story node in `assets/audio/story/`, played by `src/story/storyVoice.js`
 instead of device speech synthesis. Women are voiced by women and men by men;
 the cast is documented in [STORY.md](STORY.md#voice-cast) and spoken aloud on
@@ -354,6 +354,16 @@ the in-game Audio and credits screen.
 | `story/ch2_saturday_result.mp3` | Qureshi | ch2_saturday_result |
 | `story/ch2_tea_stall_end.mp3` | Narrator | ch2_tea_stall_end |
 | `story/ch2_followups.mp3` | Narrator | ch2_followups |
+| `story/ch2_result_unknown.mp3` | Narrator | ch2_result_unknown |
+| `story/ch3_offer.mp3` | Narrator | ch3_offer |
+| `story/ch3_negotiation.mp3` | Narrator | ch3_negotiation |
+| `story/interview-q_intro.mp3` | Qureshi | interview q_intro |
+| `story/interview-q_reliability.mp3` | Qureshi | interview q_reliability |
+| `story/interview-q_mistake.mp3` | Qureshi | interview q_mistake |
+| `story/interview-q_teamwork.mp3` | Qureshi | interview q_teamwork |
+| `story/interview-q_why_us.mp3` | Qureshi | interview q_why_us |
+| `story/interview-fu_pressure.mp3` | Qureshi | interview fu_pressure |
+| `story/interview-fu_conflict.mp3` | Qureshi | interview fu_conflict |
 
 Like the UI cues above, these are original generated speech: no performer's
 recording, no corporate voice asset, no third-party licence. They bake in the

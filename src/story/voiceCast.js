@@ -178,11 +178,33 @@ export const STORY_VOICE_FILES = {
   ch2_saturday_result: 'story-ch2_saturday_result',
   ch2_tea_stall_end: 'story-ch2_tea_stall_end',
   ch2_followups: 'story-ch2_followups',
+  ch2_result_unknown: 'story-ch2_result_unknown',
+  ch3_offer: 'story-ch3_offer',
+  ch3_negotiation: 'story-ch3_negotiation',
 };
 
 /** The manifest key for a node's recording, or null when there is none yet. */
 export function storyVoiceKey(nodeId) {
   return STORY_VOICE_FILES[nodeId] ?? null;
+}
+
+/**
+ * Interview questions with a recorded Qureshi voice file, asked text only.
+ * The answers and feedback are the player's own lines and stay guidance.
+ */
+export const INTERVIEW_VOICE_FILES = {
+  q_intro: 'story-interview-q_intro',
+  q_reliability: 'story-interview-q_reliability',
+  q_mistake: 'story-interview-q_mistake',
+  q_teamwork: 'story-interview-q_teamwork',
+  q_why_us: 'story-interview-q_why_us',
+  fu_pressure: 'story-interview-fu_pressure',
+  fu_conflict: 'story-interview-fu_conflict',
+};
+
+/** The manifest key for a question's recording, or null when unrecorded. */
+export function interviewVoiceKey(questionId) {
+  return INTERVIEW_VOICE_FILES[questionId] ?? null;
 }
 
 /**
@@ -230,7 +252,7 @@ export function voiceLeadMs(node) {
 export function voiceCastLines() {
   return [
     'Story dialogue is performed in a distinct voice per character: women are voiced by women, and men by men.',
-    `Chapter one is fully recorded with character voices, and chapter two is recorded apart from one rare recovery line. Unrecorded lines use distinct per-character synthesis voices until their recordings are added, and nothing is ever described as recorded when it is synthesised.`, 
+    `Chapter one is fully recorded with character voices, chapter two is fully recorded including its interview questions, and chapter three is started. Unrecorded lines use distinct per-character synthesis voices until their recordings are added, and nothing is ever described as recorded when it is synthesised.`, 
     `The cast: ${CAST_IDS.map((id) => `${CHARACTER_VOICES[id].label}, ${CHARACTER_VOICES[id].description}`).join(' ')}`,
   ];
 }
