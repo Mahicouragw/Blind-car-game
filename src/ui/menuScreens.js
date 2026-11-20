@@ -26,6 +26,7 @@ import { carAvailable, carPrice, tyreTier } from '../race/garage.js';
 import { buildCarMesh } from '../vehicles/carMesh.js';
 import { ACHIEVEMENTS, LEVELS, PRACTICE_LEVEL, xpForNextLevel } from '../race/levels.js';
 import { CHAPTERS } from '../story/storyData.js';
+import { voiceCastLines } from '../story/voiceCast.js';
 import { keyboardHelpLines } from '../input/keyboard.js';
 import { formatRaceTime, formatTimeSpoken } from '../race/raceState.js';
 
@@ -601,6 +602,7 @@ export function buildSettingsScreen({ gameState, screens, speech, audio, onSetti
     'speechPitch',
     'speechVoice',
     'conciseSpeech',
+    'storyVoices',
     'navFrequency',
     'speakSpeedLaps',
     'speakPosition',
@@ -1255,7 +1257,7 @@ export function buildAudioStatusScreen({ screens, speech, audio }) {
     audio?.buffers ? `${audio.buffers.size} recorded assets decoded and ready to play.` : '',
     audio?.failedAssets?.length ? `These assets could not be loaded and are silent rather than replaced: ${audio.failedAssets.map((f) => f.name).join(', ')}.` : '',
     'Engine and tyre audio are recorded loops whose playback rate and gain follow engine rpm and wheel slip. Changing the rate of a recording is not synthesis.',
-    'Story dialogue is spoken by the device speech synthesiser. That is synthesised speech and it is described as such; it is not recorded voice acting.',
+    ...voiceCastLines(),
     'Music is lazy-loaded: the six full-length beds total about 21 megabytes, so each one is downloaded the first time a scene asks for it rather than at boot.',
     'Known gaps, not filled with generated substitutes: crowd cheering, city ambience, family and workplace room tone, pit lane ambience, and a dedicated gear-change recording, for which a recorded metal click is used instead. See docs/AUDIO-CREDITS.md for the full ledger and the per-track licence evidence.',
   ].filter(Boolean);

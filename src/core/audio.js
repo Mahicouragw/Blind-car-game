@@ -17,7 +17,8 @@
  *    beds) - real recordings of real things, one per action the brief asked
  *    for. NO generated or AI sound effects are shipped: the brief allows AI
  *    VOICES and forbids generated sound effects, and the voice cues in
- *    assets/audio/voice are the only generated audio in the project.
+ *    assets/audio/voice plus the recorded story dialogue in assets/audio/story
+ *    are the only generated audio in the project.
  *
  * Engine and tyre audio are recorded loops whose playback rate and gain are
  * driven by rpm and slip. Changing the playback rate of a file is
@@ -73,6 +74,20 @@ export const AUDIO_MANIFEST = {
   'voice-accelerating': `${A}/voice/accelerating.mp3`,
   'voice-coasting': `${A}/voice/coasting.mp3`,
   'voice-reversing': `${A}/voice/reversing.mp3`,
+  // Recorded AI character voices for the story (see docs/AUDIO-CREDITS.md).
+  // Chapter one is fully recorded; later chapters follow the same naming and
+  // are picked up by voiceCast.js as they land. Lazy-loaded like the music
+  // beds: minutes of dialogue must never gate the menu.
+  'story-ch1_intro': `${A}/story/ch1_intro.mp3`,
+  'story-ch1_market': `${A}/story/ch1_market.mp3`,
+  'story-ch1_home': `${A}/story/ch1_home.mp3`,
+  'story-ch1_letter': `${A}/story/ch1_letter.mp3`,
+  'story-ch1_argument': `${A}/story/ch1_argument.mp3`,
+  'story-ch1_argument_choice': `${A}/story/ch1_argument_choice.mp3`,
+  'story-ch1_offer': `${A}/story/ch1_offer.mp3`,
+  'story-ch1_sister': `${A}/story/ch1_sister.mp3`,
+  'story-ch1_night': `${A}/story/ch1_night.mp3`,
+  'story-ch1_end': `${A}/story/ch1_end.mp3`,
   // ui
   'ui-click': `${A}/ui/click.ogg`,
   'ui-select': `${A}/ui/select.ogg`,
@@ -187,6 +202,17 @@ export const LAZY_AUDIO = new Set([
   'home-ambience',
   'workshop-ambience',
   'pit-lane-ambience',
+  // Recorded story dialogue: fetched when its chapter is played.
+  'story-ch1_intro',
+  'story-ch1_market',
+  'story-ch1_home',
+  'story-ch1_letter',
+  'story-ch1_argument',
+  'story-ch1_argument_choice',
+  'story-ch1_offer',
+  'story-ch1_sister',
+  'story-ch1_night',
+  'story-ch1_end',
 ]);
 
 /**
@@ -225,6 +251,28 @@ export const MUSIC_CREDITS = [
   { key: 'home-ambience', title: 'Room tone', artist: 'leonelmail', url: 'https://freesound.org/people/leonelmail/sounds/329569/', licence: 'Creative Commons 0', attributionRequired: false },
   { key: 'workshop-ambience', title: 'Tools Ratchet', artist: 'CapsLok', url: 'https://freesound.org/people/CapsLok/sounds/181634/', licence: 'Creative Commons 0', attributionRequired: false },
   { key: 'pit-lane-ambience', title: 'ParkingGarage', artist: 'conleec', url: 'https://freesound.org/people/conleec/sounds/150004/', licence: 'Creative Commons 0', attributionRequired: false },
+];
+
+/**
+ * Licence evidence for the recorded story dialogue (`story-*` manifest keys).
+ *
+ * These are ORIGINAL generated character voices, not any performer's recording
+ * and not any third-party asset: no corporate voice, no external licence, no
+ * attribution owed to anyone. The table exists so the "every lazy file ships
+ * with evidence" test covers them like everything else, and so the cast stays
+ * listed next to the files. Full prose in docs/AUDIO-CREDITS.md.
+ */
+export const STORY_VOICE_CREDITS = [
+  { key: 'story-ch1_intro', node: 'ch1_intro', voice: 'Narrator', licence: 'Original generated speech, no third-party rights' },
+  { key: 'story-ch1_market', node: 'ch1_market', voice: 'Narrator', licence: 'Original generated speech, no third-party rights' },
+  { key: 'story-ch1_home', node: 'ch1_home', voice: 'Sudha', licence: 'Original generated speech, no third-party rights' },
+  { key: 'story-ch1_letter', node: 'ch1_letter', voice: 'Narrator', licence: 'Original generated speech, no third-party rights' },
+  { key: 'story-ch1_argument', node: 'ch1_argument', voice: 'Ramesh', licence: 'Original generated speech, no third-party rights' },
+  { key: 'story-ch1_argument_choice', node: 'ch1_argument_choice', voice: 'Sudha', licence: 'Original generated speech, no third-party rights' },
+  { key: 'story-ch1_offer', node: 'ch1_offer', voice: 'Ramesh', licence: 'Original generated speech, no third-party rights' },
+  { key: 'story-ch1_sister', node: 'ch1_sister', voice: 'Divya', licence: 'Original generated speech, no third-party rights' },
+  { key: 'story-ch1_night', node: 'ch1_night', voice: 'Narrator', licence: 'Original generated speech, no third-party rights' },
+  { key: 'story-ch1_end', node: 'ch1_end', voice: 'Narrator', licence: 'Original generated speech, no third-party rights' },
 ];
 
 /**
@@ -296,7 +344,7 @@ export const AUDIO_GAPS = [
   { slot: 'handbrake', want: 'A handbrake sound for the drift input.', cueUsed: 'handbrake (CC0 field recording, ninebilly via freesound.org)', status: 'filled' },
   { slot: 'rain-wipers', want: 'Rain and working wipers for wet races.', cueUsed: 'rain and wiper (CC0 field recordings, unfa and itinerantmonk108 via freesound.org)', status: 'filled' },
   { slot: 'background-music', want: 'Full-length looping background music.', cueUsed: 'six full-length CC0 recordings from freepd.com, lazily loaded', status: 'filled' },
-  { slot: 'voice-acting', want: 'Recorded voice acting for story dialogue.', cueUsed: 'speech synthesis, labelled as synthesis', status: 'synthesised-not-recorded' },
+  { slot: 'voice-acting', want: 'Recorded voice acting for story dialogue.', cueUsed: 'chapter 1 recorded AI character voices; other chapters use distinct per-character synthesis, labelled as synthesis', status: 'partly-recorded' },
 ];
 
 /** Compatibility mix constants: speech NEVER changes music/effect/engine gains.
@@ -743,6 +791,71 @@ export function createAudio(config = {}) {
         api.music.handle?.stop(fade);
         api.music.handle = null;
         api.music.current = null;
+      },
+    },
+
+    /**
+     * Recorded story dialogue: a tracked one-shot on the `voice` bus.
+     *
+     * Unlike `play()`, this returns a handle so the story voice player can
+     * stop the previous line the moment the player moves on, and can speak
+     * the dialogue choices when the line actually ends. `onended` fires only
+     * for a line that played through; a stopped line reports nothing, because
+     * its screen is already gone.
+     */
+    voice: {
+      /**
+       * @param {string} name  a manifest key
+       * @param {{volume?:number}} [opts]
+       * @returns {{stop:(fade?:number)=>void, onended:(()=>void)|null, duration:number}|null}
+       */
+      play(name, opts = {}) {
+        if (!active || !ctx || !unlocked) return null;
+        const buf = buffers.get(resolveSoundName(name));
+        if (!buf) return null;
+        const group = groups.voice ?? groups.sfx;
+        if (!group) return null;
+        const src = ctx.createBufferSource();
+        src.buffer = buf;
+        const gain = ctx.createGain();
+        gain.gain.value = clamp(opts.volume ?? 1, 0, 1);
+        src.connect(gain).connect(group);
+        const handle = {
+          name,
+          duration: Number.isFinite(buf.duration) ? buf.duration : 0,
+          onended: null,
+          _stopped: false,
+          stop(fade = 0.05) {
+            if (handle._stopped) return;
+            handle._stopped = true;
+            try {
+              if (fade > 0) gain.gain.setTargetAtTime(0, ctx.currentTime, fade / 3);
+              src.stop(ctx.currentTime + Math.max(0, fade));
+            } catch {
+              /* already ended */
+            }
+          },
+        };
+        try {
+          src.start();
+          activeSources.add(src);
+          src.onended = () => {
+            activeSources.delete(src);
+            try {
+              src.disconnect?.();
+              gain.disconnect?.();
+            } catch {
+              /* ignore */
+            }
+            if (!handle._stopped) {
+              handle._stopped = true;
+              handle.onended?.();
+            }
+          };
+        } catch {
+          return null;
+        }
+        return handle;
       },
     },
 

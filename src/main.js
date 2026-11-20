@@ -475,6 +475,9 @@ export function bootApp(config = {}) {
    */
   function endPreviousSpeech() {
     speech?.stop?.();
+    // A recorded story line is not synthesis, so speech.stop() cannot reach
+    // it: the story screen listens for this and silences its voice player.
+    bus.emit('story:stop-voice', {});
   }
 
   const screensApi = {
