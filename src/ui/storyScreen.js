@@ -13,6 +13,7 @@
 import { bus } from '../core/bus.js';
 import { trackForChapter } from '../core/musicDirector.js';
 import { createStoryVoice } from '../story/storyVoice.js';
+import { interviewVoiceKey, storyVoiceKey } from '../story/voiceCast.js';
 import { makeButton, ZONE_ROLE } from './screens.js';
 import {
   evaluateInterview,
@@ -337,13 +338,13 @@ export function buildStoryScreen(config) {
       storyButtons.push(b);
     });
 
-    // Qureshi asks in her own voice; the answers are choices, so they follow
-    // in the guidance voice like every other choice list.
-    storyVoice.speak(q.asked, { speaker: q.speaker ?? 'Ms. Farida Qureshi', priority: 4 });
-    speech?.say(`${q.options.length} answers. ${q.options.map((o, i) => `${i + 1}: ${o.text}`).join('. ')}`, {
-      priority: 2,
-      essential: true,
-      cooldownMs: 0,
+    // Qureshi asks in her own voice - a recording when one exists - and the
+    // answers follow in the guidance voice once she has finished asking.
+    storyVoice.speak(q.asked, {
+      speaker: q.speaker ?? 'Ms. Farida Qureshi',
+      priority: 4,
+      fileKey: interviewVoiceKey(q.id),
+      followSpoken: `${q.options.length} answers. ${q.options.map((o, i) => `${i + 1}: ${o.text}`).join('. ')}`,
     });
   }
 
@@ -440,13 +441,18 @@ export function buildStoryScreen(config) {
     textEl.textContent = `${node.text} ${negotiationState.openingSpoken}`;
     ambienceEl.textContent = negotiationState.leverageSpoken;
     ambienceEl.hidden = false;
-    // The narrator sets up the negotiation, then Qureshi makes the offer in
-    // her own voice. The follow line queues behind the primer in order.
-    storyVoice.speak(node.text, { speaker: null, priority: 4 });
-    storyVoice.speak(`${negotiationState.openingSpoken} ${negotiationState.leverageSpoken}`, {
-      speaker: 'Ms. Farida Qureshi',
+    // The narrator sets up the negotiation - a recording when one exists -
+    // then Qureshi makes the offer in her own voice once the primer ends.
+    storyVoice.speak(node.text, {
+      speaker: null,
       priority: 4,
-      follow: true,
+      fileKey: storyVoiceKey('ch3_negotiation'),
+      onDone: () =>
+        storyVoice.speak(`${negotiationState.openingSpoken} ${negotiationState.leverageSpoken}`, {
+          speaker: 'Ms. Farida Qureshi',
+          priority: 4,
+          follow: true,
+        }),
     });
     renderNegotiationChoices();
   }

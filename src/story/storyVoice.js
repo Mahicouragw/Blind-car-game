@@ -163,9 +163,13 @@ export function createStoryVoice(config = {}) {
   }
 
   /**
-   * Speak one line in a character's synthesis voice (interview questions,
-   * negotiation answers, fanfares). These lines are dynamic or unrecorded, so
-   * they always use the cast voice rather than a file.
+   * Speak one line in a character's voice.
+   *
+   * A recording plays first when `opts.fileKey` names one (interview
+   * questions, the negotiation primer); otherwise the character's synthesis
+   * voice speaks. `opts.followSpoken` is voiced in the guidance voice when the
+   * line ends, and `opts.onDone` runs then too, so a second character can
+   * answer in order. Both are skipped if the player has already moved on.
    */
   function speak(text, opts = {}) {
     // A follow line joins the current beat; anything else starts a new one and
@@ -179,21 +183,77 @@ export function createStoryVoice(config = {}) {
     if (!text) return { mode: 'skipped', voice: null };
     if (!storyVoicesOn()) {
       speech?.say(text, { priority: opts.priority ?? 3, essential: true, cooldownMs: 0, interrupt: true });
+      if (opts.followSpoken) sayChoices(opts.followSpoken);
+      opts.onDone?.();
       return { mode: 'guidance', voice: null };
     }
     const profile = voiceForSpeaker(opts.speaker ?? null);
     speech?.mirror?.(`${opts.speaker ? `${opts.speaker}: ` : ''}${text}`);
+    let chained = false;
+    const finish = () => {
+      if (chained || my !== token) return;
+      chained = true;
+      if (opts.followSpoken) sayChoices(opts.followSpoken);
+      opts.onDone?.();
+    };
+    // Follow lines are always synthesis: they queue behind the beat they join.
+    const fileKey = opts.follow ? null : (opts.fileKey ?? null);
+    if (fileKey && audio?.ready && speechVolume() > 0 && !isSuspended()) {
+      void playFileLine(fileKey, text, profile, opts, my, finish);
+      return { mode: 'file', voice: profile.id, key: fileKey };
+    }
     const lead = opts.leadMs ?? 0;
     if (lead > 0) {
       pendingTimer = setTimeout(() => {
         pendingTimer = null;
         if (my !== token) return;
         speakWithCast(text, profile, opts.speaker ?? null, opts);
+        finish();
       }, lead);
     } else {
       speakWithCast(text, profile, opts.speaker ?? null, opts);
+      finish();
     }
     return { mode: 'synthesis', voice: profile.id };
+  }
+
+  /** Load and play a one-off recording, falling back to the cast voice. */
+  async function playFileLine(fileKey, text, profile, opts, my, finish) {
+    let buffer = null;
+    try {
+      buffer = await audio.ensureLoaded(fileKey);
+    } catch {
+      buffer = null;
+    }
+    if (my !== token) return;
+    if (!buffer) {
+      speakWithCast(text, profile, opts.speaker ?? null, opts);
+      finish();
+      return;
+    }
+    const lead = opts.leadMs ?? 0;
+    const durationMs = Number.isFinite(buffer.duration) ? buffer.duration * 1000 : 0;
+    pendingTimer = setTimeout(() => {
+      pendingTimer = null;
+      if (my !== token) return;
+      // voice.play returns null when audio is inactive (background tab), and
+      // the line below turns that into the character's synthesis voice.
+      const handle = isSuspended() ? null : audio.voice?.play(fileKey, { volume: speechVolume() });
+      if (!handle) {
+        speakWithCast(text, profile, opts.speaker ?? null, opts);
+        finish();
+        return;
+      }
+      fileHandle = handle;
+      handle.onended = finish;
+      // Safety net: if the ended event never arrives, the chain still runs.
+      if (durationMs > 0) {
+        pendingTimer = setTimeout(() => {
+          pendingTimer = null;
+          finish();
+        }, durationMs + 1500);
+      }
+    }, lead);
   }
 
   function speakWithCast(text, profile, speaker, opts = {}) {
