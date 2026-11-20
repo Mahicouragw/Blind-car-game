@@ -143,6 +143,16 @@ export const AUDIO_MANIFEST = {
   'story-ch4_mithin_fair': `${A}/story/ch4_mithin_fair.mp3`,
   'story-ch4_mithin_neutral': `${A}/story/ch4_mithin_neutral.mp3`,
   'story-ch4_alone_lunch': `${A}/story/ch4_alone_lunch.mp3`,
+  'story-ch4_end': `${A}/story/ch4_end.mp3`,
+  'story-ch5_question': `${A}/story/ch5_question.mp3`,
+  'story-ch5_yes': `${A}/story/ch5_yes.mp3`,
+  'story-ch5_invite': `${A}/story/ch5_invite.mp3`,
+  'story-ch5_sunday': `${A}/story/ch5_sunday.mp3`,
+  'story-ch5_circuit': `${A}/story/ch5_circuit.mp3`,
+  'story-ch5_leela': `${A}/story/ch5_leela.mp3`,
+  'story-ch5_controls': `${A}/story/ch5_controls.mp3`,
+  'story-ch5_controls_gestures': `${A}/story/ch5_controls_gestures.mp3`,
+  'story-ch5_controls_settings': `${A}/story/ch5_controls_settings.mp3`,
   // ui
   'ui-click': `${A}/ui/click.ogg`,
   'ui-select': `${A}/ui/select.ogg`,
@@ -323,6 +333,16 @@ export const LAZY_AUDIO = new Set([
   'story-ch4_mithin_fair',
   'story-ch4_mithin_neutral',
   'story-ch4_alone_lunch',
+  'story-ch4_end',
+  'story-ch5_question',
+  'story-ch5_yes',
+  'story-ch5_invite',
+  'story-ch5_sunday',
+  'story-ch5_circuit',
+  'story-ch5_leela',
+  'story-ch5_controls',
+  'story-ch5_controls_gestures',
+  'story-ch5_controls_settings',
 ]);
 
 /**
@@ -438,6 +458,16 @@ export const STORY_VOICE_CREDITS = [
   { key: 'story-ch4_mithin_fair', node: 'ch4_mithin_fair', voice: 'Mithin', licence: 'Original generated speech, no third-party rights' },
   { key: 'story-ch4_mithin_neutral', node: 'ch4_mithin_neutral', voice: 'Narrator', licence: 'Original generated speech, no third-party rights' },
   { key: 'story-ch4_alone_lunch', node: 'ch4_alone_lunch', voice: 'Narrator', licence: 'Original generated speech, no third-party rights' },
+  { key: 'story-ch4_end', node: 'ch4_end', voice: 'Narrator', licence: 'Original generated speech, no third-party rights' },
+  { key: 'story-ch5_question', node: 'ch5_question', voice: 'Joseph', licence: 'Original generated speech, no third-party rights' },
+  { key: 'story-ch5_yes', node: 'ch5_yes', voice: 'Joseph', licence: 'Original generated speech, no third-party rights' },
+  { key: 'story-ch5_invite', node: 'ch5_invite', voice: 'Narrator', licence: 'Original generated speech, no third-party rights' },
+  { key: 'story-ch5_sunday', node: 'ch5_sunday', voice: 'Narrator', licence: 'Original generated speech, no third-party rights' },
+  { key: 'story-ch5_circuit', node: 'ch5_circuit', voice: 'Narrator', licence: 'Original generated speech, no third-party rights' },
+  { key: 'story-ch5_leela', node: 'ch5_leela', voice: 'Leela', licence: 'Original generated speech, no third-party rights' },
+  { key: 'story-ch5_controls', node: 'ch5_controls', voice: 'Leela', licence: 'Original generated speech, no third-party rights' },
+  { key: 'story-ch5_controls_gestures', node: 'ch5_controls_gestures', voice: 'Leela', licence: 'Original generated speech, no third-party rights' },
+  { key: 'story-ch5_controls_settings', node: 'ch5_controls_settings', voice: 'Leela', licence: 'Original generated speech, no third-party rights' },
 ];
 
 /**

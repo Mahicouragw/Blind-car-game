@@ -87,7 +87,7 @@ test('voiceForNode never returns null', () => {
 
 // ------------------------------------------------------------- recorded files
 
-test('recorded voice files cover chapters one to four apart from the chapter four closing line', () => {
+test('recorded voice files cover chapters one to five apart from the chapter five branches', () => {
   const recorded = [
     'ch1_intro', 'ch1_market', 'ch1_home', 'ch1_letter', 'ch1_argument',
     'ch1_argument_choice', 'ch1_offer', 'ch1_sister', 'ch1_night', 'ch1_end',
@@ -102,12 +102,14 @@ test('recorded voice files cover chapters one to four apart from the chapter fou
     'ch4_mithin_respect', 'ch4_lunch', 'ch4_friends', 'ch4_afternoon', 'ch4_qureshi',
     'ch4_joseph_mumble', 'ch4_joseph_joke', 'ch4_keen', 'ch4_mithin_fair',
     'ch4_mithin_neutral', 'ch4_alone_lunch',
+    'ch4_end', 'ch5_question', 'ch5_yes', 'ch5_invite', 'ch5_sunday',
+    'ch5_circuit', 'ch5_leela', 'ch5_controls', 'ch5_controls_gestures', 'ch5_controls_settings',
   ];
   for (const id of recorded) {
     assert.equal(storyVoiceKey(id), `story-${id}`);
   }
-  assert.equal(storyVoiceKey('ch4_end'), null);
-  assert.equal(storyVoiceKey('ch5_question'), null);
+  assert.equal(storyVoiceKey('ch5_never'), null);
+  assert.equal(storyVoiceKey('ch5_no'), null);
   assert.equal(storyVoiceKey('no-such-node'), null);
 });
 
@@ -141,7 +143,7 @@ test('a renamed hero falls back to synthesis rather than hearing the wrong name'
   assert.equal(bakedVoiceUsable('ch1_home', {}), true);
   assert.equal(bakedVoiceUsable('ch1_home', { heroName: 'Meera' }), false);
   assert.equal(bakedVoiceUsable('ch1_letter', { heroName: 'Meera' }), true);
-  assert.equal(bakedVoiceUsable('ch4_end', { heroName: 'Aarav' }), false);
+  assert.equal(bakedVoiceUsable('ch5_end', { heroName: 'Aarav' }), false);
 });
 
 test('the scene effect plays before the voice starts', () => {
@@ -344,16 +346,16 @@ test('an unrecorded node speaks in its character synthesis voice, never guidance
     getStoryState: () => ({ heroName: 'Aarav' }),
   });
   const res = await player.speakNode(
-    { id: 'ch4_end', speaker: null, text: 'Chapter four is complete.', sfx: null },
+    { id: 'ch5_never', speaker: 'Joseph', text: 'Never thought about it.', sfx: null },
     { choicesSpoken: '3 choices.' }
   );
   assert.equal(res.mode, 'synthesis');
-  assert.equal(res.voice, 'narrator');
+  assert.equal(res.voice, 'joseph');
   assert.equal(audio.loadedKeys.length, 0);
-  assert.equal(speech.said[0].opts.pitch, CHARACTER_VOICES.narrator.pitch);
+  assert.equal(speech.said[0].opts.pitch, CHARACTER_VOICES.joseph.pitch);
   // The character line comes first, the choices follow it.
   assert.equal(speech.said.length, 2);
-  assert.match(speech.said[0].text, /Chapter four is complete/);
+  assert.match(speech.said[0].text, /Never thought about it/);
   assert.match(speech.said[1].text, /3 choices/);
 });
 

@@ -58,7 +58,7 @@ the story: women are voiced by women and men by men. The cast lives in
 
 Two layers deliver this. **Chapter 1 is fully recorded** with AI character
 voices (`assets/audio/story/`, one file per node, lazy-loaded like the music
-beds), and **chapter 2 is fully recorded**, including the interview questions. **Chapter 3 is recorded** apart from its dynamic salary line (the signed contract speaks your exact figure, so it stays synthesis). **Chapter 4 is recorded** apart from its closing line. Every other line — later chapters and negotiation
+beds), and **chapter 2 is fully recorded**, including the interview questions. **Chapter 3 is recorded** apart from its dynamic salary line (the signed contract speaks your exact figure, so it stays synthesis). **Chapter 4 is fully recorded**. **Chapter 5 is started** (the invitation and the induction, with Leela voiced). Every other line — later chapters and negotiation
 answers — uses **distinct per-character synthesis** (each cast member's own
 pitch, rate and device-voice hints), so nothing ever collapses back into the
 single guidance voice. Recordings bake in the default hero name ("Aarav"); if
