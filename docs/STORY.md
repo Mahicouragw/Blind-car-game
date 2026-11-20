@@ -70,6 +70,8 @@ Sudha speaks), music continues underneath at its own level, advancing stops
 the previous line and any leftover button speech so characters never overlap
 and a recording never plays over the tap that started it, and dialogue choices
 follow the line in the guidance voice — choices are interface, not character lines.
+Voices never announce their own names aloud; the speaker caption above the text
+shows who is talking, so recordings and synthesis both start straight into the line.
 `Character voices` in the settings switches the whole system back to the
 single guidance voice for players who prefer it.
 

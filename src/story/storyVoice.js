@@ -266,13 +266,15 @@ export function createStoryVoice(config = {}) {
   }
 
   function speakWithCast(text, profile, speaker, opts = {}) {
-    // The speaker name is part of the spoken line for synthesis: on a device
-    // with a single installed voice the prosody still differs, but the name
-    // makes the speaker unambiguous. Recordings carry identity in the voice.
-    // `follow` lines queue BEHIND the current beat instead of replacing it, so
-    // a narrator primer and a character answer can share one scene in order.
+    // Characters never announce their own names aloud: no "Ms. Qureshi: ..."
+    // before the line. Identity comes from the distinct voice itself, and the
+    // speaker caption plus the mirrored "Name: line" text show who is talking
+    // for readers. `follow` lines queue BEHIND the current beat instead of
+    // replacing it, so a narrator primer and a character answer can share one
+    // scene in order.
+    void speaker;
     const follow = !!opts.follow;
-    speech?.say(`${speaker ? `${speaker}: ` : ''}${text}`, {
+    speech?.say(text, {
       priority: opts.priority ?? 3,
       essential: true,
       cooldownMs: 0,

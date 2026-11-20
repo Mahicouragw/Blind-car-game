@@ -325,7 +325,8 @@ test('a failed recording still speaks in the character synthesis voice', async (
   assert.equal(res.voice, 'divya');
   assert.equal(audio.played.length, 0);
   assert.equal(speech.said.length, 1);
-  assert.match(speech.said[0].text, /Divya, your sister:/);
+  assert.doesNotMatch(speech.said[0].text, /Divya/, 'characters never announce their own names');
+  assert.match(speech.said[0].text, /Are you going to do something/);
   assert.equal(speech.said[0].opts.pitch, CHARACTER_VOICES.divya.pitch);
   assert.equal(speech.said[0].opts.rate, CHARACTER_VOICES.divya.rate);
   assert.deepEqual(speech.said[0].opts.voice, CHARACTER_VOICES.divya.voiceHint);
@@ -350,7 +351,8 @@ test('an unrecorded node speaks in its character synthesis voice, never guidance
   assert.equal(speech.said[0].opts.pitch, CHARACTER_VOICES.joseph.pitch);
   // The character line comes first, the choices follow it.
   assert.equal(speech.said.length, 2);
-  assert.match(speech.said[0].text, /Joseph:/);
+  assert.doesNotMatch(speech.said[0].text, /Joseph:/, 'characters never announce their own names');
+  assert.match(speech.said[0].text, /Sit down and eat/);
   assert.match(speech.said[1].text, /3 choices/);
 });
 
@@ -366,7 +368,8 @@ test('speak() voices interview and negotiation lines with the cast', () => {
   assert.equal(res.mode, 'synthesis');
   assert.equal(res.voice, 'qureshi');
   assert.equal(speech.said.length, 1);
-  assert.match(speech.said[0].text, /Ms. Farida Qureshi:/);
+  assert.doesNotMatch(speech.said[0].text, /Qureshi/, 'characters never announce their own names');
+  assert.match(speech.said[0].text, /Good morning/);
   assert.equal(speech.said[0].opts.pitch, CHARACTER_VOICES.qureshi.pitch);
   assert.equal(speech.said[0].opts.priority, 4);
 });
@@ -478,7 +481,8 @@ test('speak() falls back to the cast voice when its file is missing', async () =
   await tick(20);
   assert.equal(audio.played.length, 0);
   assert.equal(speech.said.length, 2);
-  assert.match(speech.said[0].text, /Ms. Farida Qureshi:/);
+  assert.doesNotMatch(speech.said[0].text, /Qureshi/, 'characters never announce their own names');
+  assert.match(speech.said[0].text, /Good morning/);
   assert.equal(speech.said[0].opts.pitch, CHARACTER_VOICES.qureshi.pitch);
   assert.match(speech.said[1].text, /5 answers/);
   assert.equal(done, 1);
@@ -594,4 +598,20 @@ test('skipped lines leave speech alone', async () => {
   await player.speakNode(null, {});
   player.speak('', { speaker: null });
   assert.equal(speech.stops, 0);
+});
+
+test('characters never announce their own names aloud, but captions keep them', () => {
+  const speech = makeSpeechStub();
+  const player = createStoryVoice({
+    audio: makeAudioStub(),
+    speech,
+    getSettings: () => ({ storyVoices: true }),
+    getStoryState: () => ({}),
+  });
+  player.speak('You came back. Most of them do not.', { speaker: 'Ms. Farida Qureshi' });
+  assert.equal(speech.said.length, 1);
+  assert.doesNotMatch(speech.said[0].text, /Qureshi/);
+  assert.match(speech.said[0].text, /You came back/);
+  // Readers still see who is talking: the caption keeps the speaker name.
+  assert.match(speech.mirrored.join(' '), /Ms. Farida Qureshi: You came back/);
 });
