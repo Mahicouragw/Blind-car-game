@@ -98,6 +98,16 @@ export const AUDIO_MANIFEST = {
   'story-ch2_passed': `${A}/story/ch2_passed.mp3`,
   'story-ch2_failed': `${A}/story/ch2_failed.mp3`,
   'story-ch2_end': `${A}/story/ch2_end.mp3`,
+  'story-ch2_tea_stall': `${A}/story/ch2_tea_stall.mp3`,
+  'story-ch2_prep_alone': `${A}/story/ch2_prep_alone.mp3`,
+  'story-ch2_early': `${A}/story/ch2_early.mp3`,
+  'story-ch2_late': `${A}/story/ch2_late.mp3`,
+  'story-ch2_walk': `${A}/story/ch2_walk.mp3`,
+  'story-ch2_retry': `${A}/story/ch2_retry.mp3`,
+  'story-ch2_saturday': `${A}/story/ch2_saturday.mp3`,
+  'story-ch2_saturday_result': `${A}/story/ch2_saturday_result.mp3`,
+  'story-ch2_tea_stall_end': `${A}/story/ch2_tea_stall_end.mp3`,
+  'story-ch2_followups': `${A}/story/ch2_followups.mp3`,
   // ui
   'ui-click': `${A}/ui/click.ogg`,
   'ui-select': `${A}/ui/select.ogg`,
@@ -233,6 +243,16 @@ export const LAZY_AUDIO = new Set([
   'story-ch2_passed',
   'story-ch2_failed',
   'story-ch2_end',
+  'story-ch2_tea_stall',
+  'story-ch2_prep_alone',
+  'story-ch2_early',
+  'story-ch2_late',
+  'story-ch2_walk',
+  'story-ch2_retry',
+  'story-ch2_saturday',
+  'story-ch2_saturday_result',
+  'story-ch2_tea_stall_end',
+  'story-ch2_followups',
 ]);
 
 /**
@@ -303,6 +323,16 @@ export const STORY_VOICE_CREDITS = [
   { key: 'story-ch2_passed', node: 'ch2_passed', voice: 'Qureshi', licence: 'Original generated speech, no third-party rights' },
   { key: 'story-ch2_failed', node: 'ch2_failed', voice: 'Qureshi', licence: 'Original generated speech, no third-party rights' },
   { key: 'story-ch2_end', node: 'ch2_end', voice: 'Narrator', licence: 'Original generated speech, no third-party rights' },
+  { key: 'story-ch2_tea_stall', node: 'ch2_tea_stall', voice: 'Narrator', licence: 'Original generated speech, no third-party rights' },
+  { key: 'story-ch2_prep_alone', node: 'ch2_prep_alone', voice: 'Narrator', licence: 'Original generated speech, no third-party rights' },
+  { key: 'story-ch2_early', node: 'ch2_early', voice: 'Narrator', licence: 'Original generated speech, no third-party rights' },
+  { key: 'story-ch2_late', node: 'ch2_late', voice: 'Narrator', licence: 'Original generated speech, no third-party rights' },
+  { key: 'story-ch2_walk', node: 'ch2_walk', voice: 'Narrator', licence: 'Original generated speech, no third-party rights' },
+  { key: 'story-ch2_retry', node: 'ch2_retry', voice: 'Qureshi', licence: 'Original generated speech, no third-party rights' },
+  { key: 'story-ch2_saturday', node: 'ch2_saturday', voice: 'Narrator', licence: 'Original generated speech, no third-party rights' },
+  { key: 'story-ch2_saturday_result', node: 'ch2_saturday_result', voice: 'Qureshi', licence: 'Original generated speech, no third-party rights' },
+  { key: 'story-ch2_tea_stall_end', node: 'ch2_tea_stall_end', voice: 'Narrator', licence: 'Original generated speech, no third-party rights' },
+  { key: 'story-ch2_followups', node: 'ch2_followups', voice: 'Narrator', licence: 'Original generated speech, no third-party rights' },
 ];
 
 /**

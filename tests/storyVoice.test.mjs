@@ -86,18 +86,20 @@ test('voiceForNode never returns null', () => {
 
 // ------------------------------------------------------------- recorded files
 
-test('recorded voice files cover chapter one and chapter two\'s main path', () => {
+test('recorded voice files cover chapters one and two', () => {
   const recorded = [
     'ch1_intro', 'ch1_market', 'ch1_home', 'ch1_letter', 'ch1_argument',
     'ch1_argument_choice', 'ch1_offer', 'ch1_sister', 'ch1_night', 'ch1_end',
     'ch2_search', 'ch2_prep', 'ch2_prep_mother', 'ch2_prep_father', 'ch2_travel',
     'ch2_reception', 'ch2_interview', 'ch2_passed', 'ch2_failed', 'ch2_end',
+    'ch2_tea_stall', 'ch2_prep_alone', 'ch2_early', 'ch2_late', 'ch2_walk',
+    'ch2_retry', 'ch2_saturday', 'ch2_saturday_result', 'ch2_tea_stall_end', 'ch2_followups',
   ];
   for (const id of recorded) {
     assert.equal(storyVoiceKey(id), `story-${id}`);
   }
   assert.equal(storyVoiceKey('ch1_kindness'), null);
-  assert.equal(storyVoiceKey('ch2_tea_stall'), null);
+  assert.equal(storyVoiceKey('ch2_result_unknown'), null);
   assert.equal(storyVoiceKey('no-such-node'), null);
 });
 
@@ -119,7 +121,7 @@ test('a renamed hero falls back to synthesis rather than hearing the wrong name'
   assert.equal(bakedVoiceUsable('ch1_home', {}), true);
   assert.equal(bakedVoiceUsable('ch1_home', { heroName: 'Meera' }), false);
   assert.equal(bakedVoiceUsable('ch1_letter', { heroName: 'Meera' }), true);
-  assert.equal(bakedVoiceUsable('ch2_tea_stall', { heroName: 'Aarav' }), false);
+  assert.equal(bakedVoiceUsable('ch2_result_unknown', { heroName: 'Aarav' }), false);
 });
 
 test('the scene effect plays before the voice starts', () => {
