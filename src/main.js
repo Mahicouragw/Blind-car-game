@@ -1180,7 +1180,7 @@ export function bootApp(config = {}) {
       'Welcome to Vettaru, The Blind Driver.',
       'This game has its own spoken guidance called Game TalkBack. It does not need TalkBack or any screen reader on your phone to be switched on.',
       speech.explainStatus(),
-      'Controls. Press and hold anywhere on the driving surface to accelerate, and release to coast. Tap once to brake. Tap twice quickly for the handbrake, which makes the car slide. Drag left or right to steer, and the steering is gradual, never instant. Draw a circle to ask for a U-turn, which the game only performs where the track allows it.',
+      'Controls. Press and hold anywhere on the driving surface to accelerate, and release to coast. Tap once to brake. A quick double tap brakes too. Drag left or right to steer, or swipe left or right once for steering that stays on, and swipe up to straighten. The steering is gradual, never instant. Draw a circle to ask for a U-turn, which the game only performs where the track allows it. On a keyboard, hold the space bar for the handbrake, which makes the car slide.',
       'In menus, swiping up, down, left or right moves the cursor. A single tap anywhere confirms the current selection. Double tap activates it. Swipe left and right on a car preview to browse cars.',
       'Tap twice and hold on the settings area, or press F1 on a keyboard, to open the voice settings at any time. There is also always a button on the menu.',
       'Three quick taps never start a race. That is deliberate.',

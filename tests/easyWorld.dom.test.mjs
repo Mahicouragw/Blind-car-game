@@ -267,3 +267,37 @@ test('horn cancellation and pagehide stop the recorded loop, without acceleratin
   window.dispatchEvent(new window.Event('pageshow'));assert.equal(s.isMenu,true);
   assert.equal(s.world.state.holding,false);app.destroy();
 });
+
+test('city shop entry through the real pointer pipeline: swipe the side, tap to confirm', () => {
+  const { app } = boot(10); const screen = start(app, 'city');
+  screen.world.state.distance = 21; screen.world.state.maxDistance = 21; screen.world.state.nextCoinAt = 100;
+  screen.world.pressStart(); screen.tick(0.1); screen.world.pressEnd(100);
+  assert.equal(screen.world.state.pendingShop, 'potion');
+  const r = app.pointerBus.recognizer; let clock = 0; r.setClock(() => clock);
+  // Swipe LEFT toward the shop: down, drag left, lift.
+  r.pointerDown(1, 300, 400, screen.zone); clock += 100;
+  r.pointerMove(1, 220, 400); clock += 100;
+  r.pointerUp(1, 200, 400); r.tick();
+  assert.equal(screen.world.state.confirmShop, 'potion');
+  // Tap to confirm (a delayed-tap zone: resolve the window first).
+  r.pointerDown(1, 100, 100, screen.zone); clock += 50; r.pointerUp(1, 100, 100);
+  clock += 700; r.tick();
+  assert.equal(screen.world.state.inShop, 'potion');
+  assert.match(screen.element.querySelector('.easy-action').textContent, /Entering the potion shop/);
+  app.destroy();
+});
+
+test('keyboard S walks backward when standing still, and toggles back', () => {
+  const { app } = boot(); const screen = start(app, 'forest');
+  assert.equal(screen.world.state.backward, false);
+  screen.handleKey('down', { action: 'brake' });
+  assert.equal(screen.world.state.backward, true);
+  assert.match(screen.element.querySelector('.easy-action').textContent, /Walking backward/);
+  screen.handleKey('down', { action: 'accelerate' });
+  screen.tick(1); // cannot go back past the start
+  assert.equal(screen.world.state.distance, 0);
+  assert.equal(screen.world.state.speed, 0);
+  screen.handleKey('down', { action: 'brake' });
+  assert.equal(screen.world.state.backward, false, 'S toggles back to forward');
+  app.destroy();
+});

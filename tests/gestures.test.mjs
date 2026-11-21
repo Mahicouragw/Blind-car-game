@@ -359,6 +359,16 @@ test('pointerCancel releases a held accelerate pad so the car cannot stick on th
   assert.equal(h.g.isTouching, false);
 });
 
+test('pointerCancel ends a drag so the wheels cannot freeze mid-corner', () => {
+  const h = harness();
+  h.down(100, 100, DRIVE);
+  h.move(200, 110, 100);
+  h.g.pointerCancel(1);
+  h.g.tick();
+  assert.equal(h.count('dragEnd'), 1);
+  assert.equal(h.find('dragEnd').cancelled, true);
+});
+
 test('a tap chain across two different zones does not merge into a double tap', () => {
   const h = harness();
   h.tapAt(100, 100, MENU, 40);

@@ -220,12 +220,33 @@ test('dragging right steers right', () => {
 test('the wheel self-centres when the finger lifts', () => {
   withRig((r) => {
     r.down(300, 400);
-    for (const x of [280, 250, 220, 190]) r.move(x, 400);
+    for (const x of [280, 250, 220, 190]) {
+      r.advance(150);
+      r.move(x, 400);
+    }
+    // A real steering drag is HELD through the corner: the lift at its end
+    // must release the wheels, never latch a swipe selection.
+    r.advance(600);
     r.settle(1 / 60, 40);
     assert.ok(Math.abs(r.drivingInput.state.steer) > 0.1, 'steering should have built up first');
+    assert.ok(r.drivingInput.state.steerTarget > 0, 'a held left drag must still be steering');
     r.up(190, 400);
+    assert.equal(r.drivingInput.state.steerSelect, 0, 'a held drag must not latch steering on release');
     const out = r.settle(1 / 60, 200);
     assert.equal(out.steer, 0, 'releasing the drag should leave the wheels straight');
+  });
+});
+
+test('a quick flick latches steering that survives the lift', () => {
+  withRig((r) => {
+    r.down(300, 400);
+    r.advance(60);
+    r.move(220, 400);
+    r.advance(60);
+    r.up(190, 400);
+    assert.equal(r.drivingInput.state.steerSelect, 0.5, 'a quick left flick latches half lock');
+    const out = r.settle(1 / 60, 120);
+    assert.ok(out.steer > 0.4, `the wheels ramp to the latched selection, got ${out.steer}`);
   });
 });
 

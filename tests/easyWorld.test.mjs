@@ -216,3 +216,65 @@ test('forest health-zero recovery stays unchanged, including opening and closing
   w.menu(); assert.equal(w.closeMenu(),true); advance(w,3.2);
   assert.equal(w.state.out,false); assert.equal(w.state.health,100);
 });
+test('city shops announce their side and distance as you approach', () => {
+  const w = createEasyWorld({ area: 'city' }); w.pressStart(); advance(w, 3);
+  assert.match(words(w), /Potion shop on your left, 25 metres/);
+});
+test('shop entry is direction-gated: swipe the side, tap to confirm, tap to buy', () => {
+  const w = createEasyWorld({ area: 'city', wallet: { coins: 10 } });
+  w.state.distance = 21; w.state.maxDistance = 21; w.state.nextCoinAt = 100;
+  w.pressStart(); w.update(0.1); w.pressEnd(100);
+  assert.match(words(w), /potion shop is on your left. Swipe left to enter/);
+  assert.equal(w.state.pendingShop, 'potion');
+  w.swipe('left');
+  assert.equal(w.state.confirmShop, 'potion');
+  assert.match(words(w), /Enter the potion shop\? Tap to confirm/);
+  w.tap();
+  assert.equal(w.state.inShop, 'potion');
+  assert.match(words(w), /Entering the potion shop/);
+  w.tap();
+  assert.equal(w.inventory.potions, 4); assert.equal(w.wallet.coins, 7);
+  w.swipe('down');
+  assert.equal(w.state.inShop, null);
+  assert.match(words(w), /Leaving the potion shop/);
+});
+test('a wrong-side swipe never enters; walking past clears the offer', () => {
+  const w = createEasyWorld({ area: 'city' });
+  w.state.distance = 21; w.state.maxDistance = 21; w.state.nextCoinAt = 100;
+  w.pressStart(); w.update(0.1); w.drain();
+  w.swipe('right');
+  assert.equal(w.state.confirmShop, null);
+  assert.equal(w.state.pendingShop, 'potion', 'the offer stays until you pass or confirm');
+  advance(w, 10);
+  assert.equal(w.state.pendingShop, null);
+  assert.match(words(w), /walked past the potion shop/);
+});
+test('swipe down walks backward and announces it; forward toggle announces too', () => {
+  const w = createEasyWorld({ area: 'forest' });
+  w.pressStart(); advance(w, 5); w.pressEnd(5000); w.drain();
+  assert.ok(w.state.distance >= 9.9);
+  w.swipe('down');
+  assert.equal(w.state.backward, true);
+  assert.match(words(w), /Walking backward\./);
+  w.pressStart(); advance(w, 2);
+  assert.ok(w.state.distance < 6.5 && w.state.distance > 5, `walked back to ${w.state.distance}`);
+  w.pressEnd(2000); w.swipe('down');
+  assert.equal(w.state.backward, false);
+  assert.match(words(w), /Walking forward\./);
+});
+test('backward walking stops at the start of the stretch', () => {
+  const w = createEasyWorld({ area: 'forest' });
+  w.swipe('down'); w.drain();
+  w.pressStart(); advance(w, 1);
+  assert.equal(w.state.speed, 0);
+  assert.match(words(w), /Start of this stretch/);
+});
+test('walking back over old ground pays no coins twice', () => {
+  const w = createEasyWorld({ area: 'forest' });
+  w.pressStart(); advance(w, 6); w.pressEnd(6000); w.drain();
+  const coins = w.wallet.coins;
+  assert.ok(coins >= 1, 'forward walking pays');
+  w.swipe('down'); w.pressStart(); advance(w, 3); w.pressEnd(3000);
+  w.swipe('down'); w.pressStart(); advance(w, 3); w.pressEnd(3000);
+  assert.equal(w.wallet.coins, coins, 're-walked ground pays nothing');
+});

@@ -56,20 +56,29 @@ the story: women are voiced by women and men by men. The cast lives in
 | Mithin (male) | Colleague | Quiet and measuring; slower and lower than Joseph |
 | Ms. Leela Varma (female) | Race official | Confident; explains the controls in chapter 5 |
 
-Two layers deliver this. **Chapter 1 is fully recorded** with AI character
-voices (`assets/audio/story/`, one file per node, lazy-loaded like the music
-beds), and **chapter 2 is fully recorded**, including the interview questions. **Chapter 3 is recorded** apart from its dynamic salary line (the signed contract speaks your exact figure, so it stays synthesis). **Chapters 4 and 5 are fully recorded**. **Chapter 6 is recorded** apart from its unspoken handoffs (the tutorial and action transitions, which the screens they open speak for). **Chapter 7 is recorded** apart from its unspoken handoffs (the race and result transitions, which the race screen speaks for). Every other line — later chapters and negotiation
-answers — uses **distinct per-character synthesis** (each cast member's own
-pitch, rate and device-voice hints), so nothing ever collapses back into the
-single guidance voice. Recordings bake in the default hero name ("Aarav"); if
-the player renames the hero, nodes that speak the name fall back to the
-character's synthesis voice so the game never says the wrong name.
+Two layers deliver this. Dialogue is split into **narrator beats and character
+beats** (`src/story/storyBeats.js`): the narrator speaks only scene, action and
+"X says" introductions while each character speaks only their own dialogue —
+including quoted lines inside another character's scene (Joseph's words in
+Mithin's nodes are Joseph's voice). Character beats are **recorded** in their
+own AI voices (`assets/audio/story/`, one file per beat, lazy-loaded like the
+music beds) throughout chapters 1–7, and the interview questions are recorded.
+By design, narrator beats inside dialogue, the dynamic salary line (the signed
+contract speaks your exact figure), the negotiation answers, and the unspoken
+tutorial/race/action handoffs (spoken by the screens they open) stay **distinct
+per-character synthesis** — each cast member's own pitch, rate and
+device-voice hints — so nothing ever collapses back into the single guidance
+voice. Recordings bake in the default hero name ("Aarav"); if the player
+renames the hero, beats that speak the name fall back to the character's
+synthesis voice so the game never says the wrong name. A validation test proves
+every split rejoins its node text exactly across all seven chapters.
 
 Synchronization: the scene's sound effect plays first (the door opens, then
 Sudha speaks), music continues underneath at its own level, advancing stops
 the previous line and any leftover button speech so characters never overlap
-and a recording never plays over the tap that started it, and dialogue choices
-follow the line in the guidance voice — choices are interface, not character lines.
+and a recording never plays over the tap that started it. Split nodes play beat
+by beat with a short pause wherever the voice changes, and dialogue choices
+follow the last beat in the guidance voice — choices are interface, not character lines.
 Voices never announce their own names aloud; the speaker caption above the text
 shows who is talking, so recordings and synthesis both start straight into the line.
 `Character voices` in the settings switches the whole system back to the
@@ -218,7 +227,7 @@ Tests assert no outcome escapes that band.
 
 ## Branching and state
 
-`src/story/storyEngine.js` walks a scene graph of **~90 nodes**. Node kinds:
+`src/story/storyEngine.js` walks a scene graph of **101 nodes**. Node kinds:
 `scene`, `dialogue`, `action`, `interview`, `negotiation`, `tutorial`, `race`,
 `chapter_end`.
 

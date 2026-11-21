@@ -101,12 +101,42 @@ export function isDownLeftSwipe(d) {
   return dx <= -REVERSE_MAX_DX && dy >= REVERSE_MAX_DX;
 }
 
+/**
+ * One swipe step of persistent steering. Two swipes the same way reach full
+ * lock; a swipe the other way steps back toward centre; swipe up straightens.
+ */
+export const STEER_SELECT_STEP = 0.5;
+
+/**
+ * How quick a left/right swipe must be to latch steering, in ms.
+ *
+ * Every steering drag ends with a lift that the recognizer ALSO classifies
+ * as a swipe, so latching on every swipe would destroy the drag contract
+ * (release the drag and the wheels straighten). The separator is time: a
+ * deliberate flick is over in well under half a second, while a steering
+ * drag is held through the corner. Slow swipes only ever steered by drag
+ * and keep releasing cleanly; quick flicks latch and are announced, with a
+ * swipe up to straighten. Synthetic events without a duration count as
+ * instant, so tests and keyboards can drive the same path.
+ */
+export const SWIPE_STEER_MAX_MS = 350;
+
+/** Spoken line for a persistent steering selection. Never null. */
+export function steerSelectLabel(value) {
+  if (value >= 1) return 'Steering hard left.';
+  if (value > 0) return 'Steering left.';
+  if (value <= -1) return 'Steering hard right.';
+  if (value < 0) return 'Steering right.';
+  return 'Wheels straight.';
+}
+
 export function createDrivingInput(config = {}) {
   const state = {
     throttle: 0,
     brake: 0,
     steer: 0, // -1 right .. +1 left, applied to the physics model
     steerTarget: 0,
+    steerSelect: 0, // persistent swipe selection; a live drag adds on top of it
     handbrake: false,
     uturnRequest: 0, // countdown in seconds while a U-turn is being asked for
     reversing: 0, // seconds of reverse still to apply
@@ -203,7 +233,17 @@ export function createDrivingInput(config = {}) {
   });
   on('gesture:dragEnd', () => {
     dragActive = false;
-    // Wheels self-centre gradually rather than snapping back.
+    // Wheels self-centre gradually rather than snapping back. The persistent
+    // swipe selection is deliberately untouched: releasing a drag must never
+    // erase a steering choice the player made with a swipe.
+    dragSteer = 0;
+  });
+  // An OS-level cancellation (notification shade, an interrupting system
+  // gesture) ends the drag exactly like a lift: without this the wheels
+  // freeze at their last angle because no dragEnd ever arrives. The swipe
+  // selection survives - it is a deliberate latched choice, not a contact.
+  on('gesture:cancel', () => {
+    dragActive = false;
     dragSteer = 0;
   });
 
@@ -218,6 +258,23 @@ export function createDrivingInput(config = {}) {
   // is left alone (REVERSE_MAX_DX).
   on('gesture:swipe', (d) => {
     if (d.zone?.role !== DRIVING_ROLE) return;
+    // Persistent steering: a swipe selects a wheel angle that STAYS ON through
+    // the corner, unlike a drag which self-centres on release. Positive steer
+    // is left in the physics model, matching the drag direction, so swiping
+    // left always means steering left whichever input the finger used.
+    if (d.direction === 'left' || d.direction === 'right') {
+      // Flicks latch; the lift at the end of a held steering drag does not.
+      if ((d.durationMs ?? 0) > SWIPE_STEER_MAX_MS) return;
+      const step = d.direction === 'left' ? STEER_SELECT_STEP : -STEER_SELECT_STEP;
+      state.steerSelect = Math.max(-1, Math.min(1, state.steerSelect + step));
+      bus.emit('race:steerSelected', { value: state.steerSelect });
+      return;
+    }
+    if (d.direction === 'up') {
+      state.steerSelect = 0;
+      bus.emit('race:steerSelected', { value: 0 });
+      return;
+    }
     if (d.direction !== 'down') return;
     if (Math.abs(d.dx ?? 0) > REVERSE_MAX_DX) return;
     state.reversing = REVERSE_BURST_SECONDS;
@@ -301,7 +358,10 @@ export function createDrivingInput(config = {}) {
         }
         return out;
       }
-      state.steerTarget = dragSteer;
+      // The persistent swipe selection plus any live drag, clamped to full
+      // lock. The selection survives drags, pauses and menus; only an
+      // opposite swipe, swipe up, or a reset (retry/respawn) changes it.
+      state.steerTarget = Math.max(-1, Math.min(1, dragSteer + state.steerSelect));
       // Gradual: the target itself is rate-limited, and the vehicle model
       // rate-limits the wheels again on top of that.
       const maxStep = STEER_TARGET_RATE * dt;
@@ -325,6 +385,7 @@ export function createDrivingInput(config = {}) {
       state.brake = 0;
       state.steer = 0;
       state.steerTarget = 0;
+      state.steerSelect = 0;
       state.uturnRequest = 0;
       state.respawnRequest = false;
       state.holding = false;

@@ -53,6 +53,7 @@ import {
   updateRacer,
 } from './raceState.js';
 import { createAnnouncementDirector, navigationFacts, relativeBearing } from './navigation.js';
+import { steerSelectLabel } from '../input/drivingInput.js';
 import { SPEECH_PRIORITY } from '../a11y/speechQueue.js';
 
 const FIXED_DT = 1 / 60;
@@ -169,6 +170,7 @@ export function createRaceScreen(config) {
     lastReversing: false,
     lastBraking: false,
     lastHandbraking: false,
+    lastSteerSelect: 0,
     lastGear: null,
     lastThrottleSay: -99,
     direction: null,
@@ -303,6 +305,7 @@ export function createRaceScreen(config) {
       'Tap once to brake. A quick double tap brakes too.',
       'Double tap and hold the second press over one second for the recorded car horn. Release to stop the horn. Keyboard Space is still the handbrake.',
       'Drag left or right to steer. The car turns gradually, so hold the drag through the corner. After the turn, let go of the steering: the wheel straightens itself. Then accelerate.',
+      'Or quickly swipe left or right to select steering that stays on through the corner. A slow held drag still steers only while held. Swipe up to straighten the wheel.',
       'Draw a circle with your finger to turn around.',
       'Swipe straight down to reverse.',
       'Swipe down and left to open the race menu, with coins, repair, petrol, settings and where you are.',
@@ -438,6 +441,18 @@ export function createRaceScreen(config) {
       cue('Brake.', 'voice-brake', {
         priority: SPEECH_PRIORITY.HIGH,
         key: 'brakeCmd',
+        cooldownMs: 700,
+        ttlMs: 1800,
+      });
+    }
+    // Persistent steering selection: announced once, on the edge, like a brake
+    // press - the player chose it with a swipe and must hear it land.
+    const steerSelect = drivingInput?.state?.steerSelect ?? 0;
+    if (steerSelect !== S.lastSteerSelect) {
+      S.lastSteerSelect = steerSelect;
+      cue(steerSelectLabel(steerSelect), null, {
+        priority: SPEECH_PRIORITY.HIGH,
+        key: 'steerSelect',
         cooldownMs: 700,
         ttlMs: 1800,
       });
