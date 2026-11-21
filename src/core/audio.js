@@ -173,6 +173,8 @@ export const AUDIO_MANIFEST = {
   'story-ch7_won': `${A}/story/ch7_won.mp3`,
   'story-ch7_lost': `${A}/story/ch7_lost.mp3`,
   'story-ch7_podium': `${A}/story/ch7_podium.mp3`,
+  'story-ch7_result_none': `${A}/story/ch7_result_none.mp3`,
+  'story-ch7_end': `${A}/story/ch7_end.mp3`,
   // ui
   'ui-click': `${A}/ui/click.ogg`,
   'ui-select': `${A}/ui/select.ogg`,
@@ -383,6 +385,8 @@ export const LAZY_AUDIO = new Set([
   'story-ch7_won',
   'story-ch7_lost',
   'story-ch7_podium',
+  'story-ch7_result_none',
+  'story-ch7_end',
 ]);
 
 /**
@@ -528,6 +532,8 @@ export const STORY_VOICE_CREDITS = [
   { key: 'story-ch7_won', node: 'ch7_won', voice: 'Narrator', licence: 'Original generated speech, no third-party rights' },
   { key: 'story-ch7_lost', node: 'ch7_lost', voice: 'Narrator', licence: 'Original generated speech, no third-party rights' },
   { key: 'story-ch7_podium', node: 'ch7_podium', voice: 'Narrator', licence: 'Original generated speech, no third-party rights' },
+  { key: 'story-ch7_result_none', node: 'ch7_result_none', voice: 'Narrator', licence: 'Original generated speech, no third-party rights' },
+  { key: 'story-ch7_end', node: 'ch7_end', voice: 'Narrator', licence: 'Original generated speech, no third-party rights' },
 ];
 
 /**
