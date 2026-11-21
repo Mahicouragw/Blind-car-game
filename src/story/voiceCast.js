@@ -226,6 +226,16 @@ export const STORY_VOICE_FILES = {
   ch6_confident: 'story-ch6_confident',
   ch6_mithin_helmet: 'story-ch6_mithin_helmet',
   ch6_end: 'story-ch6_end',
+  ch7_paddock: 'story-ch7_paddock',
+  ch7_joseph_words: 'story-ch7_joseph_words',
+  ch7_mithin_bag: 'story-ch7_mithin_bag',
+  ch7_leela_briefing: 'story-ch7_leela_briefing',
+  ch7_answer_corners: 'story-ch7_answer_corners',
+  ch7_grid: 'story-ch7_grid',
+  ch7_lights: 'story-ch7_lights',
+  ch7_won: 'story-ch7_won',
+  ch7_lost: 'story-ch7_lost',
+  ch7_podium: 'story-ch7_podium',
 };
 
 /** The manifest key for a node's recording, or null when there is none yet. */
@@ -297,7 +307,7 @@ export function voiceLeadMs(node) {
 export function voiceCastLines() {
   return [
     'Story dialogue is performed in a distinct voice per character: women are voiced by women, and men by men.',
-    `Chapter one is fully recorded with character voices, chapter two is fully recorded including its interview questions, and chapter three is recorded apart from its dynamic salary line, and chapters four and five are fully recorded, and chapter six is recorded apart from its unspoken handoffs. Unrecorded lines use distinct per-character synthesis voices until their recordings are added, and nothing is ever described as recorded when it is synthesised.`, 
+    `Chapter one is fully recorded with character voices, chapter two is fully recorded including its interview questions, and chapter three is recorded apart from its dynamic salary line, and chapters four and five are fully recorded, chapter six is recorded apart from its unspoken handoffs, and chapter seven is started through the podium. Unrecorded lines use distinct per-character synthesis voices until their recordings are added, and nothing is ever described as recorded when it is synthesised.`, 
     `The cast: ${CAST_IDS.map((id) => `${CHARACTER_VOICES[id].label}, ${CHARACTER_VOICES[id].description}`).join(' ')}`,
   ];
 }
