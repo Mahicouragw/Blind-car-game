@@ -153,6 +153,16 @@ export const AUDIO_MANIFEST = {
   'story-ch5_controls': `${A}/story/ch5_controls.mp3`,
   'story-ch5_controls_gestures': `${A}/story/ch5_controls_gestures.mp3`,
   'story-ch5_controls_settings': `${A}/story/ch5_controls_settings.mp3`,
+  'story-ch5_never': `${A}/story/ch5_never.mp3`,
+  'story-ch5_no': `${A}/story/ch5_no.mp3`,
+  'story-ch5_watch': `${A}/story/ch5_watch.mp3`,
+  'story-ch5_questions': `${A}/story/ch5_questions.mp3`,
+  'story-ch5_end': `${A}/story/ch5_end.mp3`,
+  'story-ch6_briefing': `${A}/story/ch6_briefing.mp3`,
+  'story-ch6_more_practice': `${A}/story/ch6_more_practice.mp3`,
+  'story-ch6_confident': `${A}/story/ch6_confident.mp3`,
+  'story-ch6_mithin_helmet': `${A}/story/ch6_mithin_helmet.mp3`,
+  'story-ch6_end': `${A}/story/ch6_end.mp3`,
   // ui
   'ui-click': `${A}/ui/click.ogg`,
   'ui-select': `${A}/ui/select.ogg`,
@@ -343,6 +353,16 @@ export const LAZY_AUDIO = new Set([
   'story-ch5_controls',
   'story-ch5_controls_gestures',
   'story-ch5_controls_settings',
+  'story-ch5_never',
+  'story-ch5_no',
+  'story-ch5_watch',
+  'story-ch5_questions',
+  'story-ch5_end',
+  'story-ch6_briefing',
+  'story-ch6_more_practice',
+  'story-ch6_confident',
+  'story-ch6_mithin_helmet',
+  'story-ch6_end',
 ]);
 
 /**
@@ -468,6 +488,16 @@ export const STORY_VOICE_CREDITS = [
   { key: 'story-ch5_controls', node: 'ch5_controls', voice: 'Leela', licence: 'Original generated speech, no third-party rights' },
   { key: 'story-ch5_controls_gestures', node: 'ch5_controls_gestures', voice: 'Leela', licence: 'Original generated speech, no third-party rights' },
   { key: 'story-ch5_controls_settings', node: 'ch5_controls_settings', voice: 'Leela', licence: 'Original generated speech, no third-party rights' },
+  { key: 'story-ch5_never', node: 'ch5_never', voice: 'Joseph', licence: 'Original generated speech, no third-party rights' },
+  { key: 'story-ch5_no', node: 'ch5_no', voice: 'Joseph', licence: 'Original generated speech, no third-party rights' },
+  { key: 'story-ch5_watch', node: 'ch5_watch', voice: 'Narrator', licence: 'Original generated speech, no third-party rights' },
+  { key: 'story-ch5_questions', node: 'ch5_questions', voice: 'Leela', licence: 'Original generated speech, no third-party rights' },
+  { key: 'story-ch5_end', node: 'ch5_end', voice: 'Narrator', licence: 'Original generated speech, no third-party rights' },
+  { key: 'story-ch6_briefing', node: 'ch6_briefing', voice: 'Leela', licence: 'Original generated speech, no third-party rights' },
+  { key: 'story-ch6_more_practice', node: 'ch6_more_practice', voice: 'Leela', licence: 'Original generated speech, no third-party rights' },
+  { key: 'story-ch6_confident', node: 'ch6_confident', voice: 'Leela', licence: 'Original generated speech, no third-party rights' },
+  { key: 'story-ch6_mithin_helmet', node: 'ch6_mithin_helmet', voice: 'Mithin', licence: 'Original generated speech, no third-party rights' },
+  { key: 'story-ch6_end', node: 'ch6_end', voice: 'Narrator', licence: 'Original generated speech, no third-party rights' },
 ];
 
 /**

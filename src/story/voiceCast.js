@@ -216,6 +216,16 @@ export const STORY_VOICE_FILES = {
   ch5_controls: 'story-ch5_controls',
   ch5_controls_gestures: 'story-ch5_controls_gestures',
   ch5_controls_settings: 'story-ch5_controls_settings',
+  ch5_never: 'story-ch5_never',
+  ch5_no: 'story-ch5_no',
+  ch5_watch: 'story-ch5_watch',
+  ch5_questions: 'story-ch5_questions',
+  ch5_end: 'story-ch5_end',
+  ch6_briefing: 'story-ch6_briefing',
+  ch6_more_practice: 'story-ch6_more_practice',
+  ch6_confident: 'story-ch6_confident',
+  ch6_mithin_helmet: 'story-ch6_mithin_helmet',
+  ch6_end: 'story-ch6_end',
 };
 
 /** The manifest key for a node's recording, or null when there is none yet. */
@@ -287,7 +297,7 @@ export function voiceLeadMs(node) {
 export function voiceCastLines() {
   return [
     'Story dialogue is performed in a distinct voice per character: women are voiced by women, and men by men.',
-    `Chapter one is fully recorded with character voices, chapter two is fully recorded including its interview questions, and chapter three is recorded apart from its dynamic salary line, and chapter four is fully recorded, and chapter five is started with Leela voiced. Unrecorded lines use distinct per-character synthesis voices until their recordings are added, and nothing is ever described as recorded when it is synthesised.`, 
+    `Chapter one is fully recorded with character voices, chapter two is fully recorded including its interview questions, and chapter three is recorded apart from its dynamic salary line, and chapters four and five are fully recorded, and chapter six is recorded apart from its unspoken handoffs. Unrecorded lines use distinct per-character synthesis voices until their recordings are added, and nothing is ever described as recorded when it is synthesised.`, 
     `The cast: ${CAST_IDS.map((id) => `${CHARACTER_VOICES[id].label}, ${CHARACTER_VOICES[id].description}`).join(' ')}`,
   ];
 }
