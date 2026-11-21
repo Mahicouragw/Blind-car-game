@@ -20,6 +20,7 @@
  */
 
 import { STORY_NODES } from './storyData.js';
+import { STORY_BEATS, beatFileKey, beatsFor, validateBeatText } from './storyBeats.js';
 
 /**
  * The hero name baked into the recorded clips. The recordings say "Aarav"; if
@@ -153,36 +154,27 @@ export const STORY_VOICE_FILES = {
   ch1_home: 'story-ch1_home',
   ch1_letter: 'story-ch1_letter',
   ch1_argument: 'story-ch1_argument',
-  ch1_argument_choice: 'story-ch1_argument_choice',
-  ch1_offer: 'story-ch1_offer',
   ch1_sister: 'story-ch1_sister',
   ch1_night: 'story-ch1_night',
   ch1_end: 'story-ch1_end',
   ch2_search: 'story-ch2_search',
   ch2_prep: 'story-ch2_prep',
-  ch2_prep_mother: 'story-ch2_prep_mother',
-  ch2_prep_father: 'story-ch2_prep_father',
   ch2_travel: 'story-ch2_travel',
   ch2_reception: 'story-ch2_reception',
   ch2_interview: 'story-ch2_interview',
-  ch2_passed: 'story-ch2_passed',
-  ch2_failed: 'story-ch2_failed',
   ch2_end: 'story-ch2_end',
   ch2_tea_stall: 'story-ch2_tea_stall',
   ch2_prep_alone: 'story-ch2_prep_alone',
   ch2_early: 'story-ch2_early',
   ch2_late: 'story-ch2_late',
   ch2_walk: 'story-ch2_walk',
-  ch2_retry: 'story-ch2_retry',
   ch2_saturday: 'story-ch2_saturday',
-  ch2_saturday_result: 'story-ch2_saturday_result',
   ch2_tea_stall_end: 'story-ch2_tea_stall_end',
   ch2_followups: 'story-ch2_followups',
   ch2_result_unknown: 'story-ch2_result_unknown',
   ch3_offer: 'story-ch3_offer',
   ch3_negotiation: 'story-ch3_negotiation',
   ch3_walked: 'story-ch3_walked',
-  ch3_saturdays: 'story-ch3_saturdays',
   ch3_signed_late: 'story-ch3_signed_late',
   ch3_end: 'story-ch3_end',
   ch1_kindness: 'story-ch1_kindness',
@@ -192,49 +184,28 @@ export const STORY_VOICE_FILES = {
   ch1_after_fight: 'story-ch1_after_fight',
   ch4_morning: 'story-ch4_morning',
   ch4_floor: 'story-ch4_floor',
-  ch4_joseph: 'story-ch4_joseph',
-  ch4_joseph_name: 'story-ch4_joseph_name',
-  ch4_mithin: 'story-ch4_mithin',
-  ch4_mithin_respect: 'story-ch4_mithin_respect',
   ch4_lunch: 'story-ch4_lunch',
-  ch4_friends: 'story-ch4_friends',
   ch4_afternoon: 'story-ch4_afternoon',
-  ch4_qureshi: 'story-ch4_qureshi',
-  ch4_joseph_mumble: 'story-ch4_joseph_mumble',
-  ch4_joseph_joke: 'story-ch4_joseph_joke',
-  ch4_keen: 'story-ch4_keen',
-  ch4_mithin_fair: 'story-ch4_mithin_fair',
   ch4_mithin_neutral: 'story-ch4_mithin_neutral',
   ch4_alone_lunch: 'story-ch4_alone_lunch',
   ch4_end: 'story-ch4_end',
-  ch5_question: 'story-ch5_question',
-  ch5_yes: 'story-ch5_yes',
   ch5_invite: 'story-ch5_invite',
   ch5_sunday: 'story-ch5_sunday',
   ch5_circuit: 'story-ch5_circuit',
-  ch5_leela: 'story-ch5_leela',
   ch5_controls: 'story-ch5_controls',
   ch5_controls_gestures: 'story-ch5_controls_gestures',
   ch5_controls_settings: 'story-ch5_controls_settings',
-  ch5_never: 'story-ch5_never',
-  ch5_no: 'story-ch5_no',
   ch5_watch: 'story-ch5_watch',
   ch5_questions: 'story-ch5_questions',
   ch5_end: 'story-ch5_end',
   ch6_briefing: 'story-ch6_briefing',
   ch6_more_practice: 'story-ch6_more_practice',
-  ch6_confident: 'story-ch6_confident',
-  ch6_mithin_helmet: 'story-ch6_mithin_helmet',
   ch6_end: 'story-ch6_end',
   ch7_paddock: 'story-ch7_paddock',
-  ch7_joseph_words: 'story-ch7_joseph_words',
-  ch7_mithin_bag: 'story-ch7_mithin_bag',
   ch7_leela_briefing: 'story-ch7_leela_briefing',
-  ch7_answer_corners: 'story-ch7_answer_corners',
   ch7_grid: 'story-ch7_grid',
   ch7_lights: 'story-ch7_lights',
   ch7_won: 'story-ch7_won',
-  ch7_lost: 'story-ch7_lost',
   ch7_podium: 'story-ch7_podium',
   ch7_result_none: 'story-ch7_result_none',
   ch7_end: 'story-ch7_end',
@@ -285,6 +256,48 @@ export function bakedVoiceUsable(nodeId, state = {}) {
 }
 
 /**
+ * The manifest key for a beat's recording, or null when the beat is never
+ * recorded: narrator beats always use the narrator synthesis voice, and
+ * `{salary}` beats speak a negotiated figure no recording can bake in.
+ *
+ * @param {string} nodeId
+ * @param {number} beatIndex 0-based position in the node's beats
+ */
+export function storyBeatKey(nodeId, beatIndex) {
+  return beatFileKey(nodeId, beatIndex);
+}
+
+/**
+ * Beat-level version of bakedVoiceUsable: a beat whose text speaks the
+ * hero's name can only use its clip while the hero is still called that.
+ * `{salary}` beats never have clips (see storyBeatKey).
+ */
+export function bakedBeatUsable(nodeId, beatIndex, state = {}) {
+  if (!storyBeatKey(nodeId, beatIndex)) return false;
+  const beat = beatsFor(nodeId)?.[beatIndex];
+  const src = beat && typeof beat.text === 'string' ? beat.text : '';
+  if (src.includes('{hero}') && (state.heroName ?? BAKED_HERO_NAME) !== BAKED_HERO_NAME) return false;
+  return true;
+}
+
+/**
+ * Separation validation for every split node in chapters 1-7. Each split
+ * rejoins its node text exactly, every beat speaker maps into the cast, and
+ * no two adjacent beats share a voice. Returns error strings; empty is
+ * valid.
+ */
+export function validateStoryBeats() {
+  const errors = validateBeatText();
+  for (const [nodeId, beats] of Object.entries(STORY_BEATS)) {
+    beats.forEach((beat, i) => {
+      const key = speakerKey(beat.speaker);
+      if (!CHARACTER_VOICES[key]) errors.push(`${nodeId} beat ${i + 1}: speaker ${JSON.stringify(beat.speaker)} is not in the cast`);
+    });
+  }
+  return errors;
+}
+
+/**
  * How long the scene's sound effect gets before the voice starts, in ms.
  *
  * The door opens, the paper unfolds, the coins land — and then the character
@@ -309,7 +322,7 @@ export function voiceLeadMs(node) {
 export function voiceCastLines() {
   return [
     'Story dialogue is performed in a distinct voice per character: women are voiced by women, and men by men.',
-    `Chapter one is fully recorded with character voices, chapter two is fully recorded including its interview questions, and chapter three is recorded apart from its dynamic salary line, and chapters four and five are fully recorded, and chapters six and seven are recorded apart from their unspoken handoffs. Unrecorded lines use distinct per-character synthesis voices until their recordings are added, and nothing is ever described as recorded when it is synthesised.`, 
+    `Every chapter is split into narrator beats and character beats, so the narrator speaks only scene, action and introductions while each character speaks only their own dialogue, with a short pause wherever the voice changes. Character beats are recorded in their own voices throughout chapters one to seven, apart from the dynamic salary line; narrator beats inside dialogue use the narrator synthesis voice, and the interview questions are recorded. Unrecorded lines use distinct per-character synthesis voices until their recordings are added, and nothing is ever described as recorded when it is synthesised.`,
     `The cast: ${CAST_IDS.map((id) => `${CHARACTER_VOICES[id].label}, ${CHARACTER_VOICES[id].description}`).join(' ')}`,
   ];
 }

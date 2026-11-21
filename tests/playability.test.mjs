@@ -18,7 +18,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
-import { createDrivingInput, DRIVING_ZONE, REVERSE_MAX_DX, isDownLeftSwipe } from '../src/input/drivingInput.js';
+import { createDrivingInput, DRIVING_ZONE, REVERSE_MAX_DX, isDownLeftSwipe, steerSelectLabel } from '../src/input/drivingInput.js';
 import { createAnnouncementDirector, navigationFacts, lookAround } from '../src/race/navigation.js';
 import { createGestureRecognizer, GESTURE_DEFAULTS } from '../src/input/gestures.js';
 import { createZoneMap } from '../src/ui/screens.js';
@@ -59,6 +59,22 @@ test('the director uses the 50m turn-now cue, not repeated turn-in coaching', ()
   const items=director.update(sample(49),race);
   assert.equal(items.length,1); assert.match(items[0].text,/Turn (left|right) now/);
   assert.equal(director.update(sample(30),race).length,0);
+});
+
+test('the director calls each corner twice: early with distance, then now', () => {
+  const track=getTrack(), g=track.geometry;
+  const corner=track.zones.find(z=>z.id==='zone.corner.t1');
+  const sample=metres=>{const p=g.pointAt(g.normaliseS(corner.from-metres));return navigationFacts(track,{x:p.x,z:p.z,heading:p.heading,speed:30},{});};
+  const director=createAnnouncementDirector({getSettings:()=>({talkback:true})});
+  const race={lap:1,totalLaps:2,phase:'racing'};
+  const early=director.update(sample(400),race).find(i=>i.key?.startsWith('calls.'));
+  assert.ok(early, 'a 400 m callout');
+  assert.match(early.text, /Turn (left|right) in \d+ metres/, 'early call names the direction and distance');
+  const between=director.update(sample(300),race).filter(i=>i.key?.startsWith('calls.'));
+  assert.equal(between.length,0,'silence between the two calls');
+  const now=director.update(sample(45),race).find(i=>i.key?.startsWith('calls.'));
+  assert.ok(now, 'a 50 m callout');
+  assert.match(now.text,/Turn (left|right) now/);
 });
 
 test('brake-now tells the driver what comes after braking', () => {
@@ -119,6 +135,49 @@ test('a down-and-left swipe does not reverse, a straight-down swipe does', () =>
   bus.emit('gesture:swipe', { zone: DRIVING_ZONE, direction: 'down', dx: -10, dy: 220 });
   assert.ok(di.state.reversing > 0, 'a straight-down swipe reverses');
   di.state.reversing = 0;
+});
+
+test('swipe steering selects a persistent angle; swipe up straightens', () => {
+  di.reset();
+  bus.emit('gesture:swipe', { zone: DRIVING_ZONE, direction: 'left' });
+  assert.equal(di.state.steerSelect, 0.5);
+  bus.emit('gesture:swipe', { zone: DRIVING_ZONE, direction: 'left' });
+  assert.equal(di.state.steerSelect, 1, 'two swipes reach full lock');
+  bus.emit('gesture:swipe', { zone: DRIVING_ZONE, direction: 'left' });
+  assert.equal(di.state.steerSelect, 1, 'the selection clamps at full lock');
+  // It persists through physics steps with no finger down ...
+  for (let i = 0; i < 60; i++) di.update(1 / 60);
+  assert.ok(di.state.steer > 0.9, `the wheels ramp to the selection, got ${di.state.steer}`);
+  // ... and a drag adds on top without erasing it.
+  bus.emit('gesture:drag', { zone: DRIVING_ZONE, x: 200 });
+  bus.emit('gesture:drag', { zone: DRIVING_ZONE, x: 100 });
+  di.update(1 / 60);
+  assert.equal(di.state.steerSelect, 1, 'a drag must not clear the selection');
+  bus.emit('gesture:dragEnd', { zone: DRIVING_ZONE });
+  di.update(1 / 60);
+  assert.equal(di.state.steerTarget, 1, 'releasing the drag leaves the selection steering');
+  bus.emit('gesture:swipe', { zone: DRIVING_ZONE, direction: 'right' });
+  assert.equal(di.state.steerSelect, 0.5, 'an opposite swipe steps back');
+  bus.emit('gesture:swipe', { zone: DRIVING_ZONE, direction: 'up' });
+  assert.equal(di.state.steerSelect, 0, 'swipe up straightens');
+  assert.equal(steerSelectLabel(0.5), 'Steering left.');
+  assert.equal(steerSelectLabel(1), 'Steering hard left.');
+  assert.equal(steerSelectLabel(-0.5), 'Steering right.');
+  assert.equal(steerSelectLabel(-1), 'Steering hard right.');
+  assert.equal(steerSelectLabel(0), 'Wheels straight.');
+  di.reset();
+});
+
+test('an OS-cancelled drag still releases the steering', () => {
+  di.reset();
+  bus.emit('gesture:drag', { zone: DRIVING_ZONE, x: 200 });
+  bus.emit('gesture:drag', { zone: DRIVING_ZONE, x: 50 });
+  di.update(1 / 60);
+  assert.notEqual(di.state.steerTarget, 0);
+  bus.emit('gesture:cancel', {});
+  di.update(1 / 60);
+  assert.equal(di.state.steerTarget, 0, 'cancel must centre the wheels like a lift');
+  di.reset();
 });
 
 test('double tap brakes and double-tap-and-hold sounds horn, through the bus', () => {

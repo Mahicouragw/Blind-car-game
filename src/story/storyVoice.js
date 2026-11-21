@@ -11,7 +11,9 @@
  * 3. Plays the node's recorded character voice when one exists and is usable
  *    (see voiceCast.js), AFTER the scene's sound effect has had its moment —
  *    the door opens, then Sudha speaks. Music keeps playing underneath at its
- *    own level; nothing here touches the mix.
+ *    own level; nothing here touches the mix. Nodes that mix narration and
+ *    dialogue play as sequenced narrator/character beats (see storyBeats.js),
+ *    each beat in its own voice with a pause wherever the voice changes.
  * 4. Speaks the dialogue choices afterwards in the guidance voice, because
  *    choices are interface, not character lines.
  * 5. Falls back to the character's distinct synthesis voice (own pitch, rate
@@ -23,7 +25,20 @@
  * @module story/storyVoice
  */
 
-import { bakedVoiceUsable, storyVoiceKey, voiceForNode, voiceForSpeaker, voiceLeadMs } from './voiceCast.js';
+import { bakedBeatUsable, bakedVoiceUsable, storyBeatKey, storyVoiceKey, voiceForNode, voiceForSpeaker, voiceLeadMs } from './voiceCast.js';
+import { BEAT_PAUSE_CHANGE_MS, BEAT_PAUSE_SAME_MS, beatsFor } from './storyBeats.js';
+import { resolveText } from './storyEngine.js';
+
+/**
+ * Generous estimate of how long a synthesis beat takes to speak, in ms.
+ * Used only to schedule the NEXT beat: the queue itself prevents overlap,
+ * so overshooting just lengthens the pause, while undershooting would cut
+ * the narrator's tail when a file beat starts.
+ */
+function estimateSynthesisMs(text, rate) {
+  const r = Number.isFinite(rate) && rate > 0 ? rate : 1;
+  return Math.max(2000, Math.round((String(text).length * 85) / r) + 800);
+}
 
 export function createStoryVoice(config = {}) {
   const audio = config.audio ?? null;
@@ -31,6 +46,9 @@ export function createStoryVoice(config = {}) {
   const getSettings = config.getSettings ?? (() => ({}));
   const getStoryState = config.getStoryState ?? (() => ({}));
   const isSuspended = config.isSuspended ?? (() => false);
+  const beatPauseSame = config.beatPauseSameMs ?? BEAT_PAUSE_SAME_MS;
+  const beatPauseChange = config.beatPauseChangeMs ?? BEAT_PAUSE_CHANGE_MS;
+  const beatEstimateFixed = config.beatEstimateMs ?? null;
 
   let fileHandle = null;
   let pendingTimer = null;
@@ -105,6 +123,11 @@ export function createStoryVoice(config = {}) {
     // Captions now; the recording may still be downloading.
     speech?.mirror?.(`${node.speaker ? `${node.speaker}: ` : ''}${node.text}`);
 
+    // Mixed nodes play as sequenced narrator/character beats, each beat in
+    // its own voice with a pause wherever the voice changes.
+    const beats = beatsFor(node.id);
+    if (beats) return speakBeats(my, node, beats, opts);
+
     // A recording that would say the wrong hero name is worse than none.
     // Files also never start while suspended (background tab): synthesis still
     // goes through so captions and the queue behave exactly as before.
@@ -166,6 +189,96 @@ export function createStoryVoice(config = {}) {
     }, lead);
 
     return { mode: 'file', voice: profile.id, key };
+  }
+
+  /**
+   * Play a split node as sequenced narrator/character beats. File beats play
+   * their character recording; narrator beats and unusable clips use the
+   * beat's cast synthesis voice. A natural pause separates beats (longer
+   * where the voice changes), and the choices follow the last beat exactly
+   * like the single-voice path. The whole chain belongs to one token, so
+   * moving on or stop() silences it mid-sequence like any other beat.
+   */
+  async function speakBeats(my, node, beats, opts = {}) {
+    const profile = voiceForNode(node);
+    const storyState = getStoryState();
+    const choicesSpoken = opts.choicesSpoken ?? '';
+    const lines = beats.map((beat, i) => {
+      const cast = voiceForSpeaker(beat.speaker ?? null);
+      const key = storyBeatKey(node.id, i);
+      const usable =
+        key && bakedBeatUsable(node.id, i, storyState) && audio?.ready && speechVolume() > 0 && !isSuspended();
+      return { cast, text: resolveText(beat.text, storyState), key: usable ? key : null, buffer: null };
+    });
+    // Preload every usable beat up front so the pauses stay pauses rather
+    // than turning into download gaps.
+    await Promise.all(
+      lines.map(async (line) => {
+        if (!line.key) return;
+        try {
+          line.buffer = await audio.ensureLoaded(line.key);
+        } catch {
+          line.buffer = null;
+        }
+      })
+    );
+    if (my !== token) return { mode: 'superseded', voice: profile.id, key: null };
+    runBeat(0);
+    return { mode: 'beats', voice: profile.id, key: null, beats: lines.length };
+
+    function pauseBefore(i) {
+      if (i === 0) return 0;
+      return lines[i - 1].cast.id === lines[i].cast.id ? beatPauseSame : beatPauseChange;
+    }
+
+    function runBeat(i) {
+      if (my !== token) return;
+      if (i >= lines.length) {
+        sayChoices(choicesSpoken);
+        return;
+      }
+      const line = lines[i];
+      const wait = (i === 0 ? voiceLeadMs(node) : 0) + pauseBefore(i);
+      pendingTimer = setTimeout(() => {
+        pendingTimer = null;
+        if (my !== token) return;
+        const handle =
+          line.key && line.buffer && !isSuspended() ? audio.voice?.play(line.key, { volume: speechVolume() }) : null;
+        if (!handle) {
+          speakWithCast(line.text, line.cast, null, i === 0 ? {} : { follow: true });
+          if (i === lines.length - 1) {
+            sayChoices(choicesSpoken);
+            return;
+          }
+          const est = beatEstimateFixed ?? estimateSynthesisMs(line.text, line.cast.rate);
+          pendingTimer = setTimeout(() => {
+            pendingTimer = null;
+            runBeat(i + 1);
+          }, est);
+          return;
+        }
+        // A file beat owns the ears: cut a lingering synthesis tail so the
+        // recording never overlaps the narrator's last syllable.
+        if (i > 0) stopSpeech();
+        fileHandle = handle;
+        let advanced = false;
+        const advance = () => {
+          if (advanced || my !== token) return;
+          advanced = true;
+          clearPending();
+          runBeat(i + 1);
+        };
+        handle.onended = advance;
+        // Safety net: if the ended event never arrives, the chain still runs.
+        const durationMs = Number.isFinite(line.buffer.duration) ? line.buffer.duration * 1000 : 0;
+        if (durationMs > 0) {
+          pendingTimer = setTimeout(() => {
+            pendingTimer = null;
+            advance();
+          }, durationMs + 1500);
+        }
+      }, wait);
+    }
   }
 
   /**

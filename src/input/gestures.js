@@ -535,10 +535,17 @@ export function createGestureRecognizer(config = {}) {
       if (!touch || touch.id !== id) return false;
       if (touch && touch.id === id) {
         const z = touch.zone;
+        const wasDrag = touch.isDrag;
+        const dx = touch.x - touch.startX;
+        const dy = touch.y - touch.startY;
         if (z.hold && touch.pressStartFired) {
           emit('pressEnd', { zone: z, zoneId: z.id, role: z.role, x: touch.x, y: touch.y, cancelled: true });
         }
         if (touch.longPressFired) emit('longPressEnd', { zone: z, zoneId: z.id, role: z.role, cancelled: true });
+        // A cancelled drag still ends: the driving wheels need the same
+        // release signal as a lift, or an OS interruption freezes them
+        // mid-corner with the finger already gone.
+        if (wasDrag) emit('dragEnd', { zone: z, zoneId: z.id, role: z.role, dx, dy, cancelled: true });
         touch = null;
       }
       clearTimer('longPress');

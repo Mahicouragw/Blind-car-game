@@ -592,6 +592,18 @@ test('rubber banding keeps a beginner race close without making the AI cheat', (
   assert.equal(PRACTICE_LEVEL.opponents.length, 0, 'practice is empty');
 });
 
+test('level briefs never state a lap count, and level one is the gentlest', () => {
+  for (const id of [1, 2, 3, 4]) {
+    const brief = getLevel(id).brief;
+    assert.ok(!/\d+ laps/i.test(brief), `level ${id} brief must not state a lap count`);
+    assert.ok(!/two laps|three laps|four laps/i.test(brief), `level ${id} brief must not state a lap count in words`);
+  }
+  const one = getLevel(1);
+  assert.equal(one.opponents.length, 2, 'level one has the smallest field');
+  assert.ok(one.aiSpeedScale < 1, 'level one slows the opponents');
+  assert.ok(one.recoveryMarginM >= getLevel(2).recoveryMarginM, 'level one is the most forgiving off track');
+});
+
 test('opponent proximity is measured, not invented', () => {
   const race = makeRace({ totalLaps: 1 });
   race.phase = RACE_PHASE.RACING;
@@ -719,6 +731,7 @@ test('the grid briefing states the real lap count and every control', async () =
     ['how to brake', /Tap once .*brake/],
     ['how to use the handbrake', /handbrake/i],
     ['how to steer', /Drag left or right/],
+    ['how to hold steering through a corner', /swipe left or right/i],
     ['how to turn around', /circle/i],
     ['how to reverse', /down to reverse/],
     ['how to leave the race', /leave the race/],

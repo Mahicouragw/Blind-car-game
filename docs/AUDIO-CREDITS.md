@@ -1,17 +1,17 @@
 # Audio credits, licences and honest gaps
 
-**198 sound files, 50.7 MB.** Every one is a real *file* that the game plays back;
+**222 sound files, 46.6 MB.** Every one is a real *file* that the game plays back;
 there is no oscillator, no generated noise buffer and no synthesised tone
 anywhere in this project's audio *code* — `src/core/audio.js` only ever plays
 files.
 
 The files have three provenances, and this document records each:
 
-1. **75 third-party recordings** (22.9 MB): 69 short effects and stingers
-   (0.9 MB, all CC0 Kenney) plus **six full-length music beds (22.0 MB)**,
+1. **75 third-party recordings** (21.8 MB): 69 short effects and stingers
+   (0.8 MB, all CC0 Kenney) plus **six full-length music beds (21.0 MB)**,
    documented separately below because their licences differ from one another
    and two of them require attribution.
-2. **16 field/foley recordings of real things** (the original eleven, four adventure recordings and a car horn): brakes, handbrake, gear
+2. **16 field/foley recordings of real things** (14.7 MB: the original eleven, four adventure recordings and a car horn): brakes, handbrake, gear
    change, tyre squeal, rain, wipers, a cheering grandstand and four scene
    beds, downloaded from **freesound.org under Creative Commons 0** — real
    recordings, one per action the brief asked for. The brief allows AI
@@ -19,9 +19,10 @@ The files have three provenances, and this document records each:
    synthesised sound effect ships**: the eleven synthesised `.wav` fills this
    project once carried were deleted and replaced by these recordings. See
    [Field recordings (CC0)](#field-recordings-cc0) below.
-3. **107 AI voice clips** (12.5 MB): ten short spoken cues plus ninety-seven recorded
-   story-dialogue files (chapters 1 and 2 fully, chapter 3 apart from its dynamic
-   salary line, chapters 4 and 5 fully recorded, chapters 6 and 7 recorded apart from their unspoken handoffs), all generated as
+3. **131 AI voice clips** (10.1 MB): ten short spoken cues plus one hundred and
+   twenty-one recorded story-dialogue files (sixty whole-node recordings, fifty-four
+   character-beat recordings and the seven interview questions, covering chapters 1
+   to 7 apart from the dynamic salary line and the unspoken tutorial/race handoffs), all generated as
    `.mp3` files and preferred over device speech synthesis whenever the line
    is one of them. These are the ONLY generated audio in the project (AI voices
    are allowed). See [AI voice clips](#ai-voice-clips) and
@@ -244,14 +245,18 @@ scene is dropped rather than starting late over the top of the newer one.
 
 ---
 
-## Story dialogue is synthesised, and is described as synthesised
+## Story dialogue is recorded per character, and described exactly so
 
-The seven-chapter campaign is spoken by the **device speech synthesiser** through
-Game TalkBack. There is **no recorded voice acting** in this game. The writing is
-original; the voice is your device's.
+The seven-chapter campaign is split into narrator beats and character beats:
+character beats are **recorded AI voice acting** in each character's own voice
+(women voiced by women, men by men), while narrator beats inside dialogue, the
+dynamic salary line, negotiation answers and the unspoken tutorial/race handoffs
+use **distinct per-character synthesis** — each cast member's own pitch, rate and
+device-voice hints, never the flat guidance voice.
 
-The in-game *Audio and credits* screen says this in exactly those words, and it
-is listed as an open gap below. It is never described as recorded acting.
+The in-game *Audio and credits* screen says this in exactly those words, and the
+remaining synthesis is listed as an open gap below. Nothing synthesised is ever
+described as recorded.
 
 ---
 
@@ -317,9 +322,11 @@ voice asset and no third-party licence applies.
 
 ## Recorded story dialogue (AI character voices)
 
-Chapters 1 and 2 are fully recorded with AI character voices, including the interview questions, and chapter 3 is recorded apart from its dynamic salary line, chapters 4 and 5 are fully recorded, and chapters 6 and 7 are recorded apart from their unspoken handoffs, one file
-per story node in `assets/audio/story/`, played by `src/story/storyVoice.js`
-instead of device speech synthesis. Women are voiced by women and men by men;
+Chapters 1 to 7 are recorded with AI character voices: sixty single-voice nodes
+as one file per node, plus fifty-four character beats as one file per beat
+(`<nodeId>_b<N>`, played in sequence with a short pause wherever the voice
+changes), plus the seven interview questions, all in `assets/audio/story/` and
+played by `src/story/storyVoice.js` instead of device speech synthesis. Women are voiced by women and men by men;
 the cast is documented in [STORY.md](STORY.md#voice-cast) and spoken aloud on
 the in-game Audio and credits screen.
 
@@ -327,37 +334,118 @@ the in-game Audio and credits screen.
 | --- | --- | --- |
 | `story/ch1_intro.mp3` | Narrator | ch1_intro |
 | `story/ch1_market.mp3` | Narrator | ch1_market |
+| `story/ch1_kindness.mp3` | Narrator | ch1_kindness |
+| `story/ch1_hurry.mp3` | Narrator | ch1_hurry |
+| `story/ch1_onions.mp3` | Narrator | ch1_onions |
 | `story/ch1_home.mp3` | Sudha | ch1_home |
 | `story/ch1_letter.mp3` | Narrator | ch1_letter |
 | `story/ch1_argument.mp3` | Ramesh | ch1_argument |
-| `story/ch1_argument_choice.mp3` | Sudha | ch1_argument_choice |
-| `story/ch1_offer.mp3` | Ramesh | ch1_offer |
+| `story/ch1_quiet.mp3` | Narrator | ch1_quiet |
+| `story/ch1_after_fight.mp3` | Narrator | ch1_after_fight |
 | `story/ch1_sister.mp3` | Divya | ch1_sister |
 | `story/ch1_night.mp3` | Narrator | ch1_night |
 | `story/ch1_end.mp3` | Narrator | ch1_end |
 | `story/ch2_search.mp3` | Narrator | ch2_search |
-| `story/ch2_prep.mp3` | Narrator | ch2_prep |
-| `story/ch2_prep_mother.mp3` | Sudha | ch2_prep_mother |
-| `story/ch2_prep_father.mp3` | Ramesh | ch2_prep_father |
-| `story/ch2_travel.mp3` | Narrator | ch2_travel |
-| `story/ch2_reception.mp3` | Narrator | ch2_reception |
-| `story/ch2_interview.mp3` | Narrator | ch2_interview |
-| `story/ch2_passed.mp3` | Qureshi | ch2_passed |
-| `story/ch2_failed.mp3` | Qureshi | ch2_failed |
-| `story/ch2_end.mp3` | Narrator | ch2_end |
 | `story/ch2_tea_stall.mp3` | Narrator | ch2_tea_stall |
+| `story/ch2_prep.mp3` | Narrator | ch2_prep |
 | `story/ch2_prep_alone.mp3` | Narrator | ch2_prep_alone |
+| `story/ch2_travel.mp3` | Narrator | ch2_travel |
 | `story/ch2_early.mp3` | Narrator | ch2_early |
 | `story/ch2_late.mp3` | Narrator | ch2_late |
 | `story/ch2_walk.mp3` | Narrator | ch2_walk |
-| `story/ch2_retry.mp3` | Qureshi | ch2_retry |
-| `story/ch2_saturday.mp3` | Narrator | ch2_saturday |
-| `story/ch2_saturday_result.mp3` | Qureshi | ch2_saturday_result |
-| `story/ch2_tea_stall_end.mp3` | Narrator | ch2_tea_stall_end |
-| `story/ch2_followups.mp3` | Narrator | ch2_followups |
+| `story/ch2_reception.mp3` | Narrator | ch2_reception |
+| `story/ch2_interview.mp3` | Narrator | ch2_interview |
 | `story/ch2_result_unknown.mp3` | Narrator | ch2_result_unknown |
+| `story/ch2_followups.mp3` | Narrator | ch2_followups |
+| `story/ch2_saturday.mp3` | Narrator | ch2_saturday |
+| `story/ch2_tea_stall_end.mp3` | Narrator | ch2_tea_stall_end |
+| `story/ch2_end.mp3` | Narrator | ch2_end |
 | `story/ch3_offer.mp3` | Narrator | ch3_offer |
 | `story/ch3_negotiation.mp3` | Narrator | ch3_negotiation |
+| `story/ch3_walked.mp3` | Narrator | ch3_walked |
+| `story/ch3_signed_late.mp3` | Qureshi | ch3_signed_late |
+| `story/ch3_end.mp3` | Narrator | ch3_end |
+| `story/ch4_morning.mp3` | Narrator | ch4_morning |
+| `story/ch4_floor.mp3` | Narrator | ch4_floor |
+| `story/ch4_mithin_neutral.mp3` | Narrator | ch4_mithin_neutral |
+| `story/ch4_lunch.mp3` | Narrator | ch4_lunch |
+| `story/ch4_alone_lunch.mp3` | Narrator | ch4_alone_lunch |
+| `story/ch4_afternoon.mp3` | Narrator | ch4_afternoon |
+| `story/ch4_end.mp3` | Narrator | ch4_end |
+| `story/ch5_invite.mp3` | Narrator | ch5_invite |
+| `story/ch5_sunday.mp3` | Narrator | ch5_sunday |
+| `story/ch5_circuit.mp3` | Narrator | ch5_circuit |
+| `story/ch5_watch.mp3` | Narrator | ch5_watch |
+| `story/ch5_controls.mp3` | Leela | ch5_controls |
+| `story/ch5_controls_gestures.mp3` | Leela | ch5_controls_gestures |
+| `story/ch5_controls_settings.mp3` | Leela | ch5_controls_settings |
+| `story/ch5_questions.mp3` | Leela | ch5_questions |
+| `story/ch5_end.mp3` | Narrator | ch5_end |
+| `story/ch6_briefing.mp3` | Leela | ch6_briefing |
+| `story/ch6_more_practice.mp3` | Leela | ch6_more_practice |
+| `story/ch6_end.mp3` | Narrator | ch6_end |
+| `story/ch7_paddock.mp3` | Narrator | ch7_paddock |
+| `story/ch7_leela_briefing.mp3` | Leela | ch7_leela_briefing |
+| `story/ch7_grid.mp3` | Narrator | ch7_grid |
+| `story/ch7_lights.mp3` | Narrator | ch7_lights |
+| `story/ch7_result_none.mp3` | Narrator | ch7_result_none |
+| `story/ch7_won.mp3` | Narrator | ch7_won |
+| `story/ch7_podium.mp3` | Narrator | ch7_podium |
+| `story/ch7_end.mp3` | Narrator | ch7_end |
+| `story/ch1_argument_choice_b1.mp3` | Sudha | ch1_argument_choice beat 1 |
+| `story/ch1_argument_choice_b3.mp3` | Sudha | ch1_argument_choice beat 3 |
+| `story/ch1_offer_b1.mp3` | Ramesh | ch1_offer beat 1 |
+| `story/ch2_prep_mother_b1.mp3` | Sudha | ch2_prep_mother beat 1 |
+| `story/ch2_prep_mother_b3.mp3` | Sudha | ch2_prep_mother beat 3 |
+| `story/ch2_prep_father_b1.mp3` | Ramesh | ch2_prep_father beat 1 |
+| `story/ch2_prep_father_b3.mp3` | Ramesh | ch2_prep_father beat 3 |
+| `story/ch2_passed_b1.mp3` | Qureshi | ch2_passed beat 1 |
+| `story/ch2_passed_b3.mp3` | Qureshi | ch2_passed beat 3 |
+| `story/ch2_passed_b5.mp3` | Qureshi | ch2_passed beat 5 |
+| `story/ch2_failed_b1.mp3` | Qureshi | ch2_failed beat 1 |
+| `story/ch2_failed_b3.mp3` | Qureshi | ch2_failed beat 3 |
+| `story/ch2_retry_b1.mp3` | Qureshi | ch2_retry beat 1 |
+| `story/ch2_retry_b3.mp3` | Qureshi | ch2_retry beat 3 |
+| `story/ch2_saturday_result_b1.mp3` | Qureshi | ch2_saturday_result beat 1 |
+| `story/ch2_saturday_result_b3.mp3` | Qureshi | ch2_saturday_result beat 3 |
+| `story/ch3_signed_b3.mp3` | Qureshi | ch3_signed beat 3 |
+| `story/ch3_saturdays_b2.mp3` | Qureshi | ch3_saturdays beat 2 |
+| `story/ch4_joseph_b2.mp3` | Joseph | ch4_joseph beat 2 |
+| `story/ch4_joseph_b4.mp3` | Joseph | ch4_joseph beat 4 |
+| `story/ch4_joseph_name_b1.mp3` | Joseph | ch4_joseph_name beat 1 |
+| `story/ch4_joseph_name_b3.mp3` | Joseph | ch4_joseph_name beat 3 |
+| `story/ch4_joseph_mumble_b1.mp3` | Joseph | ch4_joseph_mumble beat 1 |
+| `story/ch4_joseph_mumble_b3.mp3` | Joseph | ch4_joseph_mumble beat 3 |
+| `story/ch4_joseph_joke_b2.mp3` | Joseph | ch4_joseph_joke beat 2 |
+| `story/ch4_mithin_b2.mp3` | Mithin | ch4_mithin beat 2 |
+| `story/ch4_mithin_respect_b1.mp3` | Mithin | ch4_mithin_respect beat 1 |
+| `story/ch4_mithin_respect_b3.mp3` | Mithin | ch4_mithin_respect beat 3 |
+| `story/ch4_mithin_fair_b2.mp3` | Joseph | ch4_mithin_fair beat 2 |
+| `story/ch4_mithin_fair_b4.mp3` | Mithin | ch4_mithin_fair beat 4 |
+| `story/ch4_friends_b1.mp3` | Mithin | ch4_friends beat 1 |
+| `story/ch4_friends_b3.mp3` | Joseph | ch4_friends beat 3 |
+| `story/ch4_keen_b2.mp3` | Joseph | ch4_keen beat 2 |
+| `story/ch4_keen_b4.mp3` | Joseph | ch4_keen beat 4 |
+| `story/ch4_qureshi_b2.mp3` | Qureshi | ch4_qureshi beat 2 |
+| `story/ch5_question_b2.mp3` | Joseph | ch5_question beat 2 |
+| `story/ch5_yes_b2.mp3` | Joseph | ch5_yes beat 2 |
+| `story/ch5_never_b1.mp3` | Joseph | ch5_never beat 1 |
+| `story/ch5_never_b3.mp3` | Joseph | ch5_never beat 3 |
+| `story/ch5_no_b2.mp3` | Joseph | ch5_no beat 2 |
+| `story/ch5_no_b4.mp3` | Joseph | ch5_no beat 4 |
+| `story/ch5_leela_b2.mp3` | Leela | ch5_leela beat 2 |
+| `story/ch6_confident_b1.mp3` | Leela | ch6_confident beat 1 |
+| `story/ch6_confident_b3.mp3` | Leela | ch6_confident beat 3 |
+| `story/ch6_mithin_helmet_b2.mp3` | Mithin | ch6_mithin_helmet beat 2 |
+| `story/ch6_mithin_helmet_b4.mp3` | Mithin | ch6_mithin_helmet beat 4 |
+| `story/ch7_joseph_words_b1.mp3` | Joseph | ch7_joseph_words beat 1 |
+| `story/ch7_joseph_words_b3.mp3` | Joseph | ch7_joseph_words beat 3 |
+| `story/ch7_mithin_bag_b1.mp3` | Mithin | ch7_mithin_bag beat 1 |
+| `story/ch7_mithin_bag_b3.mp3` | Mithin | ch7_mithin_bag beat 3 |
+| `story/ch7_mithin_bag_b5.mp3` | Mithin | ch7_mithin_bag beat 5 |
+| `story/ch7_answer_corners_b1.mp3` | Leela | ch7_answer_corners beat 1 |
+| `story/ch7_answer_corners_b3.mp3` | Leela | ch7_answer_corners beat 3 |
+| `story/ch7_lost_b2.mp3` | Joseph | ch7_lost beat 2 |
 | `story/interview-q_intro.mp3` | Qureshi | interview q_intro |
 | `story/interview-q_reliability.mp3` | Qureshi | interview q_reliability |
 | `story/interview-q_mistake.mp3` | Qureshi | interview q_mistake |
@@ -365,63 +453,7 @@ the in-game Audio and credits screen.
 | `story/interview-q_why_us.mp3` | Qureshi | interview q_why_us |
 | `story/interview-fu_pressure.mp3` | Qureshi | interview fu_pressure |
 | `story/interview-fu_conflict.mp3` | Qureshi | interview fu_conflict |
-| `story/ch3_walked.mp3` | Narrator | ch3_walked |
-| `story/ch3_saturdays.mp3` | Narrator | ch3_saturdays |
-| `story/ch3_signed_late.mp3` | Qureshi | ch3_signed_late |
-| `story/ch3_end.mp3` | Narrator | ch3_end |
-| `story/ch1_kindness.mp3` | Narrator | ch1_kindness |
-| `story/ch1_hurry.mp3` | Narrator | ch1_hurry |
-| `story/ch1_onions.mp3` | Narrator | ch1_onions |
-| `story/ch1_quiet.mp3` | Narrator | ch1_quiet |
-| `story/ch1_after_fight.mp3` | Narrator | ch1_after_fight |
-| `story/ch4_morning.mp3` | Narrator | ch4_morning |
-| `story/ch4_floor.mp3` | Narrator | ch4_floor |
-| `story/ch4_joseph.mp3` | Joseph | ch4_joseph |
-| `story/ch4_joseph_name.mp3` | Joseph | ch4_joseph_name |
-| `story/ch4_mithin.mp3` | Mithin | ch4_mithin |
-| `story/ch4_mithin_respect.mp3` | Mithin | ch4_mithin_respect |
-| `story/ch4_lunch.mp3` | Narrator | ch4_lunch |
-| `story/ch4_friends.mp3` | Mithin | ch4_friends |
-| `story/ch4_afternoon.mp3` | Narrator | ch4_afternoon |
-| `story/ch4_qureshi.mp3` | Qureshi | ch4_qureshi |
-| `story/ch4_joseph_mumble.mp3` | Joseph | ch4_joseph_mumble |
-| `story/ch4_joseph_joke.mp3` | Joseph | ch4_joseph_joke |
-| `story/ch4_keen.mp3` | Joseph | ch4_keen |
-| `story/ch4_mithin_fair.mp3` | Mithin | ch4_mithin_fair |
-| `story/ch4_mithin_neutral.mp3` | Narrator | ch4_mithin_neutral |
-| `story/ch4_alone_lunch.mp3` | Narrator | ch4_alone_lunch |
-| `story/ch4_end.mp3` | Narrator | ch4_end |
-| `story/ch5_question.mp3` | Joseph | ch5_question |
-| `story/ch5_yes.mp3` | Joseph | ch5_yes |
-| `story/ch5_invite.mp3` | Narrator | ch5_invite |
-| `story/ch5_sunday.mp3` | Narrator | ch5_sunday |
-| `story/ch5_circuit.mp3` | Narrator | ch5_circuit |
-| `story/ch5_leela.mp3` | Leela | ch5_leela |
-| `story/ch5_controls.mp3` | Leela | ch5_controls |
-| `story/ch5_controls_gestures.mp3` | Leela | ch5_controls_gestures |
-| `story/ch5_controls_settings.mp3` | Leela | ch5_controls_settings |
-| `story/ch5_never.mp3` | Joseph | ch5_never |
-| `story/ch5_no.mp3` | Joseph | ch5_no |
-| `story/ch5_watch.mp3` | Narrator | ch5_watch |
-| `story/ch5_questions.mp3` | Leela | ch5_questions |
-| `story/ch5_end.mp3` | Narrator | ch5_end |
-| `story/ch6_briefing.mp3` | Leela | ch6_briefing |
-| `story/ch6_more_practice.mp3` | Leela | ch6_more_practice |
-| `story/ch6_confident.mp3` | Leela | ch6_confident |
-| `story/ch6_mithin_helmet.mp3` | Mithin | ch6_mithin_helmet |
-| `story/ch6_end.mp3` | Narrator | ch6_end |
-| `story/ch7_paddock.mp3` | Narrator | ch7_paddock |
-| `story/ch7_joseph_words.mp3` | Joseph | ch7_joseph_words |
-| `story/ch7_mithin_bag.mp3` | Mithin | ch7_mithin_bag |
-| `story/ch7_leela_briefing.mp3` | Leela | ch7_leela_briefing |
-| `story/ch7_answer_corners.mp3` | Leela | ch7_answer_corners |
-| `story/ch7_grid.mp3` | Narrator | ch7_grid |
-| `story/ch7_lights.mp3` | Narrator | ch7_lights |
-| `story/ch7_won.mp3` | Narrator | ch7_won |
-| `story/ch7_lost.mp3` | Narrator | ch7_lost |
-| `story/ch7_podium.mp3` | Narrator | ch7_podium |
-| `story/ch7_result_none.mp3` | Narrator | ch7_result_none |
-| `story/ch7_end.mp3` | Narrator | ch7_end |
+
 
 Like the UI cues above, these are original generated speech: no performer's
 recording, no corporate voice asset, no third-party licence. They bake in the
@@ -429,10 +461,10 @@ default hero name ("Aarav"); when the hero is renamed, or a recording is
 missing, the line is spoken in the same character's distinct synthesis voice
 (own pitch, rate and device-voice hints), never the flat guidance voice.
 
-Unrecorded story lines (later chapters, interview questions, negotiation
-answers) use those per-character synthesis voices and are labelled as
-synthesis. Dynamic race lines (lap times, positions) are still spoken by the
-device synthesiser and are labelled as synthesis.
+Unrecorded story lines (narrator beats inside dialogue, the dynamic salary line,
+negotiation answers, the unspoken tutorial/race handoffs) use those per-character
+synthesis voices and are labelled as synthesis. Dynamic race lines (lap times,
+positions) are still spoken by the device synthesiser and are labelled as synthesis.
 
 ---
 
@@ -444,8 +476,9 @@ reachable during the first build. They are declared in `AUDIO_GAPS` in
 listed by `node scripts/fetch-extra-audio.mjs --list`.
 
 Every sound-effect slot is now filled by a **real CC0 field recording** listed
-above. The only remaining gap is recorded voice acting, which is synthesised by
-the device and labelled as such everywhere.
+above. The only remaining gap is the rest of recorded voice acting — narrator
+beats, the dynamic salary line and negotiation answers — which uses distinct
+per-character synthesis and is labelled as such everywhere.
 
 | Slot | Needed | Status today |
 | --- | --- | --- |
@@ -458,7 +491,7 @@ the device and labelled as such everywhere.
 | `brake` / `handbrake` | Distinct sounds for the two driving controls | **Filled.** CC0 field recordings (WavJunction.com, ninebilly), played on every press |
 | `rain-wipers` | Rain and working wipers for wet races | **Filled.** CC0 field recordings (unfa, itinerantmonk108); some races are run in light rain with the wipers looping |
 | `background-music` | Full-length looping music, 60 s+, plus a race variant | **Filled.** Six full-length recorded beds with per-track licence evidence, mapped to scenes by `src/core/musicDirector.js`. Two require attribution and are credited in-game. The nine short CC0 stingers remain for transitions and achievements |
-| `voice-acting` | Recorded voice acting for story dialogue | **Partly filled.** Chapter 1 is recorded AI character acting; other chapters use distinct per-character synthesis voices, labelled as such everywhere |
+| `voice-acting` | Recorded voice acting for story dialogue | **Partly filled.** Chapters 1–7 recorded as character beats apart from the dynamic salary line and unspoken handoffs; narrator beats and negotiation answers use distinct per-character synthesis voices, labelled as such everywhere |
 
 ### How to fill a gap
 

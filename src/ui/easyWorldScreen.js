@@ -9,8 +9,8 @@ export const PLAY_ZONE = {
 const TITLES = { ground: 'Easy Racing Ground', forest: 'Forest Adventure', city: 'City Walk' };
 export const EASY_CONTROLS = {
   ground: 'The car drives automatically. Hold more than three seconds and release to accelerate and keep driving. Single tap, or hold one or two seconds and release, to stop. At 500 metres hear the direction, then no automatic chatter until 50 metres: turn now. Double tap and hold the second press over one second to sound the recorded car horn; release to stop the horn. Swipe left or right to select the next turn; the car turns at the junction. After a missed turn or crash the car stops. Choose Try again yourself; it never restarts automatically. Coins come as you drive. Petrol runs out; its menu opens automatically.',
-  forest: 'Hold to walk; release to stop. Double tap to sit or stand. Swipe left or right to follow a path. Monsters are announced ahead, left or right. Single tap to strike the announced nearby monster with your sword. Aiming is automatic; swipes can also aim. Triple tap to use a healing potion. You start with three potions. Monsters take two hits. Your health is spoken after each attack.',
-  city: 'Hold to walk; release to stop. Double tap to sit or stand. Swipe left or right to follow a path. Collect coins as you walk. Open the menu to buy healing potions, buy a city shop, visit the forest or enter racing. There is no timer and no combat in the city.',
+  forest: 'Hold to walk; release to stop. Double tap to sit or stand. Swipe left or right to follow a path. Swipe down to walk backward, and again to walk forward. Monsters are announced ahead, left or right. Single tap to strike the announced nearby monster with your sword. Aiming is automatic; swipes can also aim. Triple tap to use a healing potion. You start with three potions. Monsters take two hits. Your health is spoken after each attack.',
+  city: 'Hold to walk; release to stop. Double tap to sit or stand. Swipe left or right to follow a path. Swipe down to walk backward, and again to walk forward. Collect coins as you walk. Shops announce their side and distance as you approach: swipe toward a shop, then tap to confirm and enter. Inside, tap to buy and swipe down to leave. Open the menu to buy healing potions, buy a city shop, visit the forest or enter racing. There is no timer and no combat in the city.',
 };
 
 /** A complete spoken mini-game, also usable without WebGL or a GPU. */
@@ -52,7 +52,7 @@ export function buildEasyWorldScreen({ area, gameState, screens, speech, audio, 
   let footstepClock = 0;
   let beforeTapSpeed = 0, secondPress = false;
   const api = {
-    id: area, title: TITLES[area], summary: `${area === 'ground' ? 'Automatic driving with spoken metre countdowns. Single tap stops. Hold over three seconds to accelerate. Swipe left or right to take a turn.' : area === 'forest' ? 'Hold to walk, release to stop. Single tap strikes a monster, double tap sits, triple tap heals.' : 'Hold to walk, release to stop. Collect coins and open the menu for shops and racing.'} Down-left opens the menu. Up then left goes back. Choose Start when ready. How to play reads all controls.`,
+    id: area, title: TITLES[area], summary: `${area === 'ground' ? 'Automatic driving with spoken metre countdowns. Single tap stops. Hold over three seconds to accelerate. Swipe left or right to take a turn.' : area === 'forest' ? 'Hold to walk, release to stop. Single tap strikes a monster, double tap sits, triple tap heals. Swipe down walks backward.' : 'Hold to walk, release to stop. Collect coins and open the menu for shops and racing. Swipe down walks backward. Shops announce their side; swipe toward one and tap to enter.'} Down-left opens the menu. Up then left goes back. Choose Start when ready. How to play reads all controls.`,
     element: root, focusItems: [], zone: area === 'ground' ? { ...PLAY_ZONE, immediateTap: true, deferDoubleTap: false, doubleTapHoldTarget: true, doubleTapHoldMs: 1000 } : PLAY_ZONE, world,
     get isMenu() { return world.state.menu; },
     get playing() { return started && !world.state.menu && !suspended && !destroyed; },
@@ -106,7 +106,13 @@ export function buildEasyWorldScreen({ area, gameState, screens, speech, audio, 
       if (!api.playing) return false;
       if (type === 'down') {
         if (d.action === 'accelerate') { keyStart = performance.now(); world.pressStart(); }
-        else if (d.action === 'brake') world.tap();
+        else if (d.action === 'brake') {
+          // Standing still with nothing to strike and no shop business: S is
+          // the keyboard's swipe-down, walking backward instead of just
+          // repeating the status. Confirming, buying and striking keep tap.
+          if (area !== 'ground' && !world.state.monster && world.state.speed === 0 && !world.state.confirmShop && !world.state.inShop) world.swipe('down');
+          else world.tap();
+        }
         else if (d.action === 'steerLeft') world.swipe('left');
         else if (d.action === 'steerRight') world.swipe('right');
         else if (d.action === 'handbrake') world.doubleTap();
@@ -199,7 +205,7 @@ export function buildEasyWorldScreen({ area, gameState, screens, speech, audio, 
     if (area === 'ground') button('Petrol', 'Fill for five coins. Free emergency refill if you cannot afford it.', () => { world.buyPetrol(); flush(); render(); });
     button('Where am I', 'Read current position, health and coins', () => { speech?.say(world.describe(), { hardInterrupt: true, replace: true, cooldownMs: 0 }); });
     button('Experience and level', 'Read your saved progress', () => speech?.say(`Experience ${gameState.save.xp}. Level ${gameState.save.level}. Monsters give 25 experience and five coins each.`, { hardInterrupt: true, replace: true, cooldownMs: 0 }));
-    button('How to play', 'Read the controls for this area', () => { speech?.say(`${EASY_CONTROLS[area]} Down-left opens this menu. Up then left goes back. Keyboard: W to hold, S to stop or strike, A and D to choose direction, Space to sit, R to heal.`, { hardInterrupt: true, replace: true, cooldownMs: 0 }); });
+    button('How to play', 'Read the controls for this area', () => { speech?.say(`${EASY_CONTROLS[area]} Down-left opens this menu. Up then left goes back. Keyboard: W to hold, S to stop, strike, or walk backward when standing still, A and D to choose direction, Space to sit, R to heal.`, { hardInterrupt: true, replace: true, cooldownMs: 0 }); });
     if (area === 'city') {
       button('Buy healing potion', 'Three coins. Use by triple tapping in the forest.', () => { world.buyPotion(); flush(); render(); });
       button('Buy city coin shop', '25 coins. Earn one coin per thirty seconds of city walking.', () => { world.buyShop(); flush(); render(); });

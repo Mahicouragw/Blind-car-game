@@ -38,7 +38,7 @@ export const LEVELS = [
     id: 1,
     name: 'Rookie Cup',
     brief:
-      'Two laps, two opponents, and they are gentle. A lap is three point three kilometres, so allow about five minutes.' + ' Take your time. The car has extra grip and the recovery system will put you back on the racing line if you stop off track.',
+      'Two gentle opponents. A lap is three point three kilometres, so allow about five minutes.' + ' Take your time. The car has extra grip and the recovery system will put you back on the racing line if you stop off track.',
     laps: 2,
     opponents: [
       { name: 'Joseph', carId: 'kestrel', skill: 0.74, aggression: 0.25 },

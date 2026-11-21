@@ -13,8 +13,23 @@ export const WALK_ROUTE = [
   { metres: 40, direction: 'left' }, { metres: 35, direction: 'right' },
   { metres: 45, direction: 'right' }, { metres: 40, direction: 'left' },
 ];
+/**
+ * City shops, fixed to the walking loop. `at` is metres along each loop of
+ * the route; the route repeats, so the shops repeat with it. Entry is
+ * direction-gated: near a shop you must swipe toward its side, then tap to
+ * confirm, so a blind player can never walk into the wrong shop by accident.
+ */
+export const CITY_SHOPS = [
+  { id: 'potion', name: 'potion shop', side: 'left', at: 25 },
+  { id: 'coinshop', name: 'city coin shop', side: 'right', at: 65 },
+];
+/** Shops announce their side and distance within this range, in metres. */
+export const SHOP_ANNOUNCE_M = 30;
+/** Entry is offered within this distance of a shop, in metres. */
+export const SHOP_ENTER_M = 6;
 const n = (v, fallback = 0) => Number.isFinite(v) ? v : fallback;
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
 
 export function createEasyWorld({ area = 'ground', wallet = {}, inventory = {}, route } = {}) {
   if (!['ground', 'forest', 'city'].includes(area)) throw new Error('Unknown play area');
@@ -33,6 +48,8 @@ export function createEasyWorld({ area = 'ground', wallet = {}, inventory = {}, 
     area, paused: false, menu: false, elapsed: 0, leg: 0, remaining: path[0].metres,
     distance: 0, speed: driving ? 12 : 0, cruiseSpeed: 12, holding: false, holdElapsed: 0,
     fuel: 100, health: 100, seated: false, monster: null, aim: 'ahead',
+    backward: false, maxDistance: 0, backwardBlocked: false,
+    pendingShop: null, confirmShop: null, inShop: null, lastShopGuideAt: -Infinity,
     queuedTurn: null, turns: 0, collected: 0, kills: 0, out: false, restartIn: 0,
     nextCoinAt: driving ? 25 : 10, nextMonsterAt: 24, attackClock: 0, shopClock: 0,
     lastGuideAt: -Infinity, lastNumber: null, lowFuelSaid: false, earlySaid: false, nowSaid: false,
@@ -44,6 +61,13 @@ export function createEasyWorld({ area = 'ground', wallet = {}, inventory = {}, 
     state.collected += amount;
   }
   function segment() { return path[state.leg % path.length]; }
+  const loopLength = path.reduce((sum, p) => sum + p.metres, 0);
+  const shops = area === 'city' ? CITY_SHOPS.filter((s) => s.at < loopLength) : [];
+  function shopById(id) { return shops.find((s) => s.id === id) ?? null; }
+  function shopAhead(shop) {
+    const pos = state.distance % loopLength;
+    return (shop.at - pos + loopLength) % loopLength;
+  }
   function metres() {
     const d = state.remaining;
     const step = d > 150 ? 50 : d > 60 ? 25 : d > 25 ? 10 : 5;
@@ -53,13 +77,24 @@ export function createEasyWorld({ area = 'ground', wallet = {}, inventory = {}, 
     if (state.out) return driving ? 'The car is stopped after a crash. Choose Try again when you are ready. Your coins are safe.' : 'You are resting safely at the forest entrance.';
     if (state.monster) return `Monster ${state.monster.side}. Monster health ${state.monster.health}. Your health ${state.health}. Single tap to strike it. Triple tap to heal.`;
     if (driving) return `${state.speed > 0 ? 'Driving' : 'Stopped'}. Turn ${segment().direction} in ${metres()} metres. Petrol ${Math.ceil(state.fuel)} percent. ${wallet.coins} coins.`;
-    return `${area === 'forest' ? 'Forest' : 'City'}. ${state.seated ? 'Seated' : state.speed > 0 ? 'Walking' : 'Standing'}. Path turns ${segment().direction} in ${metres()} metres. Health ${state.health}. ${wallet.coins} coins.`;
+    if (state.inShop) {
+      const shop = shopById(state.inShop);
+      return `Inside the ${shop ? shop.name : 'shop'}. Tap to buy, swipe down to leave. ${wallet.coins} coins.`;
+    }
+    const text = `${area === 'forest' ? 'Forest' : 'City'}. ${state.seated ? 'Seated' : state.speed > 0 ? (state.backward ? 'Walking backward' : 'Walking') : 'Standing'}. Path turns ${segment().direction} in ${metres()} metres. Health ${state.health}. ${wallet.coins} coins.`;
+    const confirm = shopById(state.confirmShop);
+    if (confirm) return `${text} Enter the ${confirm.name}? Tap to confirm.`;
+    const pending = shopById(state.pendingShop);
+    if (pending) return `${text} The ${pending.name} is on your ${pending.side}. Swipe ${pending.side} to enter.`;
+    return text;
   }
   function reset() {
     Object.assign(state, {
       remaining: path[0].metres, leg: 0, queuedTurn: null, speed: driving ? 12 : 0,
       cruiseSpeed: 12, holding: false, fuel: 100, health: 100, seated: false,
       monster: null, aim: 'ahead', out: false, restartIn: 0, lastGuideAt: -Infinity,
+      backward: false, maxDistance: 0, backwardBlocked: false,
+      pendingShop: null, confirmShop: null, inShop: null, lastShopGuideAt: -Infinity,
       lastNumber: null, lowFuelSaid: false, earlySaid: true, nowSaid: false, distance: 0, nextCoinAt: driving ? 25 : 10,
       nextMonsterAt: 24, attackClock: 0,
     });
@@ -85,11 +120,60 @@ export function createEasyWorld({ area = 'ground', wallet = {}, inventory = {}, 
       }
       return;
     }
+    if (state.backward) return; // footsteps are the feedback while reversing
     const value = metres();
     const since = state.elapsed - state.lastGuideAt;
     if ((value !== state.lastNumber && since >= 3) || since >= 5) {
       state.lastGuideAt = state.elapsed; state.lastNumber = value;
       emit(`${driving ? 'Turn' : 'Path turns'} ${segment().direction} in ${value} metres.${state.queuedTurn ? ' Turn selected.' : ' Swipe ' + segment().direction + ' to take it.'}`, null, 3);
+    }
+  }
+  function shopPrompt(shop) {
+    if (!shop) return describe();
+    if (shop.id === 'coinshop') {
+      if (inventory.shopOwned) return 'Your city coin shop. It earns one coin for every thirty seconds you walk in the city. Swipe down to leave.';
+      return `City coin shop. It costs 25 coins and earns one coin for every thirty seconds you walk in the city. You have ${wallet.coins} coins. Tap to buy it. Swipe down to leave.`;
+    }
+    return `Potion shop. Healing potions cost three coins. You have ${wallet.coins} coins and ${inventory.potions} potions. Tap to buy one. Swipe down to leave.`;
+  }
+  function enterShop(id) {
+    const shop = shopById(id);
+    if (!shop) return;
+    state.inShop = id; state.confirmShop = null; state.pendingShop = null;
+    state.speed = 0; state.holding = false;
+    emit(`Entering the ${shop.name}. ${shopPrompt(shop)}`, 'door-open', 4);
+  }
+  function leaveShop() {
+    const shop = shopById(state.inShop);
+    state.inShop = null;
+    emit(shop ? `Leaving the ${shop.name}. Standing.` : 'Standing.', 'door-close', 3);
+  }
+  function shopGuide() {
+    if (driving || shops.length === 0 || state.inShop) return;
+    // Passed it: a pending offer with the shop far ahead again means we walked by.
+    const offered = shopById(state.confirmShop ?? state.pendingShop);
+    if (offered && shopAhead(offered) > 15) {
+      state.pendingShop = null; state.confirmShop = null;
+      emit(`You walked past the ${offered.name}.`, null, 1);
+      return;
+    }
+    let nearest = null, nearDist = Infinity;
+    for (const shop of shops) {
+      const ahead = shopAhead(shop);
+      if (ahead < nearDist) { nearest = shop; nearDist = ahead; }
+    }
+    if (!nearest || nearDist > SHOP_ANNOUNCE_M) return;
+    if (nearDist <= SHOP_ENTER_M) {
+      if (state.pendingShop !== nearest.id) {
+        state.pendingShop = nearest.id;
+        emit(`The ${nearest.name} is on your ${nearest.side}. Swipe ${nearest.side} to enter.`, 'ui-select', 3);
+      }
+      return;
+    }
+    state.pendingShop = null;
+    if (state.elapsed - state.lastShopGuideAt >= 4) {
+      state.lastShopGuideAt = state.elapsed;
+      emit(`${cap(nearest.name)} on your ${nearest.side}, ${Math.max(5, Math.round(nearDist / 5) * 5)} metres.`, null, 2);
     }
   }
   function quest() {
@@ -119,6 +203,11 @@ export function createEasyWorld({ area = 'ground', wallet = {}, inventory = {}, 
     },
     pressStart() {
       if (state.paused || state.out) return;
+      if (!driving && state.inShop) {
+        const shop = shopById(state.inShop);
+        state.inShop = null;
+        emit(shop ? `Leaving the ${shop.name}.` : 'Leaving.', 'door-close', 3);
+      }
       state.holding = true; state.holdElapsed = 0;
       if (!driving && !state.monster) { state.seated = false; state.speed = 2; }
     },
@@ -137,6 +226,12 @@ export function createEasyWorld({ area = 'ground', wallet = {}, inventory = {}, 
     tap() {
       if (state.paused || state.out) return;
       if (driving) { state.speed = 0; emit('Stopped.', 'brake', 4); return; }
+      if (state.confirmShop) { enterShop(state.confirmShop); return; }
+      if (state.inShop) {
+        if (state.inShop === 'coinshop') api.buyShop();
+        else api.buyPotion();
+        return;
+      }
       if (area !== 'forest' || !state.monster) { emit(describe()); return; }
       // Easy combat: one tap always attacks the announced nearby monster.
       // Directional swipes are optional aiming feedback, not an invisible gate.
@@ -156,6 +251,7 @@ export function createEasyWorld({ area = 'ground', wallet = {}, inventory = {}, 
     doubleTap() {
       if (state.paused || state.out) return;
       if (driving) { api.tap(); return; }
+      if (state.inShop) { leaveShop(); return; }
       state.speed = 0; state.holding = false; state.seated = !state.seated;
       emit(state.seated ? 'Seated. Hold to stand and walk.' : 'Standing. Hold to walk.', 'ui-select');
     },
@@ -172,7 +268,39 @@ export function createEasyWorld({ area = 'ground', wallet = {}, inventory = {}, 
         state.aim = direction === 'up' ? 'ahead' : direction;
         emit(`Aiming ${state.aim}. Monster ${state.monster.side}. Single tap to strike.`); return;
       }
+      if (!driving && direction === 'down') {
+        if (state.inShop) { leaveShop(); return; }
+        if (state.confirmShop) {
+          const shop = shopById(state.confirmShop);
+          state.confirmShop = null;
+          emit(shop ? `Staying outside the ${shop.name}.` : 'Staying on the path.', null, 2);
+          return;
+        }
+        state.backward = !state.backward;
+        state.backwardBlocked = false;
+        emit(state.backward ? 'Walking backward.' : 'Walking forward.', 'ui-select', 3);
+        return;
+      }
+      if (!driving && state.inShop && (direction === 'left' || direction === 'right')) {
+        emit(shopPrompt(shopById(state.inShop)), null, 3); return;
+      }
       if (direction !== 'left' && direction !== 'right') { emit(describe()); return; }
+      if (!driving && (state.pendingShop || state.confirmShop)) {
+        const shop = shopById(state.confirmShop ?? state.pendingShop);
+        if (shop && direction === shop.side) {
+          if (!state.confirmShop) {
+            state.confirmShop = shop.id;
+            emit(`Enter the ${shop.name}? Tap to confirm.`, 'ui-select', 4);
+          } else emit(`Enter the ${shop.name}? Tap to confirm.`, null, 3);
+          return;
+        }
+        // Cancelling is explicit; anything else is turn business, not a wrong door.
+        if (shop && state.confirmShop) {
+          state.confirmShop = null;
+          emit(`Staying outside the ${shop.name}.`, null, 2);
+          return;
+        }
+      }
       if (direction !== segment().direction) {
         emit(`Not ${direction}. Take ${segment().direction} in ${metres()} metres.`, 'ui-error'); return;
       }
@@ -225,11 +353,38 @@ export function createEasyWorld({ area = 'ground', wallet = {}, inventory = {}, 
           emit('Accelerating. Release to keep driving automatically.', 'gear-change');
         }
       }
+      if (!driving && state.speed <= 0 && !state.monster && state.pendingShop && !state.inShop && state.elapsed - state.lastShopGuideAt >= 6) {
+        // Standing at the door: repeat the offer, but never nag a walker.
+        const door = shopById(state.pendingShop);
+        if (door && shopAhead(door) <= SHOP_ENTER_M) {
+          state.lastShopGuideAt = state.elapsed;
+          emit(`The ${door.name} is on your ${door.side}. Swipe ${door.side} to enter.`, null, 3);
+        }
+      }
       if (state.speed <= 0) return;
-      const distance = state.speed * dt;
-      state.distance += distance; state.remaining -= distance;
+      const step = state.speed * dt;
+      if (!driving && state.backward) {
+        state.distance = Math.max(0, state.distance - step);
+        state.remaining = Math.min(segment().metres, state.remaining + step);
+        if (state.remaining >= segment().metres) {
+          // The start of this stretch: no further back to go.
+          state.speed = 0; state.holding = false;
+          if (!state.backwardBlocked) {
+            state.backwardBlocked = true;
+            emit('Start of this stretch. Swipe down to walk forward again.', 'ui-select', 3);
+          }
+          return;
+        }
+      } else {
+        state.backwardBlocked = false;
+        state.distance += step; state.remaining -= step;
+      }
+      // Coins, monsters and quests only ever come from NEW ground: walking
+      // back over old ground and forward again must not pay twice.
+      const advancing = state.distance > state.maxDistance;
+      if (advancing) state.maxDistance = state.distance;
       if (driving) {
-        state.fuel = Math.max(0, state.fuel - distance / 15);
+        state.fuel = Math.max(0, state.fuel - step / 15);
         if (state.fuel <= 0) {
           state.speed = 0; state.holding = false; api.menu();
           emit('Petrol is over. The car has stopped. Race menu open. Petrol selected. Single tap confirms Petrol. Double tap refills.', 'ui-open', 4);
@@ -239,13 +394,13 @@ export function createEasyWorld({ area = 'ground', wallet = {}, inventory = {}, 
           state.lowFuelSaid = true; emit('Petrol low. Open the menu with a down-left swipe and choose Petrol.', 'ui-error', 4);
         }
       }
-      if (state.distance >= state.nextCoinAt) {
+      if (advancing && state.distance >= state.nextCoinAt) {
         state.nextCoinAt += driving ? 25 : 10; gain(1);
         // Sound for each coin; speech only every five to keep directions clear.
         events.push({ sound: 'ui-pluck', text: !driving && state.collected % 5 === 0 ? `Five more coins. ${wallet.coins} coins total.` : '', priority: 1 });
         quest();
       }
-      if (area === 'forest' && state.distance >= state.nextMonsterAt) {
+      if (area === 'forest' && advancing && state.distance >= state.nextMonsterAt) {
         const side = ['ahead', 'left', 'right'][state.kills % 3];
         state.monster = { side, health: 50 }; state.speed = 0; state.attackClock = 0; state.aim = 'ahead';
         emit(`Monster ${side}. Monster health 50. Your health ${state.health}. Single tap to strike. Triple tap to heal.`, 'monster-arrival', 4);
@@ -267,6 +422,7 @@ export function createEasyWorld({ area = 'ground', wallet = {}, inventory = {}, 
         state.earlySaid = segment().metres <= 500; state.nowSaid = false;
         emit(`${driving ? 'Turning' : 'Walking'} ${direction}. Next: ${segment().direction} in ${metres()} metres.`, 'path-turn', 4);
       } else guide();
+      if (!driving) shopGuide();
     },
   };
   return api;
