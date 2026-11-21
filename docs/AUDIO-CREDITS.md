@@ -1,6 +1,6 @@
 # Audio credits, licences and honest gaps
 
-**176 sound files, 47.7 MB.** Every one is a real *file* that the game plays back;
+**186 sound files, 48.9 MB.** Every one is a real *file* that the game plays back;
 there is no oscillator, no generated noise buffer and no synthesised tone
 anywhere in this project's audio *code* — `src/core/audio.js` only ever plays
 files.
@@ -19,9 +19,9 @@ The files have three provenances, and this document records each:
    synthesised sound effect ships**: the eleven synthesised `.wav` fills this
    project once carried were deleted and replaced by these recordings. See
    [Field recordings (CC0)](#field-recordings-cc0) below.
-3. **85 AI voice clips** (9.5 MB): ten short spoken cues plus seventy-five recorded
+3. **95 AI voice clips** (10.8 MB): ten short spoken cues plus eighty-five recorded
    story-dialogue files (chapters 1 and 2 fully, chapter 3 apart from its dynamic
-   salary line, chapter 4 fully recorded, chapter 5 started), all generated as
+   salary line, chapters 4 and 5 fully recorded, chapter 6 recorded apart from its unspoken handoffs), all generated as
    `.mp3` files and preferred over device speech synthesis whenever the line
    is one of them. These are the ONLY generated audio in the project (AI voices
    are allowed). See [AI voice clips](#ai-voice-clips) and
@@ -317,7 +317,7 @@ voice asset and no third-party licence applies.
 
 ## Recorded story dialogue (AI character voices)
 
-Chapters 1 and 2 are fully recorded with AI character voices, including the interview questions, and chapter 3 is recorded apart from its dynamic salary line, chapter 4 is fully recorded, and chapter 5 is started with Leela voiced, one file
+Chapters 1 and 2 are fully recorded with AI character voices, including the interview questions, and chapter 3 is recorded apart from its dynamic salary line, chapters 4 and 5 are fully recorded, and chapter 6 is recorded apart from its unspoken handoffs, one file
 per story node in `assets/audio/story/`, played by `src/story/storyVoice.js`
 instead of device speech synthesis. Women are voiced by women and men by men;
 the cast is documented in [STORY.md](STORY.md#voice-cast) and spoken aloud on
@@ -400,6 +400,16 @@ the in-game Audio and credits screen.
 | `story/ch5_controls.mp3` | Leela | ch5_controls |
 | `story/ch5_controls_gestures.mp3` | Leela | ch5_controls_gestures |
 | `story/ch5_controls_settings.mp3` | Leela | ch5_controls_settings |
+| `story/ch5_never.mp3` | Joseph | ch5_never |
+| `story/ch5_no.mp3` | Joseph | ch5_no |
+| `story/ch5_watch.mp3` | Narrator | ch5_watch |
+| `story/ch5_questions.mp3` | Leela | ch5_questions |
+| `story/ch5_end.mp3` | Narrator | ch5_end |
+| `story/ch6_briefing.mp3` | Leela | ch6_briefing |
+| `story/ch6_more_practice.mp3` | Leela | ch6_more_practice |
+| `story/ch6_confident.mp3` | Leela | ch6_confident |
+| `story/ch6_mithin_helmet.mp3` | Mithin | ch6_mithin_helmet |
+| `story/ch6_end.mp3` | Narrator | ch6_end |
 
 Like the UI cues above, these are original generated speech: no performer's
 recording, no corporate voice asset, no third-party licence. They bake in the
