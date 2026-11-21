@@ -87,7 +87,7 @@ test('voiceForNode never returns null', () => {
 
 // ------------------------------------------------------------- recorded files
 
-test('recorded voice files cover chapters one to six apart from the unspoken handoffs', () => {
+test('recorded voice files cover chapters one to seven apart from the race results', () => {
   const recorded = [
     'ch1_intro', 'ch1_market', 'ch1_home', 'ch1_letter', 'ch1_argument',
     'ch1_argument_choice', 'ch1_offer', 'ch1_sister', 'ch1_night', 'ch1_end',
@@ -106,12 +106,14 @@ test('recorded voice files cover chapters one to six apart from the unspoken han
     'ch5_circuit', 'ch5_leela', 'ch5_controls', 'ch5_controls_gestures', 'ch5_controls_settings',
     'ch5_never', 'ch5_no', 'ch5_watch', 'ch5_questions', 'ch5_end',
     'ch6_briefing', 'ch6_more_practice', 'ch6_confident', 'ch6_mithin_helmet', 'ch6_end',
+    'ch7_paddock', 'ch7_joseph_words', 'ch7_mithin_bag', 'ch7_leela_briefing', 'ch7_answer_corners',
+    'ch7_grid', 'ch7_lights', 'ch7_won', 'ch7_lost', 'ch7_podium',
   ];
   for (const id of recorded) {
     assert.equal(storyVoiceKey(id), `story-${id}`);
   }
   assert.equal(storyVoiceKey('ch6_tutorial'), null);
-  assert.equal(storyVoiceKey('ch7_joseph_words'), null);
+  assert.equal(storyVoiceKey('ch7_end'), null);
   assert.equal(storyVoiceKey('no-such-node'), null);
 });
 
