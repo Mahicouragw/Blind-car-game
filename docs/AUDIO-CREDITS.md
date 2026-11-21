@@ -1,6 +1,6 @@
 # Audio credits, licences and honest gaps
 
-**196 sound files, 50.5 MB.** Every one is a real *file* that the game plays back;
+**198 sound files, 50.7 MB.** Every one is a real *file* that the game plays back;
 there is no oscillator, no generated noise buffer and no synthesised tone
 anywhere in this project's audio *code* — `src/core/audio.js` only ever plays
 files.
@@ -19,9 +19,9 @@ The files have three provenances, and this document records each:
    synthesised sound effect ships**: the eleven synthesised `.wav` fills this
    project once carried were deleted and replaced by these recordings. See
    [Field recordings (CC0)](#field-recordings-cc0) below.
-3. **105 AI voice clips** (12.3 MB): ten short spoken cues plus ninety-five recorded
+3. **107 AI voice clips** (12.5 MB): ten short spoken cues plus ninety-seven recorded
    story-dialogue files (chapters 1 and 2 fully, chapter 3 apart from its dynamic
-   salary line, chapters 4 and 5 fully recorded, chapter 6 recorded apart from its unspoken handoffs, chapter 7 started), all generated as
+   salary line, chapters 4 and 5 fully recorded, chapters 6 and 7 recorded apart from their unspoken handoffs), all generated as
    `.mp3` files and preferred over device speech synthesis whenever the line
    is one of them. These are the ONLY generated audio in the project (AI voices
    are allowed). See [AI voice clips](#ai-voice-clips) and
@@ -317,7 +317,7 @@ voice asset and no third-party licence applies.
 
 ## Recorded story dialogue (AI character voices)
 
-Chapters 1 and 2 are fully recorded with AI character voices, including the interview questions, and chapter 3 is recorded apart from its dynamic salary line, chapters 4 and 5 are fully recorded, chapter 6 is recorded apart from its unspoken handoffs, and chapter 7 is started through the podium, one file
+Chapters 1 and 2 are fully recorded with AI character voices, including the interview questions, and chapter 3 is recorded apart from its dynamic salary line, chapters 4 and 5 are fully recorded, and chapters 6 and 7 are recorded apart from their unspoken handoffs, one file
 per story node in `assets/audio/story/`, played by `src/story/storyVoice.js`
 instead of device speech synthesis. Women are voiced by women and men by men;
 the cast is documented in [STORY.md](STORY.md#voice-cast) and spoken aloud on
@@ -420,6 +420,8 @@ the in-game Audio and credits screen.
 | `story/ch7_won.mp3` | Narrator | ch7_won |
 | `story/ch7_lost.mp3` | Narrator | ch7_lost |
 | `story/ch7_podium.mp3` | Narrator | ch7_podium |
+| `story/ch7_result_none.mp3` | Narrator | ch7_result_none |
+| `story/ch7_end.mp3` | Narrator | ch7_end |
 
 Like the UI cues above, these are original generated speech: no performer's
 recording, no corporate voice asset, no third-party licence. They bake in the
