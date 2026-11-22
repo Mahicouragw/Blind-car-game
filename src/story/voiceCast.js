@@ -189,7 +189,6 @@ export const STORY_VOICE_FILES = {
   ch4_mithin_neutral: 'story-ch4_mithin_neutral',
   ch4_alone_lunch: 'story-ch4_alone_lunch',
   ch4_end: 'story-ch4_end',
-  ch5_invite: 'story-ch5_invite',
   ch5_sunday: 'story-ch5_sunday',
   ch5_circuit: 'story-ch5_circuit',
   ch5_controls: 'story-ch5_controls',
@@ -257,8 +256,8 @@ export function bakedVoiceUsable(nodeId, state = {}) {
 
 /**
  * The manifest key for a beat's recording, or null when the beat is never
- * recorded: narrator beats always use the narrator synthesis voice, and
- * `{salary}` beats speak a negotiated figure no recording can bake in.
+ * recorded: only `{salary}` beats speak a negotiated figure no recording
+ * can bake in.
  *
  * @param {string} nodeId
  * @param {number} beatIndex 0-based position in the node's beats
@@ -322,7 +321,7 @@ export function voiceLeadMs(node) {
 export function voiceCastLines() {
   return [
     'Story dialogue is performed in a distinct voice per character: women are voiced by women, and men by men.',
-    `Every chapter is split into narrator beats and character beats, so the narrator speaks only scene, action and introductions while each character speaks only their own dialogue, with a short pause wherever the voice changes. Character beats are recorded in their own voices throughout chapters one to seven, apart from the dynamic salary line; narrator beats inside dialogue use the narrator synthesis voice, and the interview questions are recorded. Unrecorded lines use distinct per-character synthesis voices until their recordings are added, and nothing is ever described as recorded when it is synthesised.`,
+    `Every chapter is split into narrator beats and character beats, so the narrator speaks only scene, action and introductions while each character speaks only their own dialogue, with a short pause wherever the voice changes. Character beats and narrator beats are all recorded in their own voices throughout chapters one to seven, apart from the dynamic salary line, and the interview questions are recorded. Unrecorded lines use distinct per-character synthesis voices until their recordings are added, and nothing is ever described as recorded when it is synthesised.`,
     `The cast: ${CAST_IDS.map((id) => `${CHARACTER_VOICES[id].label}, ${CHARACTER_VOICES[id].description}`).join(' ')}`,
   ];
 }

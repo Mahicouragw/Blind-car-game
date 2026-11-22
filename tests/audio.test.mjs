@@ -229,6 +229,16 @@ test('a music bed is fetched only when it is first played', async () => {
   assert.ok(musicGain, 'the music group gain should exist');
 });
 
+test('playing an unloaded effect fetches it so the next play works', async () => {
+  const { audio, fetchImpl } = await makeFetchingAudio();
+  assert.equal(audio.buffers.has('ui-click'), false);
+  assert.equal(audio.play('ui-click'), false, 'nothing cached yet');
+  assert.ok(fetchImpl.requested.includes(AUDIO_MANIFEST['ui-click']), 'the miss starts a download');
+  await new Promise((r) => setTimeout(r, 10));
+  assert.ok(audio.buffers.has('ui-click'), 'the background fetch lands in the cache');
+  assert.equal(audio.play('ui-click'), true, 'the next play works');
+});
+
 test('repeating the same track does not restart or re-download it', async () => {
   const { audio, fetchImpl } = await makeFetchingAudio();
   await audio.music.play('music-theme-menu');

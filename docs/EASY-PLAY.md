@@ -1,4 +1,4 @@
-# Easy play: Racing Ground, Forest, City
+# Easy play: Racing Ground, Forest, City, Christmas Fair
 
 These are **new, untimed, spoken mini-game modes**, available from the main menu
 without finishing the story or gesture tutorial. The existing Three.js simulation
@@ -16,7 +16,8 @@ visual companion, not a new full 3D open-world engine.
 - In an area's menu, back resumes play. From play, back returns to the main menu.
 - Keyboard: Tab moves menu focus; Enter activates; Escape goes back; P opens the
   area menu. W holds, S stops/strikes, A/D select left/right, Space sits/stands,
-  R heals. Touch also offers up to aim at a monster ahead.
+  R heals. Swipe up aims at a monster ahead during a fight; at gates it walks
+  through (forest entrance, North Gate, Bolt Green, Fair Gate).
 
 Choose **Start** after hearing the introduction. **How to play** in each local
 menu reads that area's controls. There is no time limit or tutorial gate.
@@ -49,8 +50,13 @@ menu reads that area's controls. There is no time limit or tutorial gate.
 - Monsters appear ahead, left or right and stop walking. **Single tap attacks
   the announced nearby monster with automatic aim.** Directional swipes may
   still aim, but are not required to make a sword attack work.
-- Each monster takes two hits. Its health and the player's health are spoken.
-  Every five seconds an undefeated monster inflicts eight health damage.
+- Four real creatures cycle in order — goblin, giant spider, grey wolf, moss
+  imp — so the same one never appears twice in a row. Each is announced by
+  name with its own description.
+- Spiders fall in one sword hit, goblins and wolves in two, moss imps in
+  three. Creature health and player health are spoken. Every five seconds an
+  undefeated creature strikes: wolves hit hardest (ten damage), spiders and
+  imps lightest (six).
 - Triple tap heals up to 50 health using one potion. Start with three; at full
   health no potion is wasted. Triple tap does not also trigger the double-tap sit
   action: this play surface defers double tap until the third-tap window closes.
@@ -60,10 +66,25 @@ menu reads that area's controls. There is no time limit or tutorial gate.
   cannot reward twice. The local menu reads experience and level.
 - Walking also gives coins. At zero health,
   restart safely at the entrance after three seconds; keep the wallet.
+- Swipe down walks backward (footsteps guide you); swipe down again for
+  forward. Re-walked ground pays nothing twice.
+- Swipe up at the forest entrance to walk back through the City Gate. Fights
+  play tense music; the forest bed returns when the creature falls.
 
 ## City Walk
 
-- Hold/release to walk/stop; double tap to sit/stand; swipe to select paths.
+- Hold/release to walk/stop; double tap to sit/stand; swipe to select paths;
+  swipe down walks backward.
+- Walk one real map: Harbour Gate, Market Square, the Palace Steps, Bolt Green
+  and the North Gate, each announced on arrival.
+- Two doorstep shops: the potion shop (left, healing potions 3 coins) and the
+  city coin shop (right, 25 coins, earns while you walk). Shops announce side
+  and distance; swipe toward one and tap to confirm — a wrong-side swipe never
+  enters.
+- Tap at the Palace Steps for the herald's quest: drive out three forest
+  creatures for twenty bonus coins.
+- Swipe up at the North Gate to walk the road to the forest; swipe up at Bolt
+  Green in December to enter the Christmas fair.
 - Collect coins while walking. No monsters or combat in the city.
 - The menu sells healing potions for three coins, and one city coin shop for 25.
   An owned shop earns one extra coin per 30 seconds of city walking, never while
@@ -72,10 +93,21 @@ menu reads that area's controls. There is no time limit or tutorial gate.
 - Optional easy quest: collect ten coins in one visit to any area, with no timer;
   receive ten bonus coins, once per save. Free exploration is never gated by it.
 
+## Christmas Bolt Fair
+
+- Open every real-world December 1st through 31st, with its own menu button
+  and a Bolt Green gate in the city. Outside December the gate names the date
+  instead of opening — there are no fake doors.
+- Walk the fair loop on foot — Fair Gate, Bolt Tree, Gift Stalls, Carol
+  Corner — to finish the Starlight Quest for fifteen bonus coins.
+- The fair plays the warm family music bed. Swipe up at the Fair Gate to
+  return to the city. No timer, no combat.
+
 ## Saving, sound and lifecycle
 
 All areas share the existing saved coin wallet. Potion inventory, shop ownership
-and the quest reward flag survive reloads. Current location, fuel and health are
+and the quest flags (easy quest, palace quest progress, Starlight Quest)
+survive reloads. Current location, fuel and health are
 session state; entering an area starts a fresh visit.
 
 Only existing, credited recorded SFX are used: engine, brake, gear change, impacts,

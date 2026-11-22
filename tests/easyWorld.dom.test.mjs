@@ -301,3 +301,45 @@ test('keyboard S walks backward when standing still, and toggles back', () => {
   assert.equal(screen.world.state.backward, false, 'S toggles back to forward');
   app.destroy();
 });
+
+test('walking through the gates travels for real: city to forest and back', () => {
+  const { app } = boot(); const screen = start(app, 'city');
+  screen.world.state.distance = 134; screen.world.state.maxDistance = 134;
+  screen.handleGesture('swipe', { direction: 'up' });
+  assert.equal(app.screens.current.id, 'forest');
+  assert.match(screen.element.querySelector('.easy-action').textContent, /North Gate road/);
+  bus.emit('gesture:doubleTap', { zone: { role: 'menu' } });
+  const forest = app.screens.current;
+  assert.equal(forest.playing, true);
+  forest.handleGesture('swipe', { direction: 'up' });
+  assert.equal(app.screens.current.id, 'city');
+  app.destroy();
+});
+
+test('forest fights switch the music to tension and restore it after', () => {
+  const { app } = boot(); const screen = start(app, 'forest');
+  const tracks = [];
+  const off = bus.on('scene:music', (p) => tracks.push(p.track));
+  screen.world.state.distance = 23.8; screen.world.state.maxDistance = 23.8; screen.world.state.nextCoinAt = 100000;
+  screen.world.pressStart(); screen.tick(0.5);
+  assert.ok(screen.world.state.monster, 'a creature spawns');
+  assert.equal(tracks[tracks.length - 1], 'music-story-tension');
+  screen.world.state.monster.health = 25; screen.handleGesture('tap', {});
+  screen.tick(0.1);
+  assert.equal(screen.world.state.monster, null);
+  assert.equal(tracks[tracks.length - 1], 'music-story-family');
+  off(); app.destroy();
+});
+
+test('the Christmas fair opens directly and its gate returns to the city', () => {
+  const { app } = boot(); app.screens.openEasyWorld('christmas');
+  const screen = app.screens.current;
+  assert.equal(screen.title, 'Christmas Bolt Fair');
+  bus.emit('gesture:doubleTap', { zone: { role: 'menu' } });
+  assert.equal(screen.playing, true);
+  assert.match(screen.world.describe(), /Starlight walk: 0 of 160 metres/);
+  screen.world.state.distance = 2;
+  screen.handleGesture('swipe', { direction: 'up' });
+  assert.equal(app.screens.current.id, 'city');
+  app.destroy();
+});

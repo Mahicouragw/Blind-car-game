@@ -157,6 +157,16 @@ export function buildMenuScreen({ gameState, screens, speech, audio }) {
   ]) {
     buttons.push(makeButton({ label, hint, onActivate: () => screens.openEasyWorld(area) }));
   }
+  // Same rule as fairOpen() in the walking world: the fair exists in December.
+  if (new Date().getMonth() === 11) {
+    buttons.push(
+      makeButton({
+        label: 'Christmas Bolt Fair',
+        hint: 'Open every December. Walk the fair loop for the Starlight Quest.',
+        onActivate: () => screens.openEasyWorld('christmas'),
+      })
+    );
+  }
 
   buttons.push(
     makeButton({

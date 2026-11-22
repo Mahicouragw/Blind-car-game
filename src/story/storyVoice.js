@@ -193,8 +193,9 @@ export function createStoryVoice(config = {}) {
 
   /**
    * Play a split node as sequenced narrator/character beats. File beats play
-   * their character recording; narrator beats and unusable clips use the
-   * beat's cast synthesis voice. A natural pause separates beats (longer
+   * their recording in the beat's own voice; only unusable clips (renamed
+   * hero, salary beats) fall back to the beat's cast synthesis voice. A
+   * natural pause separates beats (longer
    * where the voice changes), and the choices follow the last beat exactly
    * like the single-voice path. The whole chain belongs to one token, so
    * moving on or stop() silences it mid-sequence like any other beat.

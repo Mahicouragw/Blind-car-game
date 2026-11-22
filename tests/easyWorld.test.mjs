@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createEasyWorld, ACCELERATE_HOLD_MS } from '../src/play/easyWorld.js';
+import { createEasyWorld, ACCELERATE_HOLD_MS, fairOpen } from '../src/play/easyWorld.js';
 import { coerceSave } from '../src/core/save.js';
 import { createGestureRecognizer } from '../src/input/gestures.js';
 import { PLAY_ZONE } from '../src/ui/easyWorldScreen.js';
@@ -107,7 +107,7 @@ test('forest hold walks, release stops, double tap sits; hold stands again', () 
 test('forest monster is announced, stops walking, takes two sword hits, gives coins', () => {
   const w = createEasyWorld({ area: 'forest' }); w.pressStart(); advance(w, 12.2);
   assert.equal(w.state.monster.side, 'ahead'); assert.equal(w.state.speed, 0);
-  assert.match(words(w), /Monster ahead/);
+  assert.match(words(w), /Goblin ahead/);
   w.tap(); assert.equal(w.state.monster.health, 25); w.tap();
   assert.equal(w.state.monster, null); assert.equal(w.state.kills, 1); assert.ok(w.wallet.coins >= 5);
 });
@@ -162,8 +162,8 @@ test('pause/menu stops time, petrol, monsters, coins and movement', () => {
 test('new inventory survives save/reload and rejects corrupt values', () => {
   const a = coerceSave({ easyWorld: { potions: 6, shopOwned: true, questDone: true } }).save;
   assert.deepEqual(coerceSave(JSON.parse(JSON.stringify(a))).save.easyWorld, a.easyWorld);
-  const b = coerceSave({ easyWorld: { potions: -2, shopOwned: 'yes', questDone: 'yes' } }).save;
-  assert.deepEqual(b.easyWorld, { potions: 0, shopOwned: false, questDone: false });
+  const b = coerceSave({ easyWorld: { potions: -2, shopOwned: 'yes', questDone: 'yes', palaceQuest: 'yes', palaceHave: -5, palaceDone: 1, starsDone: 'yes' } }).save;
+  assert.deepEqual(b.easyWorld, { potions: 0, shopOwned: false, questDone: false, palaceQuest: false, palaceHave: 0, palaceDone: false, starsDone: false });
   assert.equal(coerceSave({}).save.easyWorld.potions, 3);
 });
 
@@ -277,4 +277,122 @@ test('walking back over old ground pays no coins twice', () => {
   w.swipe('down'); w.pressStart(); advance(w, 3); w.pressEnd(3000);
   w.swipe('down'); w.pressStart(); advance(w, 3); w.pressEnd(3000);
   assert.equal(w.wallet.coins, coins, 're-walked ground pays nothing');
+});
+test('city streets announce their names once as you arrive', () => {
+  for (const [at, name] of [[23, 'Market Square'], [63, 'Palace Steps'], [133, 'North Gate']]) {
+    const w = createEasyWorld({ area: 'city' });
+    w.state.distance = at; w.state.maxDistance = at; w.state.nextCoinAt = 10000;
+    w.pressStart(); w.update(0.5); w.pressEnd(500);
+    assert.match(words(w), new RegExp(name), `arriving near ${at}m announces ${name}`);
+    w.pressStart(); advance(w, 2); w.pressEnd(2000);
+    assert.doesNotMatch(words(w), new RegExp(name), `${name} is not repeated`);
+  }
+});
+test('the palace herald offers a quest and a second tap accepts it', () => {
+  const w = createEasyWorld({ area: 'city' });
+  w.state.distance = 64; w.state.maxDistance = 64;
+  w.tap();
+  assert.equal(w.state.pendingQuest, true);
+  assert.match(words(w), /herald offers a quest: drive out three forest creatures/);
+  w.tap();
+  assert.equal(w.inventory.palaceQuest, true);
+  assert.match(words(w), /Quest accepted/);
+  w.tap();
+  assert.match(words(w), /Palace quest: 0 of three/);
+});
+test('forest kills advance the palace quest and the third pays twenty coins', () => {
+  const inventory = {};
+  const city = createEasyWorld({ area: 'city', inventory });
+  city.state.distance = 64; city.tap(); city.tap();
+  assert.equal(inventory.palaceQuest, true);
+  const forest = createEasyWorld({ area: 'forest', inventory, wallet: { coins: 0 } });
+  for (let i = 0; i < 3; i++) {
+    forest.state.monster = { side: 'ahead', health: 25 };
+    forest.tap();
+  }
+  assert.equal(inventory.palaceHave, 3);
+  assert.equal(inventory.palaceDone, true);
+  assert.match(words(forest), /Palace quest complete! Twenty bonus coins/);
+  assert.equal(forest.wallet.coins, 45, 'three loot drops plus the easy-quest and palace bonuses');
+});
+test('swipe up at the North Gate walks to the forest; the City Gate returns', () => {
+  const city = createEasyWorld({ area: 'city' });
+  city.state.distance = 134; city.state.maxDistance = 134;
+  city.swipe('up');
+  const road = city.drain().find((e) => e.travel);
+  assert.equal(road && road.travel, 'forest');
+  assert.match(road.text, /North Gate road/);
+  const market = createEasyWorld({ area: 'city' });
+  market.state.distance = 25; market.swipe('up');
+  assert.equal(market.drain().some((e) => e.travel), false, 'no gate at Market Square');
+  const forest = createEasyWorld({ area: 'forest' });
+  forest.state.distance = 5;
+  forest.swipe('up');
+  assert.equal(forest.drain().find((e) => e.travel).travel, 'city');
+  const deep = createEasyWorld({ area: 'forest' });
+  deep.state.distance = 50; deep.state.maxDistance = 50;
+  deep.swipe('up');
+  assert.equal(deep.drain().some((e) => e.travel), false, 'no gate deep in the forest');
+});
+test('forest creatures cycle goblin, spider, wolf, imp and never repeat twice', () => {
+  const w = createEasyWorld({ area: 'forest' });
+  w.state.nextCoinAt = 100000;
+  const names = [];
+  for (let i = 0; i < 8; i++) {
+    w.state.distance = w.state.nextMonsterAt; w.state.maxDistance = w.state.nextMonsterAt;
+    w.pressStart(); w.update(0.1); w.pressEnd(100);
+    assert.ok(w.state.monster, `spawn ${i + 1} appears`);
+    names.push(w.state.monster.name);
+    if (i === 0) assert.match(words(w), /Goblin ahead. It rattles a tin shield/);
+    w.state.monster.health = 25; w.tap();
+    assert.equal(w.state.monster, null, `spawn ${i + 1} can be killed`);
+  }
+  assert.deepEqual(names.slice(0, 4), ['goblin', 'giant spider', 'grey wolf', 'moss imp']);
+  for (let i = 1; i < names.length; i++) assert.notEqual(names[i], names[i - 1], 'no immediate repeats');
+});
+test('spiders fall in one hit, imps in three, and wolves hit hardest', () => {
+  const w = createEasyWorld({ area: 'forest' });
+  w.state.monster = { side: 'ahead', health: 25, damage: 6, name: 'giant spider' };
+  w.tap(); assert.equal(w.state.monster, null, 'spider dies in one hit');
+  w.state.monster = { side: 'ahead', health: 75, damage: 6, name: 'moss imp' };
+  w.tap(); w.tap(); assert.equal(w.state.monster.health, 25);
+  w.tap(); assert.equal(w.state.monster, null, 'imp dies in three hits');
+  w.state.health = 100; w.state.monster = { side: 'ahead', health: 50, damage: 10, name: 'grey wolf' };
+  w.state.attackClock = 4.9; w.update(0.2);
+  assert.equal(w.state.health, 90, 'wolf deals ten damage');
+  assert.match(words(w), /Grey wolf ahead attacks/);
+});
+test('the Christmas fair opens every December 1st and runs through December', () => {
+  assert.equal(fairOpen(new Date(2026, 11, 1)), true);
+  assert.equal(fairOpen(new Date(2026, 11, 31)), true);
+  assert.equal(fairOpen(new Date(2026, 10, 30)), false);
+  assert.equal(fairOpen(new Date(2027, 0, 1)), false);
+});
+test('Bolt Green opens its gate in December and names the date outside it', () => {
+  const w = createEasyWorld({ area: 'city', now: () => new Date(2026, 11, 5) });
+  w.state.distance = 99; w.state.maxDistance = 99; w.state.nextCoinAt = 100000;
+  w.pressStart(); w.update(0.2); w.pressEnd(200);
+  assert.match(words(w), /Bolt Green. The Christmas Bolt fair is open! Swipe up to enter/);
+  w.swipe('up');
+  assert.equal(w.drain().find((e) => e.travel).travel, 'christmas');
+  const nov = createEasyWorld({ area: 'city', now: () => new Date(2026, 10, 20) });
+  nov.state.distance = 99; nov.state.maxDistance = 99; nov.state.nextCoinAt = 100000;
+  nov.pressStart(); nov.update(0.2); nov.pressEnd(200);
+  assert.match(words(nov), /Bolt Green. The Christmas fair opens December 1st/);
+  nov.swipe('up');
+  assert.equal(nov.drain().some((e) => e.travel), false, 'no entry outside December');
+});
+test('walking the full fair loop completes the Starlight Quest for fifteen coins', () => {
+  const w = createEasyWorld({ area: 'christmas', wallet: { coins: 0 } });
+  w.state.nextCoinAt = 100000; w.state.distance = 159.5; w.state.maxDistance = 159.5;
+  w.pressStart(); w.update(0.5); w.pressEnd(500);
+  assert.equal(w.inventory.starsDone, true);
+  assert.equal(w.wallet.coins, 15);
+  assert.match(words(w), /Starlight Quest complete! You walked the whole fair/);
+});
+test('swipe up at the Fair Gate returns to the city', () => {
+  const w = createEasyWorld({ area: 'christmas' });
+  w.state.distance = 2;
+  w.swipe('up');
+  assert.equal(w.drain().find((e) => e.travel).travel, 'city');
 });

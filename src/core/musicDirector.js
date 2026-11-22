@@ -43,6 +43,7 @@ export const SCREEN_TRACKS = {
   ground: 'music-race',
   forest: 'music-story-family',
   city: 'music-story-city',
+  christmas: 'music-story-family',
 };
 
 /** Fallback for screens not in SCREEN_TRACKS, including tutorial step screens. */

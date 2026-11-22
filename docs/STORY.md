@@ -60,10 +60,10 @@ Two layers deliver this. Dialogue is split into **narrator beats and character
 beats** (`src/story/storyBeats.js`): the narrator speaks only scene, action and
 "X says" introductions while each character speaks only their own dialogue —
 including quoted lines inside another character's scene (Joseph's words in
-Mithin's nodes are Joseph's voice). Character beats are **recorded** in their
-own AI voices (`assets/audio/story/`, one file per beat, lazy-loaded like the
-music beds) throughout chapters 1–7, and the interview questions are recorded.
-By design, narrator beats inside dialogue, the dynamic salary line (the signed
+Mithin's nodes are Joseph's voice). Character beats and narrator beats are
+**recorded** in their own AI voices (`assets/audio/story/`, one file per beat,
+lazy-loaded like the music beds) throughout chapters 1–7, and the interview
+questions are recorded. By design, only the dynamic salary line (the signed
 contract speaks your exact figure), the negotiation answers, and the unspoken
 tutorial/race/action handoffs (spoken by the screens they open) stay **distinct
 per-character synthesis** — each cast member's own pitch, rate and
