@@ -157,6 +157,13 @@ export function buildMenuScreen({ gameState, screens, speech, audio }) {
   ]) {
     buttons.push(makeButton({ label, hint, onActivate: () => screens.openEasyWorld(area) }));
   }
+  buttons.push(
+    makeButton({
+      label: 'Explore House',
+      hint: 'Walk room to room with spoken directions. Turn, explore, open doors.',
+      onActivate: () => screens.openFreeRoam(),
+    })
+  );
   // Same rule as fairOpen() in the walking world: the fair exists in December.
   if (new Date().getMonth() === 11) {
     buttons.push(
