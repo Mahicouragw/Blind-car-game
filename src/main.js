@@ -44,6 +44,7 @@ import {
 } from './ui/menuScreens.js';
 import { buildStoryScreen } from './ui/storyScreen.js';
 import { buildEasyWorldScreen } from './ui/easyWorldScreen.js';
+import { buildFreeRoamScreen } from './ui/freeRoamScreen.js';
 
 const FIRST_RUN_KEY = 'vettaru.firstrun.v1';
 
@@ -507,6 +508,19 @@ export function bootApp(config = {}) {
       screens.clearStack();
       const screen = buildEasyWorldScreen({
         area, gameState, screens: screensApi, speech, audio,
+        onControlsChanged: changed => {
+          if (screens.current === changed) rebuildFocus(changed);
+        },
+      });
+      mount(screen, { replace: true });
+    },
+    openFreeRoam() {
+      endPreviousSpeech();
+      stopPreview();
+      if (quickMenuRing) closeQuickMenu();
+      screens.clearStack();
+      const screen = buildFreeRoamScreen({
+        gameState, screens: screensApi, speech, audio,
         onControlsChanged: changed => {
           if (screens.current === changed) rebuildFocus(changed);
         },

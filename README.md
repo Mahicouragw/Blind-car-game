@@ -18,7 +18,7 @@ Circuit, the cars, the characters and the seven-chapter story.
 ## New easy-play areas
 
 The main menu also offers **Easy Racing Ground**, **Forest Adventure**,
-**City Walk** and (every December) the **Christmas Bolt Fair**: simpler,
+**City Walk**, (every December) the **Christmas Bolt Fair** and **Explore House**: simpler,
 untimed, voice-led mini-games. Auto-drive and swipe-to-turn;
 walk, fight and heal; collect coins, buy a shop and enter racing events. The
 existing 3D simulation races are unchanged. See [the easy-play guide](docs/EASY-PLAY.md).

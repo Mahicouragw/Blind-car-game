@@ -1,4 +1,4 @@
-# Easy play: Racing Ground, Forest, City, Christmas Fair
+# Easy play: Racing Ground, Forest, City, Christmas Fair, Explore House
 
 These are **new, untimed, spoken mini-game modes**, available from the main menu
 without finishing the story or gesture tutorial. The existing Three.js simulation
@@ -102,6 +102,21 @@ menu reads that area's controls. There is no time limit or tutorial gate.
   Corner — to finish the Starlight Quest for fifteen bonus coins.
 - The fair plays the warm family music bed. Swipe up at the Fair Gate to
   return to the city. No timer, no combat.
+
+## Explore House
+
+- True free-roam: a real position and facing on a connected house map —
+  main hallway plus living room, bedroom, kitchen and washroom, joined by
+  physical doorways. Walk through a doorway to change rooms; nothing teleports.
+- Hold to walk forward, release to stop; swipe left/right for quarter turns
+  (facing is announced); swipe down steps back; Step buttons sidestep without
+  turning. Walls, furniture and closed doors are solid and named on bumps.
+- The narrator announces room entries, nearby doors and furniture by relative
+  direction (directly ahead, slightly left, on your right), and names what
+  blocks you. Nothing repeats while standing still.
+- Tap (or the Use button) opens/closes the nearest door, with an action hint
+  when one is in reach. Swipe up, double tap, or Where am I reads orientation.
+- Keyboard: W/S walk, A/D turn, Space orientation, R use door.
 
 ## Saving, sound and lifecycle
 
