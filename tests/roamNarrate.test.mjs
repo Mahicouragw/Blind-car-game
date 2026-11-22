@@ -101,3 +101,11 @@ test('nearest door finds the action-panel target', () => {
   roam.state.x = 1.3; roam.state.y = 5.5; // deep in the living room
   assert.equal(nearestDoor(roam), null, 'no door within reach');
 });
+
+test('orientation speaks eight-wind facing when set', () => {
+  const roam = createFreeRoam({ x: 5, y: 1.0, headingDeg: 45 });
+  const narrator = createRoamNarrator({ roam, facingSteps: 8 });
+  assert.match(narrator.orientation(), /facing northeast/);
+  narrator.setFacingSteps(4);
+  assert.match(narrator.orientation(), /facing east/);
+});

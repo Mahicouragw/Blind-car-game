@@ -4,10 +4,10 @@ import { makeButton } from './screens.js';
 
 export const ROAM_ZONE = {
   id: 'roam-play', role: 'easyPlay', hold: true, allowSwipe: true,
-  tapAnywhere: true, tapWindowMs: 600, immediateTap: false, doubleTapHoldTarget: false, deferDoubleTap: true, allowCircle: false, preventScroll: true,
+  tapAnywhere: true, tapWindowMs: 600, immediateTap: false, doubleTapHoldTarget: false, deferDoubleTap: true, allowCircle: true, preventScroll: true,
 };
 
-export const ROAM_HOW_TO_PLAY = 'Hold to walk forward; release to stop. Swipe left or right to turn a quarter turn. Swipe down to step backward. Tap to open or close a nearby door. Swipe up or double tap to hear your orientation: the room, your facing, and what is near. The Step left, Step right and Step back buttons sidestep without turning. Walk through doorways to move between rooms; nothing teleports you.';
+export const ROAM_HOW_TO_PLAY = 'Single tap starts or stops walking. Hold to walk only while held. Swipe left or right to turn without moving. Swipe up steps forward and swipe down steps back. Two-finger tap stops at once. Draw a circle to turn around. Double tap opens or closes a nearby door, or hears your orientation when no door is near. Triple tap repeats the last announcement. The Step and Stop buttons and the keyboard do the same without gestures. Walk through doorways to move between rooms; nothing teleports you.';
 
 /** Step length for tap sidesteps/steps-back: one 0.5 s walk, collision-safe. */
 const STEP_S = 0.5;
@@ -44,13 +44,25 @@ export function buildFreeRoamScreen({ gameState, screens, speech, audio, onContr
 
   let started = false, menuOpen = true, destroyed = false, suspended = false, lastWall = performance.now(), tickId = null;
   let footstepClock = 0;
+  let tapWalking = false;
+  let lastSpoken = '';
+  let tapHintSpoken = false;
   const heldKeys = new Set();
 
   function say(text, priority = 3) {
+    lastSpoken = text;
     actionText.textContent = text;
     speech?.say(text, { priority, key: 'roam-current', cooldownMs: 0, hardInterrupt: true, replace: true, ttlMs: 1500 });
   }
+  function turnAngle() {
+    const v = Number(gameState.settings.roamTurnAngle);
+    return v === 45 || v === 180 ? v : 90;
+  }
+  function faceWords() {
+    return roam.facing(turnAngle() === 45 ? 8 : 4);
+  }
   function flush() {
+    narrator.setFacingSteps(turnAngle() === 45 ? 8 : 4);
     const events = narrator.update();
     if (events.length > 0) {
       const top = events.sort((a, b) => b.priority - a.priority)[0];
@@ -68,11 +80,43 @@ export function buildFreeRoamScreen({ gameState, screens, speech, audio, onContr
     audio?.play('footstep-concrete-0', { group: 'sfx', volume: 0.3 });
     flush();
   }
+  function stopNow(announce = true) {
+    tapWalking = false;
+    roam.stop();
+    if (announce) say('Stopped.', 3);
+    render();
+  }
+  function toggleWalk() {
+    if (!api.playing) return;
+    if (gameState.settings.roamWalkTap === false) {
+      if (!tapHintSpoken) { tapHintSpoken = true; say('Tap walking is off. Hold to walk.', 2); }
+      render(); return;
+    }
+    if (tapWalking || roam.state.moving) { stopNow(); return; }
+    tapWalking = true;
+    roam.setMove('forward');
+    audio?.play('footstep-concrete-0', { group: 'sfx', volume: 0.3 });
+    flush(); // surroundings first, so the walking confirmation is what is heard
+    say('Walking.', 3);
+  }
   function stepTurn(dir) {
     if (!api.playing) return;
-    roam.state.headingDeg = normalizeHeading(roam.state.headingDeg + (dir === 'right' ? 90 : -90));
+    const angle = turnAngle();
+    roam.state.headingDeg = normalizeHeading(roam.state.headingDeg + (dir === 'right' ? angle : -angle));
     flush(); // surroundings first, so the turn confirmation is what is heard
-    say(`Turned ${dir}. Now facing ${roam.facing()}.`, 3);
+    say(`Turned ${dir}. Now facing ${faceWords()}.`, 3);
+  }
+  function turnAround() {
+    if (!api.playing) return;
+    if (gameState.settings.roamCircleTurn === false) { render(); return; }
+    roam.state.headingDeg = normalizeHeading(roam.state.headingDeg + 180);
+    flush();
+    say(`Turned around. Now facing ${faceWords()}.`, 3);
+  }
+  function repeatLast() {
+    if (!api.playing) return;
+    if (lastSpoken) say(lastSpoken, 3);
+    else orientation();
   }
   function useDoor() {
     if (!api.playing) return;
@@ -92,7 +136,7 @@ export function buildFreeRoamScreen({ gameState, screens, speech, audio, onContr
 
   const api = {
     id: 'house', title: 'Explore House',
-    summary: 'Hold to walk forward, release to stop. Swipe left or right to turn. Swipe down steps back. Tap opens or closes a nearby door. Swipe up or double tap hears your orientation. Down-left opens the menu. Up then left goes back. Choose Start when ready. How to play reads all controls.',
+    summary: 'Single tap starts or stops walking. Hold to walk while held. Swipe left or right to turn. Swipe up steps forward, swipe down steps back. Two-finger tap stops. A circle turns you around. Double tap uses a nearby door, or hears orientation. Triple tap repeats. Down-left opens the menu. One up-and-left stroke goes back. Choose Start when ready. How to play reads all controls.',
     element: root, focusItems: [], zone: ROAM_ZONE, roam, narrator,
     get isMenu() { return menuOpen; },
     get playing() { return started && !menuOpen && !suspended && !destroyed; },
@@ -114,6 +158,7 @@ export function buildFreeRoamScreen({ gameState, screens, speech, audio, onContr
       button('Step back', 'Step backward without turning', () => stepWalk('backward'));
       button('Orientation', 'Hear the room, facing and surroundings', () => orientation());
       button('Use nearby door', 'Open or close the closest door', () => useDoor());
+      button('Stop walking', 'Stop immediately', () => stopNow());
       button('Open game menu', 'Or swipe down and left', () => api.openMenu());
       api.focusItems = buttons;
       onControlsChanged?.(api); lastWall = performance.now(); flush();
@@ -125,13 +170,18 @@ export function buildFreeRoamScreen({ gameState, screens, speech, audio, onContr
         audio?.play('footstep-concrete-0', { group: 'sfx', volume: 0.3 });
         footstepClock = 0;
       }
-      if (type === 'pressEnd') roam.stop();
-      if (type === 'tap') useDoor();
-      if (type === 'doubleTap') orientation();
+      // Release stops hold-walking, but a tap-toggle walk survives touches:
+      // only a tap, two fingers, or Stop ends it.
+      if (type === 'pressEnd' && !tapWalking) roam.stop();
+      if (type === 'tap') toggleWalk();
+      if (type === 'doubleTap') { if (nearestDoor(roam)) useDoor(); else orientation(); }
+      if (type === 'tripleTap') repeatLast();
+      if (type === 'twoFingerTap') stopNow();
+      if (type === 'circle') turnAround();
       if (type === 'swipe') {
         if (d.direction === 'left' || d.direction === 'right') stepTurn(d.direction);
         else if (d.direction === 'down') stepWalk('backward');
-        else if (d.direction === 'up') orientation();
+        else if (d.direction === 'up') stepWalk('forward');
       }
       render(); return true;
     },
@@ -162,15 +212,15 @@ export function buildFreeRoamScreen({ gameState, screens, speech, audio, onContr
       }
       flush(); audio?.tick?.();
     },
-    suspend() { suspended = true; roam.stop(); },
+    suspend() { suspended = true; tapWalking = false; roam.stop(); },
     resume() { suspended = false; api.openMenu(); lastWall = performance.now(); },
     destroy() { destroyed = true; if (tickId !== null) clearInterval(tickId); roam.stop(); },
   };
 
   function render() {
     const room = roam.map.rooms.find((r) => r.id === roam.roomAt());
-    caption.textContent = `${room ? room.name[0].toUpperCase() + room.name.slice(1) : 'House'}. Facing ${roam.facing()}.`;
-    status.textContent = `${roam.state.moving ? 'Walking' : 'Standing'} · facing ${roam.facing()} · position ${roam.state.x.toFixed(1)}, ${roam.state.y.toFixed(1)} metres`;
+    caption.textContent = `${room ? room.name[0].toUpperCase() + room.name.slice(1) : 'House'}. Facing ${faceWords()}.`;
+    status.textContent = `${roam.state.moving ? 'Walking' : 'Standing'} · facing ${faceWords()} · position ${roam.state.x.toFixed(1)}, ${roam.state.y.toFixed(1)} metres`;
     const avatar = visual.querySelector('.roam-avatar');
     avatar.setAttribute('transform', `translate(${roam.state.x * S} ${py(roam.state.y)}) rotate(${roam.state.headingDeg})`);
     for (const el of visual.querySelectorAll('[data-door]')) {
@@ -185,7 +235,7 @@ export function buildFreeRoamScreen({ gameState, screens, speech, audio, onContr
     }
     button(started ? 'Return to game' : 'Start Explore House', 'Close this menu and play', () => api.closeMenu());
     button('Where am I', 'Hear the room, facing and surroundings', () => say(narrator.orientation(), 3));
-    button('How to play', 'Read the controls for exploring', () => say(`${ROAM_HOW_TO_PLAY} Down-left opens this menu. Up then left goes back. Keyboard: W walks forward, S walks backward, A and D turn, Space hears orientation, R uses a nearby door.`, 3));
+    button('How to play', 'Read the controls for exploring', () => say(`${ROAM_HOW_TO_PLAY} Down-left opens this menu. One up-and-left stroke goes back. Keyboard: W walks forward, S walks backward, A and D turn, Space hears orientation, R uses a nearby door.`, 3));
     button('Main menu', 'Leave the house', () => screens.gotoMenu());
     button('Exit game', 'Save and stop game audio', () => screens.openExit());
     api.focusItems = buttons;

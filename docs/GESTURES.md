@@ -29,7 +29,15 @@ see [EASY-PLAY.md](EASY-PLAY.md). Their menus use the same cursor rule.
 | Swipe straight down (`\|dx\| ≤ 60`) | driving surface | `swipe` (`direction: 'down'`) | **Reverse** for 1.8 s, then stop on its own |
 | **Swipe down-and-left / left / up** | driving surface | `swipe` | **Open the race menu** (coins, repair, petrol, settings, where am I…) — the race pauses behind it |
 | **Swipe down-and-left** | anywhere else | `swipe` | **Open the quick menu** — chapters, garage, story, everywhere (where am I, coins, experience, settings, how to play, garage, main menu, exit) |
-| **Swipe up-and-left** (or up, then left within 450 ms) | anywhere | `swipe` | **Go back** — close the open menu, leave the screen, or open the race menu while driving |
+| **Swipe up-and-left** (or up, then left within 450 ms) | anywhere | `swipe` | **Go back** — close the open menu, leave the screen, or open the race menu while driving. **Exception:** on the Explore House surface the pair is ordinary walking (step + turn); only the one-stroke diagonal goes back |
+| Single tap | Explore House | `tap` | **Start/stop walking** (toggle, announced). Off switch: the Tap to walk setting |
+| Hold | Explore House | `longPressStart` + `pressEnd` | **Walk while held**; release stops. Release never kills a tap-toggle walk |
+| Swipe left / right | Explore House | `swipe` | **Turn** the configured angle (45/90/180°), never moving. Facing announced |
+| Swipe up / down | Explore House | `swipe` | **Step** forward / backward one pace, collision-safe |
+| **Two-finger tap** | Explore House | `twoFingerTap` | **Stop immediately**. Both contacts die until all fingers lift, so no phantom tap follows. With Android TalkBack on the OS eats this gesture: the Stop button is the fallback |
+| Circle | Explore House | `circle` | **Turn around** 180°, announced. Off switch: the Circle to turn around setting |
+| Double tap | Explore House | `doubleTap` | **Use nearby door**, or hear **orientation** when no door is in reach |
+| Triple tap | Explore House | `tripleTap` | **Repeat** the last announcement |
 | Single tap | menu / list / menu panel | `tap` | **Confirm** the item under the cursor and say its name, wherever tapped — never move the cursor or activate |
 | **Double tap** | menu / list / menu panel | `doubleTap` | **Activate the selected control** (the TalkBack rule the player asked for) |
 | Swipe up / down | menu / list | `swipe` | Move the focus ring |

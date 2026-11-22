@@ -16,6 +16,7 @@ import { createSpeech } from './a11y/speech.js';
 import { SPEECH_PRIORITY } from './a11y/speechQueue.js';
 import { attachKeyboard } from './input/keyboard.js';
 import { createPointerBus } from './input/pointerBus.js';
+import { SENSITIVITY_THRESHOLDS, GESTURE_DEFAULTS } from './input/gestures.js';
 import { createDrivingInput, DRIVING_ZONE, DRIVING_ROLE, isDownLeftSwipe } from './input/drivingInput.js';
 import { createRaceScreen } from './race/raceScreen.js';
 import { dirtLevel, WASH_COST } from './race/garage.js';
@@ -119,6 +120,10 @@ export function bootApp(config = {}) {
   let lastRaceOptions = {};
 
   // ---------------------------------------------------------------- pointers
+  function applyGestureSensitivity() {
+    const preset = SENSITIVITY_THRESHOLDS[gameState.settings.gestureSensitivity] ?? {};
+    pointerBus.recognizer.setThresholds({ ...GESTURE_DEFAULTS, ...preset });
+  }
   const pointerBus = createPointerBus({
     element: gestureLayer,
     zoneAt: (x, y) => {
@@ -142,6 +147,7 @@ export function bootApp(config = {}) {
       return defaultZone;
     },
   }).attach();
+  applyGestureSensitivity();
 
   // DRIVING_ZONE is imported from drivingInput rather than redeclared here: the
   // handlers that decide whether a gesture is a driving gesture, and the zone
@@ -300,6 +306,11 @@ export function bootApp(config = {}) {
     if (d.zone?.element) d.zone.element.click();
   });
 
+  bus.on('gesture:twoFingerTap', (d) => {
+    unlockAudio();
+    routePlayGesture('twoFingerTap', d);
+  });
+
   bus.on('gesture:tripleTap', (d) => {
     if (routePlayGesture('tripleTap', d)) return;
     // Requirement 12: three quick taps must never start a race. The Start Race
@@ -354,8 +365,12 @@ export function bootApp(config = {}) {
       return;
     }
     // Back: an up-and-left diagonal, or an up flick followed at once by a left.
+    // In Explore House the PAIR is exempt: swipe up steps forward and a quick
+    // swipe left turns, which is ordinary walking, not leaving. The one-stroke
+    // diagonal still goes back everywhere.
     const upLeft = (d.dx ?? 0) <= -24 && (d.dy ?? 0) <= -24;
-    const upThenLeft = lastSwipe.dir === 'up' && d.direction === 'left' && Date.now() - lastSwipe.at < 450;
+    const roamPlay = d.zone?.id === 'roam-play';
+    const upThenLeft = !roamPlay && lastSwipe.dir === 'up' && d.direction === 'left' && Date.now() - lastSwipe.at < 450;
     lastSwipe = { dir: d.direction, at: Date.now() };
     if (upLeft || upThenLeft) {
       lastSwipe = { dir: null, at: -Infinity };
@@ -413,7 +428,10 @@ export function bootApp(config = {}) {
     }
   });
 
-  bus.on('gesture:circle', () => tutorialHarness.record('uturned'));
+  bus.on('gesture:circle', (d) => {
+    tutorialHarness.record('uturned');
+    if (!raceScreen || raceScreen.state.paused) routePlayGesture('circle', d);
+  });
   bus.on('gesture:pressStart', () => tutorialHarness.record('accelerated'));
   bus.on('gesture:pressEnd', () => tutorialHarness.record('coasted'));
   bus.on('gesture:tap', (d) => {
@@ -576,6 +594,7 @@ export function bootApp(config = {}) {
         speech,
         audio,
         onSettingsChanged: (key, value) => {
+          if (key === 'gestureSensitivity') applyGestureSensitivity();
           if (key === 'speechRate' || key === 'speechVolume' || key === 'speechPitch') audio.setVolumes();
           if (key === 'textScale') document.documentElement.style.setProperty('--text-scale', String(value));
           if (key === 'talkback') {

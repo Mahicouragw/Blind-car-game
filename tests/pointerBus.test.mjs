@@ -106,3 +106,29 @@ test('detach removes click/context handlers too, and reattach does not duplicate
   } finally { r.dispose(); }
 });
 test.after(() => env.dispose());
+test('two-finger tap fires once and kills both fingers until all lift', () => {
+  const r = rig(); const two = [];
+  bus.on('gesture:twoFingerTap', d => two.push(d));
+  try {
+    r.sample('pointerdown', 100, 1); r.advance(100);
+    r.sample('pointerdown', 140, 2); r.advance(100);
+    r.sample('pointerup', 140, 2); r.advance(50);
+    r.sample('pointerup', 100, 1); r.advance(700);
+    assert.equal(two.length, 1);
+    assert.equal(two[0].zoneId, 'easy-play');
+    assert.deepEqual(r.seen.map(e => e.type), [], 'no tap, pressEnd or cancel from either finger');
+  } finally { r.dispose(); }
+});
+test('a drifting second finger is ignored and the first tap still lands', () => {
+  const r = rig(); const two = [];
+  bus.on('gesture:twoFingerTap', d => two.push(d));
+  try {
+    r.sample('pointerdown', 100, 1); r.advance(50);
+    r.sample('pointerdown', 140, 2); r.advance(50);
+    r.sample('pointermove', 200, 2); r.advance(50);
+    r.sample('pointerup', 200, 2); r.advance(50);
+    r.sample('pointerup', 100, 1); r.advance(700);
+    assert.equal(two.length, 0);
+    assert.deepEqual(r.seen.filter(e => ['tap','doubleTap','tripleTap'].includes(e.type)).map(e => e.type), ['tap']);
+  } finally { r.dispose(); }
+});

@@ -107,6 +107,7 @@ export function hitsSolid(map, x, y, r, doorOpen) {
 }
 
 const CARDINALS = ['north', 'east', 'south', 'west'];
+const EIGHT_WIND = ['north', 'northeast', 'east', 'southeast', 'south', 'southwest', 'west', 'northwest'];
 
 export function createFreeRoam({
   map = HOUSE_MAP,
@@ -137,7 +138,8 @@ export function createFreeRoam({
     return 'hallway';
   }
 
-  function facing() {
+  function facing(steps = 4) {
+    if (steps === 8) return EIGHT_WIND[Math.round(state.headingDeg / 45) % 8];
     return CARDINALS[Math.round(state.headingDeg / 90) % 4];
   }
 

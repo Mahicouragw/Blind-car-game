@@ -85,8 +85,11 @@ function pointAhead(roam, metres) {
   return { x: roam.state.x + Math.sin(t) * metres, y: roam.state.y + Math.cos(t) * metres };
 }
 
-export function createRoamNarrator({ roam }) {
+export function createRoamNarrator({ roam, facingSteps = 4 }) {
   let lastRoom = null;
+  // 8-wind facing words when the turn-angle setting is 45 degrees.
+  const api = { update, orientation, setFacingSteps };
+  function setFacingSteps(n) { facingSteps = n === 8 ? 8 : 4; }
   let blockedActive = false;
   let lastActionKey = null;
   const announced = new Set();
@@ -125,7 +128,7 @@ export function createRoamNarrator({ roam }) {
   /** On-demand orientation: room, facing, and the nearest surroundings. */
   function orientation() {
     const room = roam.roomAt();
-    const parts = [`You are in the ${roomName(roam.map, room)}, facing ${roam.facing()}.`];
+    const parts = [`You are in the ${roomName(roam.map, room)}, facing ${roam.facing(facingSteps)}.`];
     const near = nearbyTargets().slice(0, 3);
     for (const t of near) parts.push(t.text);
     if (near.length === 0) parts.push('Nothing close by.');
@@ -186,7 +189,7 @@ export function createRoamNarrator({ roam }) {
     return [];
   }
 
-  return { update, orientation };
+  return api;
 }
 
 function cap(s) {
