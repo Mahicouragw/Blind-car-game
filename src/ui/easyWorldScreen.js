@@ -1,4 +1,6 @@
-import { createEasyWorld } from '../play/easyWorld.js';
+import { createEasyWorld, fairOpen } from '../play/easyWorld.js';
+import { bus } from '../core/bus.js';
+import { trackForScreen } from '../core/musicDirector.js';
 import { stepSetting } from '../a11y/settings.js';
 import { makeButton } from './screens.js';
 
@@ -6,15 +8,16 @@ export const PLAY_ZONE = {
   id: 'easy-play', role: 'easyPlay', hold: true, allowSwipe: true,
   tapAnywhere: true, tapWindowMs: 600, immediateTap: false, doubleTapHoldTarget: false, deferDoubleTap: true, allowCircle: false, preventScroll: true,
 };
-const TITLES = { ground: 'Easy Racing Ground', forest: 'Forest Adventure', city: 'City Walk' };
+const TITLES = { ground: 'Easy Racing Ground', forest: 'Forest Adventure', city: 'City Walk', christmas: 'Christmas Bolt Fair' };
 export const EASY_CONTROLS = {
   ground: 'The car drives automatically. Hold more than three seconds and release to accelerate and keep driving. Single tap, or hold one or two seconds and release, to stop. At 500 metres hear the direction, then no automatic chatter until 50 metres: turn now. Double tap and hold the second press over one second to sound the recorded car horn; release to stop the horn. Swipe left or right to select the next turn; the car turns at the junction. After a missed turn or crash the car stops. Choose Try again yourself; it never restarts automatically. Coins come as you drive. Petrol runs out; its menu opens automatically.',
-  forest: 'Hold to walk; release to stop. Double tap to sit or stand. Swipe left or right to follow a path. Swipe down to walk backward, and again to walk forward. Monsters are announced ahead, left or right. Single tap to strike the announced nearby monster with your sword. Aiming is automatic; swipes can also aim. Triple tap to use a healing potion. You start with three potions. Monsters take two hits. Your health is spoken after each attack.',
-  city: 'Hold to walk; release to stop. Double tap to sit or stand. Swipe left or right to follow a path. Swipe down to walk backward, and again to walk forward. Collect coins as you walk. Shops announce their side and distance as you approach: swipe toward a shop, then tap to confirm and enter. Inside, tap to buy and swipe down to leave. Open the menu to buy healing potions, buy a city shop, visit the forest or enter racing. There is no timer and no combat in the city.',
+  forest: 'Hold to walk; release to stop. Double tap to sit or stand. Swipe left or right to follow a path. Swipe down to walk backward, and again to walk forward. Swipe up at the forest entrance to return to the city. Monsters are announced ahead, left or right. Single tap to strike the announced nearby monster with your sword. Aiming is automatic; swipes can also aim. Triple tap to use a healing potion. You start with three potions. Spiders fall in one hit, goblins and wolves in two, moss imps in three. Your health is spoken after each attack.',
+  city: 'Hold to walk; release to stop. Double tap to sit or stand. Swipe left or right to follow a path. Swipe down to walk backward, and again to walk forward. Collect coins as you walk. Walk the named streets: Harbour Gate, Market Square, the Palace Steps and the North Gate. Tap at the Palace Steps for the herald quest. Swipe up at the North Gate to walk the road to the forest. At Bolt Green the Christmas fair opens every December 1st. Shops announce their side and distance as you approach: swipe toward a shop, then tap to confirm and enter. Inside, tap to buy and swipe down to leave. Open the menu to buy healing potions, buy a city shop, visit the forest or enter racing. There is no timer and no combat in the city.',
+  christmas: 'Hold to walk; release to stop. Double tap to sit or stand. Swipe left or right to follow a path. Swipe down to walk backward, and again to walk forward. Walk the full fair loop to finish the Starlight Quest for fifteen bonus coins. Swipe up at the Fair Gate to return to the city. There is no timer and no combat at the fair.',
 };
 
 /** A complete spoken mini-game, also usable without WebGL or a GPU. */
-export function buildEasyWorldScreen({ area, gameState, screens, speech, audio, onControlsChanged, autoTick = true }) {
+export function buildEasyWorldScreen({ area, gameState, screens, speech, audio, onControlsChanged, autoTick = true, now = null }) {
   const wallet = {
     get coins() { return gameState.save.coins; },
     set coins(value) { gameState.save.coins = value; },
@@ -23,7 +26,7 @@ export function buildEasyWorldScreen({ area, gameState, screens, speech, audio, 
     get level() { return gameState.save.level; },
     set level(value) { gameState.save.level = value; },
   };
-  const world = createEasyWorld({ area, wallet, inventory: gameState.save.easyWorld });
+  const world = createEasyWorld({ area, wallet, inventory: gameState.save.easyWorld, ...(typeof now === 'function' ? { now } : {}) });
   const root = document.createElement('section');
   root.className = 'screen easy-world';
   const head = document.createElement('h1'); head.className = 'screen-title'; head.textContent = TITLES[area];
@@ -35,7 +38,7 @@ export function buildEasyWorldScreen({ area, gameState, screens, speech, audio, 
     ${area === 'forest' ? '<g fill="#245840"><path d="M55 200L100 90L145 200Z"/><path d="M435 235L480 125L525 235Z"/><path d="M145 265L175 185L205 265Z"/></g>' : area === 'city' ? '<g fill="#434e71" stroke="#8795b5" stroke-width="2"><rect x="55" y="125" width="100" height="135" rx="5"/><rect x="445" y="170" width="100" height="90" rx="5"/></g><g fill="#f4d878"><rect x="70" y="145" width="20" height="20"/><rect x="115" y="145" width="20" height="20"/><rect x="465" y="190" width="20" height="20"/></g>' : ''}
     <g class="monster-marker" style="display:none"><circle r="25" fill="#e27679"/><text y="8" text-anchor="middle" font-size="26" fill="#1c1020">!</text></g>
     <g fill="#ecd26e"><circle cx="300" cy="150" r="7"/><circle cx="300" cy="180" r="7"/><circle cx="355" cy="105" r="7"/></g>
-    <text x="30" y="40" fill="#c1d2df" font-size="18">${area === 'ground' ? 'ENDLESS · EASY DRIVE' : area === 'forest' ? 'FOREST · WALK & EXPLORE' : 'CITY · WALK & TRADE'}</text>
+    <text x="30" y="40" fill="#c1d2df" font-size="18">${area === 'ground' ? 'ENDLESS · EASY DRIVE' : area === 'forest' ? 'FOREST · WALK & EXPLORE' : area === 'christmas' ? 'FAIR · WALK & CELEBRATE' : 'CITY · WALK & TRADE'}</text>
     <g class="play-avatar" transform="translate(300 235)"><rect x="-15" y="-25" width="30" height="50" rx="9" fill="#78d4ed"/><path d="M-8 -10L0 -20L8 -10" fill="none" stroke="#102033" stroke-width="3"/></g>
     <text class="turn-marker" x="460" y="210" fill="#fff" font-size="40">→</text>
   </svg>`;
@@ -50,9 +53,10 @@ export function buildEasyWorldScreen({ area, gameState, screens, speech, audio, 
   let keyStart = null;
   let engineRunning = false;
   let footstepClock = 0;
+  let lastFighting = false;
   let beforeTapSpeed = 0, secondPress = false;
   const api = {
-    id: area, title: TITLES[area], summary: `${area === 'ground' ? 'Automatic driving with spoken metre countdowns. Single tap stops. Hold over three seconds to accelerate. Swipe left or right to take a turn.' : area === 'forest' ? 'Hold to walk, release to stop. Single tap strikes a monster, double tap sits, triple tap heals. Swipe down walks backward.' : 'Hold to walk, release to stop. Collect coins and open the menu for shops and racing. Swipe down walks backward. Shops announce their side; swipe toward one and tap to enter.'} Down-left opens the menu. Up then left goes back. Choose Start when ready. How to play reads all controls.`,
+    id: area, title: TITLES[area], summary: `${area === 'ground' ? 'Automatic driving with spoken metre countdowns. Single tap stops. Hold over three seconds to accelerate. Swipe left or right to take a turn.' : area === 'forest' ? 'Hold to walk, release to stop. Single tap strikes a monster, double tap sits, triple tap heals. Swipe down walks backward. Swipe up at the entrance returns to the city.' : area === 'christmas' ? 'Walk the fair loop to finish the Starlight Quest for fifteen bonus coins. Swipe up at the Fair Gate returns to the city.' : 'Hold to walk, release to stop. Collect coins and open the menu for shops and racing. Swipe down walks backward. Shops announce their side; swipe toward one and tap to enter. Palace Steps hold the herald quest; swipe up at the North Gate walks to the forest.'} Down-left opens the menu. Up then left goes back. Choose Start when ready. How to play reads all controls.`,
     element: root, focusItems: [], zone: area === 'ground' ? { ...PLAY_ZONE, immediateTap: true, deferDoubleTap: false, doubleTapHoldTarget: true, doubleTapHoldMs: 1000 } : PLAY_ZONE, world,
     get isMenu() { return world.state.menu; },
     get playing() { return started && !world.state.menu && !suspended && !destroyed; },
@@ -125,6 +129,15 @@ export function buildEasyWorldScreen({ area, gameState, screens, speech, audio, 
     tick(dt) {
       if (!api.playing) return;
       world.update(dt);
+      if (area === 'forest') {
+        // Fights get their own music: tension while a creature stands, the
+        // forest bed again the moment it falls.
+        const fighting = !!world.state.monster;
+        if (fighting !== lastFighting) {
+          lastFighting = fighting;
+          bus.emit('scene:music', fighting ? { scene: 'forest', track: 'music-story-tension' } : { scene: 'forest', track: trackForScreen('forest') });
+        }
+      }
       if (area !== 'ground' && world.state.speed > 0) {
         footstepClock += dt;
         if (footstepClock >= 0.5) {
@@ -170,6 +183,10 @@ export function buildEasyWorldScreen({ area, gameState, screens, speech, audio, 
       });
     }
     persist();
+    // Walking through a gate travels for real: the announcement above is
+    // spoken from the app-level queue, so it survives the screen change.
+    const travel = items.find(i => i.travel);
+    if (travel && !destroyed) screens.openEasyWorld(travel.travel);
   }
   function render() {
     const s = world.state;
@@ -222,7 +239,10 @@ export function buildEasyWorldScreen({ area, gameState, screens, speech, audio, 
     button('Easy quest', 'Collect ten coins, with no time limit', () => {
       speech?.say(world.inventory.questDone ? 'Quest complete. You have already received the ten-coin bonus. Keep exploring for unlimited coins.' : `Collect ten coins in a single visit to any area. ${Math.min(10, world.state.collected)} of ten collected. Reward: ten bonus coins.`, { hardInterrupt: true, replace: true, cooldownMs: 0 });
     });
-    for (const dest of ['ground', 'forest', 'city']) if (dest !== area) button(`Visit ${TITLES[dest]}`, 'Your coins and inventory are saved', () => screens.openEasyWorld(dest));
+    const travelDests = ['ground', 'forest', 'city'];
+    // The fair is a December place: it is offered only while open.
+    try { if (fairOpen(typeof now === 'function' ? now() : new Date())) travelDests.push('christmas'); } catch { /* closed */ }
+    for (const dest of travelDests) if (dest !== area) button(`Visit ${TITLES[dest]}`, 'Your coins and inventory are saved', () => screens.openEasyWorld(dest));
     button('Main menu', 'Save and leave this area', () => screens.gotoMenu());
     button('Exit game', 'Save and stop game audio', () => screens.openExit());
     api.focusItems = buttons;

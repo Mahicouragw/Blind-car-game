@@ -27,12 +27,58 @@ export const CITY_SHOPS = [
 export const SHOP_ANNOUNCE_M = 30;
 /** Entry is offered within this distance of a shop, in metres. */
 export const SHOP_ENTER_M = 6;
+/**
+ * Named places on the city walking loop, in route order. `at` is metres along
+ * each loop, like the shops. Plazas are announced as you arrive; the palace
+ * offers the herald's quest on tap; the North Gate road leaves the city for
+ * the forest on swipe up. Together they make one walkable city map.
+ */
+export const CITY_PLACES = [
+  { id: 'harbour', name: 'Harbour Gate', at: 0, kind: 'plaza' },
+  { id: 'market', name: 'Market Square', at: 25, kind: 'plaza' },
+  { id: 'palace', name: 'Palace Steps', at: 65, kind: 'palace' },
+  { id: 'boltgreen', name: 'Bolt Green', at: 100, kind: 'christmas' },
+  { id: 'northgate', name: 'North Gate', at: 135, kind: 'forestgate' },
+];
+/** A place counts as reached within this loop distance, in metres. */
+export const PLACE_ENTER_M = 6;
+/** The Christmas Bolt fair opens every real-world December 1st and runs through December. */
+export function fairOpen(date = new Date()) {
+  return date instanceof Date && !Number.isNaN(date.getTime()) && date.getMonth() === 11;
+}
+/**
+ * Forest creatures in encounter order. The roster cycles, so the same
+ * creature never appears twice in a row. Health sets the sword hits at 25
+ * damage a strike (spiders fall in one, imps in three); damage is dealt to
+ * the hero every five seconds until the creature falls.
+ */
+/**
+ * Named places on the Christmas fair loop. The Fair Gate leads back to the
+ * city; the Bolt Tree is the fair's landmark; the Gift Stalls name the
+ * Starlight Quest; Carol Corner is carols. One hero walks it, on foot.
+ */
+export const CHRISTMAS_PLACES = [
+  { id: 'fairgate', name: 'Fair Gate', at: 0, kind: 'citygate' },
+  { id: 'bolttree', name: 'Bolt Tree', at: 40, kind: 'plaza' },
+  { id: 'giftstalls', name: 'Gift Stalls', at: 80, kind: 'gifts' },
+  { id: 'carols', name: 'Carol Corner', at: 120, kind: 'plaza' },
+];
+export const FOREST_CREATURES = [
+  { id: 'goblin', name: 'goblin', health: 50, damage: 8, note: 'It rattles a tin shield and grins.' },
+  { id: 'spider', name: 'giant spider', health: 25, damage: 6, note: 'It drops from the branches on a silk thread.' },
+  { id: 'wolf', name: 'grey wolf', health: 50, damage: 10, note: 'It circles once, low and silent.' },
+  { id: 'imp', name: 'moss imp', health: 75, damage: 6, note: 'It puffs up like a toad to look bigger.' },
+];
 const n = (v, fallback = 0) => Number.isFinite(v) ? v : fallback;
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
 
-export function createEasyWorld({ area = 'ground', wallet = {}, inventory = {}, route } = {}) {
-  if (!['ground', 'forest', 'city'].includes(area)) throw new Error('Unknown play area');
+export function createEasyWorld({ area = 'ground', wallet = {}, inventory = {}, route, now } = {}) {
+  const nowFn = typeof now === 'function' ? now : () => new Date();
+  const fairIsOpen = () => {
+    try { return fairOpen(nowFn()); } catch { return false; }
+  };
+  if (!['ground', 'forest', 'city', 'christmas'].includes(area)) throw new Error('Unknown play area');
   const driving = area === 'ground';
   const path = route ?? (driving ? GROUND_ROUTE : WALK_ROUTE);
   if (!path.length || path.some(p => !Number.isFinite(p.metres) || p.metres <= 0 || !['left', 'right'].includes(p.direction))) {
@@ -41,6 +87,10 @@ export function createEasyWorld({ area = 'ground', wallet = {}, inventory = {}, 
   inventory.potions = clamp(Math.floor(n(inventory.potions, 3)), 0, 99);
   inventory.shopOwned = inventory.shopOwned === true;
   inventory.questDone = inventory.questDone === true;
+  inventory.palaceQuest = inventory.palaceQuest === true;
+  inventory.palaceHave = clamp(Math.floor(n(inventory.palaceHave, 0)), 0, 99);
+  inventory.palaceDone = inventory.palaceDone === true;
+  inventory.starsDone = inventory.starsDone === true;
   wallet.coins = clamp(Math.floor(n(wallet.coins)), 0, 10000000);
   wallet.xp = clamp(Math.floor(n(wallet.xp)), 0, 10000000);
   wallet.level = levelForXp(wallet.xp);
@@ -50,6 +100,7 @@ export function createEasyWorld({ area = 'ground', wallet = {}, inventory = {}, 
     fuel: 100, health: 100, seated: false, monster: null, aim: 'ahead',
     backward: false, maxDistance: 0, backwardBlocked: false,
     pendingShop: null, confirmShop: null, inShop: null, lastShopGuideAt: -Infinity,
+    pendingQuest: false, lastPlaceKey: null, starsAnnounced: false,
     queuedTurn: null, turns: 0, collected: 0, kills: 0, out: false, restartIn: 0,
     nextCoinAt: driving ? 25 : 10, nextMonsterAt: 24, attackClock: 0, shopClock: 0,
     lastGuideAt: -Infinity, lastNumber: null, lowFuelSaid: false, earlySaid: false, nowSaid: false,
@@ -63,7 +114,21 @@ export function createEasyWorld({ area = 'ground', wallet = {}, inventory = {}, 
   function segment() { return path[state.leg % path.length]; }
   const loopLength = path.reduce((sum, p) => sum + p.metres, 0);
   const shops = area === 'city' ? CITY_SHOPS.filter((s) => s.at < loopLength) : [];
+  const places = (area === 'city' ? CITY_PLACES : area === 'christmas' ? CHRISTMAS_PLACES : []).filter((p) => p.at < loopLength);
   function shopById(id) { return shops.find((s) => s.id === id) ?? null; }
+  function placeAhead(place) {
+    const pos = ((state.distance % loopLength) + loopLength) % loopLength;
+    return (place.at - pos + loopLength) % loopLength;
+  }
+  function placeNear() {
+    const pos = ((state.distance % loopLength) + loopLength) % loopLength;
+    let best = null, bestDist = PLACE_ENTER_M;
+    for (const p of places) {
+      const d = Math.min((p.at - pos + loopLength) % loopLength, (pos - p.at + loopLength) % loopLength);
+      if (d <= bestDist) { best = p; bestDist = d; }
+    }
+    return best;
+  }
   function shopAhead(shop) {
     const pos = state.distance % loopLength;
     return (shop.at - pos + loopLength) % loopLength;
@@ -75,17 +140,46 @@ export function createEasyWorld({ area = 'ground', wallet = {}, inventory = {}, 
   }
   function describe() {
     if (state.out) return driving ? 'The car is stopped after a crash. Choose Try again when you are ready. Your coins are safe.' : 'You are resting safely at the forest entrance.';
-    if (state.monster) return `Monster ${state.monster.side}. Monster health ${state.monster.health}. Your health ${state.health}. Single tap to strike it. Triple tap to heal.`;
+    if (state.monster) {
+      const foe = state.monster.name ? cap(state.monster.name) : 'Monster';
+      return `${foe} ${state.monster.side}. ${foe} health ${state.monster.health}. Your health ${state.health}. Single tap to strike it. Triple tap to heal.`;
+    }
     if (driving) return `${state.speed > 0 ? 'Driving' : 'Stopped'}. Turn ${segment().direction} in ${metres()} metres. Petrol ${Math.ceil(state.fuel)} percent. ${wallet.coins} coins.`;
     if (state.inShop) {
       const shop = shopById(state.inShop);
       return `Inside the ${shop ? shop.name : 'shop'}. Tap to buy, swipe down to leave. ${wallet.coins} coins.`;
     }
-    const text = `${area === 'forest' ? 'Forest' : 'City'}. ${state.seated ? 'Seated' : state.speed > 0 ? (state.backward ? 'Walking backward' : 'Walking') : 'Standing'}. Path turns ${segment().direction} in ${metres()} metres. Health ${state.health}. ${wallet.coins} coins.`;
+    const text = `${area === 'forest' ? 'Forest' : area === 'christmas' ? 'Christmas Fair' : 'City'}. ${state.seated ? 'Seated' : state.speed > 0 ? (state.backward ? 'Walking backward' : 'Walking') : 'Standing'}. Path turns ${segment().direction} in ${metres()} metres. Health ${state.health}. ${wallet.coins} coins.`;
     const confirm = shopById(state.confirmShop);
     if (confirm) return `${text} Enter the ${confirm.name}? Tap to confirm.`;
     const pending = shopById(state.pendingShop);
     if (pending) return `${text} The ${pending.name} is on your ${pending.side}. Swipe ${pending.side} to enter.`;
+    if (area === 'city') {
+      const near = placeNear();
+      if (near && near.kind === 'palace' && !state.pendingShop) {
+        if (inventory.palaceDone) return `${text} Palace Steps. The herald waves. Palace quest complete.`;
+        if (inventory.palaceQuest) return `${text} Palace Steps. Monsters driven out: ${inventory.palaceHave} of 3.`;
+        return `${text} Palace Steps. Tap to hear the herald's quest.`;
+      }
+      if (near && near.kind === 'forestgate') return `${text} North Gate. Swipe up to walk to the forest.`;
+      if (near && near.kind === 'christmas') {
+        return fairIsOpen()
+          ? `${text} Bolt Green. The Christmas Bolt fair is open! Swipe up to enter.`
+          : `${text} Bolt Green. The Christmas fair opens December 1st.`;
+      }
+    }
+    if (area === 'christmas') {
+      const near = placeNear();
+      let suffix = '';
+      if (near && near.kind === 'citygate') suffix += ' Fair Gate. Swipe up to return to the city.';
+      suffix += inventory.starsDone
+        ? ' Starlight quest complete.'
+        : ` Starlight walk: ${Math.min(loopLength, Math.floor(state.maxDistance))} of ${loopLength} metres.`;
+      return text + suffix;
+    }
+    if (area === 'forest' && !state.monster && state.speed === 0 && state.distance <= PLACE_ENTER_M) {
+      return `${text} City Gate. Swipe up to return to the city.`;
+    }
     return text;
   }
   function reset() {
@@ -95,11 +189,12 @@ export function createEasyWorld({ area = 'ground', wallet = {}, inventory = {}, 
       monster: null, aim: 'ahead', out: false, restartIn: 0, lastGuideAt: -Infinity,
       backward: false, maxDistance: 0, backwardBlocked: false,
       pendingShop: null, confirmShop: null, inShop: null, lastShopGuideAt: -Infinity,
+      pendingQuest: false, lastPlaceKey: null, starsAnnounced: false,
       lastNumber: null, lowFuelSaid: false, earlySaid: true, nowSaid: false, distance: 0, nextCoinAt: driving ? 25 : 10,
       nextMonsterAt: 24, attackClock: 0,
     });
     state.lastGuideAt = state.elapsed; state.lastNumber = metres();
-    emit(driving ? `New start. The car is driving automatically. Turn ${segment().direction} in ${metres()} metres.` : 'You are safe at the forest entrance. Health 100. Hold to walk.', 'ui-confirm', 4);
+    emit(driving ? `New start. The car is driving automatically. Turn ${segment().direction} in ${metres()} metres.` : area === 'city' ? 'You are safe at the Harbour Gate. Health 100. Hold to walk.' : area === 'christmas' ? 'You are safe at the Fair Gate. Starlight Quest: walk the full fair loop for fifteen bonus coins. Hold to walk.' : 'You are safe at the forest entrance. Health 100. Hold to walk. Swipe up to return to the city.', 'ui-confirm', 4);
   }
   function crash() {
     if (state.out) return;
@@ -176,6 +271,25 @@ export function createEasyWorld({ area = 'ground', wallet = {}, inventory = {}, 
       emit(`${cap(nearest.name)} on your ${nearest.side}, ${Math.max(5, Math.round(nearDist / 5) * 5)} metres.`, null, 2);
     }
   }
+  function placeGuide() {
+    if (driving || (area !== 'city' && area !== 'christmas') || places.length === 0 || state.inShop) return;
+    if (state.speed <= 0 || state.backward) return; // standing offers come from describe(); reversing stays quiet
+    const lap = Math.floor(state.distance / loopLength);
+    for (const place of places) {
+      if (placeAhead(place) <= 3 && state.lastPlaceKey !== `${lap}:${place.id}`) {
+        state.lastPlaceKey = `${lap}:${place.id}`;
+        const extra = place.kind === 'palace' ? ' Tap to hear the herald.'
+          : place.kind === 'forestgate' ? ' Swipe up to walk to the forest.'
+          : place.kind === 'christmas'
+            ? (fairIsOpen() ? ' The Christmas Bolt fair is open! Swipe up to enter.' : ' The Christmas fair opens December 1st.')
+            : place.kind === 'citygate' ? ' Swipe up to return to the city.'
+            : place.kind === 'gifts' && !inventory.starsDone ? ' The Starlight Quest: walk the full loop.'
+            : '';
+        emit(`${place.name}.${extra}`, place.kind === 'plaza' ? null : 'ui-select', 3);
+        return;
+      }
+    }
+  }
   function quest() {
     // One simple, optional task. No time limit and no progress is required to play.
     if (!inventory.questDone && state.collected >= 10) {
@@ -232,12 +346,31 @@ export function createEasyWorld({ area = 'ground', wallet = {}, inventory = {}, 
         else api.buyPotion();
         return;
       }
+      if (area === 'city') {
+        const near = placeNear();
+        if (near && near.kind === 'palace') {
+          if (inventory.palaceDone) { emit('The palace herald bows. The roads are safe thanks to you.'); return; }
+          if (!inventory.palaceQuest) {
+            if (!state.pendingQuest) {
+              state.pendingQuest = true;
+              emit('The palace herald offers a quest: drive out three forest creatures with your sword. Tap again to accept.', 'ui-select', 4);
+            } else {
+              state.pendingQuest = false; inventory.palaceQuest = true; inventory.palaceHave = 0;
+              emit('Quest accepted: drive out three forest creatures. Take the North Gate road to the forest.', 'ui-confirm', 4);
+            }
+            return;
+          }
+          emit(`Palace quest: ${inventory.palaceHave} of three forest creatures driven out.`, null, 3); return;
+        }
+        emit(describe()); return;
+      }
       if (area !== 'forest' || !state.monster) { emit(describe()); return; }
       // Easy combat: one tap always attacks the announced nearby monster.
       // Directional swipes are optional aiming feedback, not an invisible gate.
       state.aim = state.monster.side;
       state.monster.health = Math.max(0, state.monster.health - 25);
       if (state.monster.health === 0) {
+        const foe = state.monster.name ? cap(state.monster.name) : 'Monster';
         state.monster = null; state.kills++; gain(5); state.attackClock = 0;
         state.nextMonsterAt = state.distance + 35;
         const before = levelForXp(wallet.xp);
@@ -245,8 +378,20 @@ export function createEasyWorld({ area = 'ground', wallet = {}, inventory = {}, 
         wallet.level = levelForXp(wallet.xp);
         const potion = state.kills % 3 === 0 && inventory.potions < 99;
         if (potion) inventory.potions++;
-        emit(`Monster defeated. Loot: five coins and 25 experience.${potion ? ' One healing potion dropped.' : ''} ${wallet.xp} experience total. ${wallet.level > before ? 'Level up! ' : ''}Level ${wallet.level}. Your health ${state.health}. Hold to keep walking.`, ['sword-swing', 'sword-hit', 'loot-drop'], 4); quest();
-      } else emit(`Sword strike. Monster health ${state.monster.health}. Your health ${state.health}.`, ['sword-swing', 'sword-hit']);
+        let palaceLine = '';
+        let fanfare = null;
+        if (inventory.palaceQuest && !inventory.palaceDone) {
+          inventory.palaceHave = Math.min(3, inventory.palaceHave + 1);
+          if (inventory.palaceHave >= 3) {
+            inventory.palaceDone = true; gain(20); fanfare = 'mission_completed';
+            palaceLine = ' Palace quest complete! Twenty bonus coins. The herald will want to thank you.';
+          } else palaceLine = ` Palace quest: ${inventory.palaceHave} of three.`;
+        }
+        emit(`${foe} defeated. Loot: five coins and 25 experience.${potion ? ' One healing potion dropped.' : ''}${palaceLine} ${wallet.xp} experience total. ${wallet.level > before ? 'Level up! ' : ''}Level ${wallet.level}. Your health ${state.health}. Hold to keep walking.`, fanfare ? ['sword-swing', 'sword-hit', 'loot-drop', fanfare] : ['sword-swing', 'sword-hit', 'loot-drop'], 4); quest();
+      } else {
+        const foe = state.monster.name ? cap(state.monster.name) : 'Monster';
+        emit(`Sword strike. ${foe} health ${state.monster.health}. Your health ${state.health}.`, ['sword-swing', 'sword-hit']);
+      }
     },
     doubleTap() {
       if (state.paused || state.out) return;
@@ -266,7 +411,8 @@ export function createEasyWorld({ area = 'ground', wallet = {}, inventory = {}, 
       if (state.paused || state.out) return;
       if (state.monster) {
         state.aim = direction === 'up' ? 'ahead' : direction;
-        emit(`Aiming ${state.aim}. Monster ${state.monster.side}. Single tap to strike.`); return;
+        const foe = state.monster.name ? cap(state.monster.name) : 'Monster';
+        emit(`Aiming ${state.aim}. ${foe} ${state.monster.side}. Single tap to strike.`); return;
       }
       if (!driving && direction === 'down') {
         if (state.inShop) { leaveShop(); return; }
@@ -283,6 +429,28 @@ export function createEasyWorld({ area = 'ground', wallet = {}, inventory = {}, 
       }
       if (!driving && state.inShop && (direction === 'left' || direction === 'right')) {
         emit(shopPrompt(shopById(state.inShop)), null, 3); return;
+      }
+      if (!driving && direction === 'up' && !state.monster && !state.inShop) {
+        if (area === 'city') {
+          const gate = placeNear();
+          if (gate && gate.kind === 'forestgate') {
+            state.speed = 0; state.holding = false;
+            events.push({ text: 'Walking the North Gate road to the forest.', sound: 'path-turn', priority: 4, travel: 'forest' });
+            return;
+          }
+          if (gate && gate.kind === 'christmas') {
+            if (!fairIsOpen()) { emit('The Christmas fair opens December 1st.', null, 3); return; }
+            state.speed = 0; state.holding = false;
+            events.push({ text: 'Entering the Christmas Bolt fair.', sound: 'path-turn', priority: 4, travel: 'christmas' });
+            return;
+          }
+        } else if (area === 'christmas' && state.speed === 0 && placeNear()?.kind === 'citygate') {
+          events.push({ text: 'Walking back through the Fair Gate.', sound: 'path-turn', priority: 4, travel: 'city' });
+          return;
+        } else if (area === 'forest' && state.speed === 0 && state.distance <= PLACE_ENTER_M) {
+          events.push({ text: 'Walking back through the City Gate.', sound: 'path-turn', priority: 4, travel: 'city' });
+          return;
+        }
       }
       if (direction !== 'left' && direction !== 'right') { emit(describe()); return; }
       if (!driving && (state.pendingShop || state.confirmShop)) {
@@ -338,11 +506,14 @@ export function createEasyWorld({ area = 'ground', wallet = {}, inventory = {}, 
       if (state.monster) {
         state.speed = 0; state.attackClock += dt;
         if (state.attackClock >= 5) {
-          state.attackClock = 0; state.health = Math.max(0, state.health - 8);
+          state.attackClock = 0; state.health = Math.max(0, state.health - (state.monster.damage ?? 8));
           if (state.health === 0) {
             state.out = true; state.restartIn = 3;
             emit('Health zero. Returning safely to the forest entrance. Your coins are safe.', 'monster-hit', 4);
-          } else emit(`Monster ${state.monster.side} attacks. Health ${state.health}. Single tap to strike. Triple tap to heal.`, 'monster-hit', 4);
+          } else {
+            const foe = state.monster.name ? cap(state.monster.name) : 'Monster';
+            emit(`${foe} ${state.monster.side} attacks. Health ${state.health}. Single tap to strike. Triple tap to heal.`, 'monster-hit', 4);
+          }
         }
         return;
       }
@@ -383,6 +554,10 @@ export function createEasyWorld({ area = 'ground', wallet = {}, inventory = {}, 
       // back over old ground and forward again must not pay twice.
       const advancing = state.distance > state.maxDistance;
       if (advancing) state.maxDistance = state.distance;
+      if (area === 'christmas' && !inventory.starsDone && state.maxDistance >= loopLength) {
+        inventory.starsDone = true; gain(15);
+        emit('Starlight Quest complete! You walked the whole fair. Fifteen bonus coins.', 'mission_completed', 4);
+      }
       if (driving) {
         state.fuel = Math.max(0, state.fuel - step / 15);
         if (state.fuel <= 0) {
@@ -402,8 +577,12 @@ export function createEasyWorld({ area = 'ground', wallet = {}, inventory = {}, 
       }
       if (area === 'forest' && advancing && state.distance >= state.nextMonsterAt) {
         const side = ['ahead', 'left', 'right'][state.kills % 3];
-        state.monster = { side, health: 50 }; state.speed = 0; state.attackClock = 0; state.aim = 'ahead';
-        emit(`Monster ${side}. Monster health 50. Your health ${state.health}. Single tap to strike. Triple tap to heal.`, 'monster-arrival', 4);
+        // The roster cycles, so the same creature never appears twice in a row.
+        const creature = FOREST_CREATURES[state.kills % FOREST_CREATURES.length];
+        state.monster = { side, health: creature.health, damage: creature.damage, name: creature.name, id: creature.id };
+        state.speed = 0; state.attackClock = 0; state.aim = 'ahead';
+        const foe = cap(creature.name);
+        emit(`${foe} ${side}. ${creature.note} ${foe} health ${creature.health}. Your health ${state.health}. Single tap to strike. Triple tap to heal.`, 'monster-arrival', 4);
         return;
       }
       if (area === 'city' && inventory.shopOwned) {
@@ -423,6 +602,7 @@ export function createEasyWorld({ area = 'ground', wallet = {}, inventory = {}, 
         emit(`${driving ? 'Turning' : 'Walking'} ${direction}. Next: ${segment().direction} in ${metres()} metres.`, 'path-turn', 4);
       } else guide();
       if (!driving) shopGuide();
+      if (area === 'city' || area === 'christmas') placeGuide();
     },
   };
   return api;

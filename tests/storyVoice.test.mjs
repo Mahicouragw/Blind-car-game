@@ -107,7 +107,7 @@ test('recorded voice files cover every single-voice node; split nodes use beats'
     'ch4_morning', 'ch4_floor',
     'ch4_lunch', 'ch4_afternoon',
     'ch4_mithin_neutral', 'ch4_alone_lunch',
-    'ch4_end', 'ch5_invite', 'ch5_sunday',
+    'ch4_end', 'ch5_sunday',
     'ch5_circuit', 'ch5_controls', 'ch5_controls_gestures', 'ch5_controls_settings',
     'ch5_watch', 'ch5_questions', 'ch5_end',
     'ch6_briefing', 'ch6_more_practice', 'ch6_end',
@@ -115,7 +115,7 @@ test('recorded voice files cover every single-voice node; split nodes use beats'
     'ch7_grid', 'ch7_lights', 'ch7_won', 'ch7_podium',
     'ch7_result_none', 'ch7_end',
   ];
-  assert.equal(recorded.length, 60);
+  assert.equal(recorded.length, 59);
   for (const id of recorded) {
     assert.equal(storyVoiceKey(id), `story-${id}`);
   }
@@ -125,11 +125,11 @@ test('recorded voice files cover every single-voice node; split nodes use beats'
     'ch3_saturdays', 'ch4_joseph', 'ch4_joseph_name', 'ch4_mithin',
     'ch4_mithin_respect', 'ch4_friends', 'ch4_qureshi',
     'ch4_joseph_mumble', 'ch4_joseph_joke', 'ch4_keen', 'ch4_mithin_fair',
-    'ch5_question', 'ch5_yes', 'ch5_leela', 'ch5_never', 'ch5_no',
+    'ch5_question', 'ch5_yes', 'ch5_leela', 'ch5_never', 'ch5_no', 'ch5_invite',
     'ch6_confident', 'ch6_mithin_helmet',
     'ch7_joseph_words', 'ch7_mithin_bag', 'ch7_answer_corners', 'ch7_lost',
   ];
-  assert.equal(split.length, 30);
+  assert.equal(split.length, 31);
   for (const id of split) {
     assert.equal(storyVoiceKey(id), null, `${id} is split into beats and must not keep a whole-node file`);
     assert.ok(beatsFor(id), `${id} must declare its beats`);
@@ -158,7 +158,7 @@ test('every recorded-file key is a lazy manifest entry', () => {
 
 test('every story manifest entry exists on disk as a non-empty file', () => {
   const keys = Object.keys(AUDIO_MANIFEST).filter((k) => k.startsWith('story-'));
-  assert.equal(keys.length, 121);
+  assert.equal(keys.length, 168);
   for (const key of keys) {
     const file = fileURLToPath(new URL(`../${AUDIO_MANIFEST[key]}`, import.meta.url));
     assert.ok(fs.existsSync(file), `${key} is announced but ${AUDIO_MANIFEST[key]} is missing from the checkout`);
@@ -667,7 +667,7 @@ test('characters never announce their own names aloud, but captions keep them', 
 
 test('every split node rejoins its text exactly with cast-mapped voices', () => {
   assert.deepEqual(validateStoryBeats(), []);
-  assert.equal(Object.keys(STORY_BEATS).length, 31);
+  assert.equal(Object.keys(STORY_BEATS).length, 32);
   // Quoted lines inside another node's scene keep their own voice: Joseph
   // speaks his words even when the node belongs to Mithin or the narrator.
   assert.equal(speakerKey(STORY_BEATS.ch4_mithin_fair[1].speaker), 'joseph');
@@ -677,7 +677,7 @@ test('every split node rejoins its text exactly with cast-mapped voices', () => 
 });
 
 test('beat clips follow the same baked-name and salary rules as node clips', () => {
-  assert.equal(storyBeatKey('ch1_argument_choice', 1), null, 'narrator beats are never recorded');
+  assert.equal(storyBeatKey('ch1_argument_choice', 1), 'story-ch1_argument_choice_b2', 'narrator beats are recorded in the narrator voice');
   assert.equal(storyBeatKey('ch3_signed', 0), null, 'salary beats are never recorded');
   assert.equal(storyBeatKey('ch2_passed', 0), 'story-ch2_passed_b1');
   assert.equal(storyBeatKey('ch2_passed', 2), 'story-ch2_passed_b3');
@@ -685,7 +685,7 @@ test('beat clips follow the same baked-name and salary rules as node clips', () 
   assert.equal(bakedBeatUsable('ch4_joseph_name', 0, { heroName: 'Aarav' }), true);
   assert.equal(bakedBeatUsable('ch4_joseph_name', 0, { heroName: 'Meera' }), false);
   assert.equal(bakedBeatUsable('ch4_joseph_name', 2, { heroName: 'Meera' }), true);
-  assert.equal(bakedBeatUsable('ch1_argument_choice', 1, {}), false);
+  assert.equal(bakedBeatUsable('ch1_argument_choice', 1, {}), true, 'narrator beats carry no placeholders');
 });
 
 test('a split node plays narrator and character beats in order, then the choices', async () => {
@@ -707,29 +707,26 @@ test('a split node plays narrator and character beats in order, then the choices
   assert.equal(res.mode, 'beats');
   assert.equal(res.voice, 'qureshi');
   assert.equal(res.beats, 5);
-  assert.deepEqual(audio.loadedKeys, ['story-ch2_passed_b1', 'story-ch2_passed_b3', 'story-ch2_passed_b5']);
+  assert.deepEqual(audio.loadedKeys, [
+    'story-ch2_passed_b1', 'story-ch2_passed_b2', 'story-ch2_passed_b3',
+    'story-ch2_passed_b4', 'story-ch2_passed_b5',
+  ]);
   await tick(20);
   assert.equal(audio.played.length, 1);
   assert.equal(audio.played[0].key, 'story-ch2_passed_b1');
-  audio.handle.onended();
-  await tick(30);
-  assert.match(speech.said[0].text, /She closes the folder/);
-  assert.equal(speech.said[0].opts.pitch, CHARACTER_VOICES.narrator.pitch);
-  await tick(30);
-  assert.equal(audio.played.length, 2);
-  assert.equal(audio.played[1].key, 'story-ch2_passed_b3');
-  audio.handle.onended();
-  await tick(30);
-  assert.match(speech.said[1].text, /Then she almost smiles/);
-  await tick(30);
-  assert.equal(audio.played.length, 3);
-  assert.equal(audio.played[2].key, 'story-ch2_passed_b5');
+  for (const key of ['story-ch2_passed_b2', 'story-ch2_passed_b3', 'story-ch2_passed_b4', 'story-ch2_passed_b5']) {
+    audio.handle.onended();
+    await tick(30);
+    assert.equal(audio.played[audio.played.length - 1].key, key);
+  }
+  assert.equal(audio.played.length, 5);
   audio.handle.onended();
   await tick(20);
   const last = speech.said[speech.said.length - 1];
   assert.match(last.text, /Swipe up or tap to continue/);
   assert.equal(last.opts.voice, undefined, 'choices stay guidance');
-  assert.equal(speech.stops, 3, 'the beat start plus a tail-cut before each later file beat');
+  assert.equal(speech.said.length, 1, 'every beat is a recording; only the choices speak');
+  assert.equal(speech.stops, 5, 'the beat start plus a tail-cut before each later file beat');
 });
 
 test('a split node with no usable files speaks every beat in its cast voice', async () => {
@@ -751,7 +748,7 @@ test('a split node with no usable files speaks every beat in its cast voice', as
   assert.equal(res.mode, 'beats');
   await tick(80);
   assert.equal(audio.played.length, 0);
-  assert.deepEqual(audio.loadedKeys, ['story-ch3_signed_b3'], 'only the non-salary beat preloads');
+  assert.deepEqual(audio.loadedKeys, ['story-ch3_signed_b2', 'story-ch3_signed_b3'], 'the salary beat has no key; the rest preload');
   assert.equal(speech.said.length, 3);
   assert.equal(speech.said[0].opts.pitch, CHARACTER_VOICES.qureshi.pitch);
   assert.match(speech.said[0].text, /9000 a month/, 'placeholders resolve per beat');
@@ -778,9 +775,10 @@ test('stop() cancels beats that have not played yet', async () => {
   });
   await player.speakNode({ id: 'ch4_keen', speaker: 'Joseph', text: 'Joseph finds you. Sit down and eat.', sfx: null }, {});
   await tick(20);
-  assert.equal(speech.said.length, 1, 'only the opening narrator beat speaks');
+  assert.equal(audio.played.length, 1, 'only the opening narrator file beat starts');
+  assert.equal(speech.said.length, 0);
   player.stop();
   await tick(150);
-  assert.equal(audio.played.length, 0, 'a stopped chain must never start its file beats late');
-  assert.equal(speech.said.length, 1);
+  assert.equal(audio.played.length, 1, 'a stopped chain must never start its later file beats');
+  assert.equal(speech.said.length, 0);
 });

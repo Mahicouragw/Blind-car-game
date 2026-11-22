@@ -2,7 +2,7 @@
  * Narrator/character beat splits for mixed story nodes.
  *
  * Most story nodes are already single-voiced: scene nodes belong to the
- * narrator and dialogue nodes belong to one character. Thirty-one nodes mix
+ * narrator and dialogue nodes belong to one character. Thirty-two nodes mix
  * both in one text ("She closes the folder. I am going to make you an
  * offer..."), and a single recording can only speak them in one voice. Those
  * nodes are split here into ordered beats so the narrator speaks only scene,
@@ -12,11 +12,10 @@
  * Rules, pinned by tests:
  * - Beat texts rejoin with single spaces into the node's exact `text` from
  *   storyData.js. Captions show the full text; this file only directs voices.
- * - `speaker: null` is a narrator beat (always synthesis, never a file).
- * - A beat with a speaker is a character beat and gets a stable file id
- *   `<nodeId>_b<N>` (1-based beat position, narrator beats included so ids
- *   never shift when wording changes). Beats containing `{salary}` are the
- *   exception: the figure is negotiated, so they stay synthesis by design.
+ * - `speaker: null` is a narrator beat, recorded in the narrator's voice.
+ * - Every beat gets a stable file id `<nodeId>_b<N>` (1-based beat position,
+ *   so ids never shift when wording changes). Beats containing `{salary}` are
+ *   the exception: the figure is negotiated, so they stay synthesis by design.
  * - Adjacent beats never share a voice; otherwise they would be one beat.
  *
  * Pure data + pure functions: no DOM, no audio at import time.
@@ -160,6 +159,13 @@ export const STORY_BEATS = {
     { speaker: null, text: 'He picks the broom up.' },
     { speaker: 'Joseph', text: 'Racing is not for people with money. It is for people who turn up.' },
   ],
+  ch5_invite: [
+    { speaker: null, text: 'Mithin, from inside the cage, without looking up:' },
+    { speaker: 'Mithin', text: 'I am not lending him the helmet.' },
+    { speaker: null, text: 'Then, after a pause long enough to be deliberate:' },
+    { speaker: 'Mithin', text: 'unless Joseph signs for it.' },
+    { speaker: null, text: 'Joseph signs for it. You have now been invited to a motor race by two people who have made it a formal matter.' },
+  ],
   ch5_leela: [
     { speaker: null, text: 'A woman in a white shirt with a radio comes over. Joseph introduces you and she does not look at Joseph while she does it, she looks at you, which is a thing you notice. She says:' },
     { speaker: 'Ms. Leela Varma, race official', text: 'Leela Varma, I run club days. You are not driving today unless you have done the induction, and the induction is not a form, it is thirty minutes of me explaining how not to hurt yourself. Are you here to watch or to learn?' },
@@ -205,12 +211,13 @@ export function beatsFor(nodeId) {
 
 /**
  * The manifest key for a beat's recording, or null when the beat is never
- * recorded: narrator beats always use the narrator synthesis voice, and
- * `{salary}` beats speak a negotiated figure that no recording can bake in.
+ * recorded. Narrator beats are recorded in the narrator's voice like every
+ * other beat; only `{salary}` beats stay synthesis, speaking a negotiated
+ * figure that no recording can bake in.
  */
 export function beatFileKey(nodeId, beatIndex) {
   const beat = beatsFor(nodeId)?.[beatIndex];
-  if (!beat || !beat.speaker) return null;
+  if (!beat) return null;
   if (beat.text.includes('{salary}')) return null;
   return `story-${nodeId}_b${beatIndex + 1}`;
 }
@@ -220,7 +227,7 @@ export function allBeatFileIds() {
   const ids = [];
   for (const [nodeId, beats] of Object.entries(STORY_BEATS)) {
     beats.forEach((beat, i) => {
-      if (beat.speaker && !beat.text.includes('{salary}')) ids.push(`${nodeId}_b${i + 1}`);
+      if (!beat.text.includes('{salary}')) ids.push(`${nodeId}_b${i + 1}`);
     });
   }
   return ids;

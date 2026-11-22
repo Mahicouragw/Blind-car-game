@@ -17,8 +17,9 @@ Circuit, the cars, the characters and the seven-chapter story.
 
 ## New easy-play areas
 
-The main menu also offers **Easy Racing Ground**, **Forest Adventure**, and
-**City Walk**: simpler, untimed, voice-led mini-games. Auto-drive and swipe-to-turn;
+The main menu also offers **Easy Racing Ground**, **Forest Adventure**,
+**City Walk** and (every December) the **Christmas Bolt Fair**: simpler,
+untimed, voice-led mini-games. Auto-drive and swipe-to-turn;
 walk, fight and heal; collect coins, buy a shop and enter racing events. The
 existing 3D simulation races are unchanged. See [the easy-play guide](docs/EASY-PLAY.md).
 
@@ -292,4 +293,4 @@ Game code MIT. Three.js MIT (`vendor/three/LICENSE`). All audio CC0 1.0.
   release stops it. Single tap still brakes; left/right swipes still select easy-ground turns.
 - Crash/missed turn: stop and wait for **Try again**, never automatic restart.
 
-See [Easy play](docs/EASY-PLAY.md) for the accessible ground, forest and city modes.
+See [Easy play](docs/EASY-PLAY.md) for the accessible ground, forest, city and Christmas fair modes.
