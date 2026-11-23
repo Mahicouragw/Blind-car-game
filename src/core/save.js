@@ -177,6 +177,11 @@ export function coerceSave(raw) {
       palaceDone: raw.easyWorld?.palaceDone === true,
       starsDone: raw.easyWorld?.starsDone === true,
     },
+    roam: {
+      apples: clampInt(raw.roam?.apples, 0, 99, 0),
+      chestOpened: raw.roam?.chestOpened === true,
+      taken: asStringArray(raw.roam?.taken, 40),
+    },
     level,
     carId,
     unlockedCars,

@@ -7,14 +7,14 @@ export const ROAM_ZONE = {
   tapAnywhere: true, tapWindowMs: 600, immediateTap: false, doubleTapHoldTarget: false, deferDoubleTap: true, allowCircle: true, preventScroll: true,
 };
 
-export const ROAM_HOW_TO_PLAY = 'Single tap starts or stops walking. Hold to walk only while held. Swipe left or right to turn without moving. Swipe up steps forward and swipe down steps back. Two-finger tap stops at once. Draw a circle to turn around. Double tap opens or closes a nearby door, or hears your orientation when no door is near. Triple tap repeats the last announcement. The Step and Stop buttons and the keyboard do the same without gestures. Walk through doorways to move between rooms; nothing teleports you.';
+export const ROAM_HOW_TO_PLAY = 'Single tap starts or stops walking. Hold to walk only while held. Swipe left or right to turn without moving. Swipe up steps forward and swipe down steps back. Two-finger tap stops at once. Draw a circle to turn around. Double tap collects, opens, or uses the nearest thing, or hears your orientation when nothing is near. Triple tap repeats the last announcement. The Step and Stop buttons and the keyboard do the same without gestures. Walk through doorways to move between rooms; nothing teleports you.';
 
 /** Step length for tap sidesteps/steps-back: one 0.5 s walk, collision-safe. */
 const STEP_S = 0.5;
 
 /** Playable free-roam exploration of the connected starter house. */
 export function buildFreeRoamScreen({ gameState, screens, speech, audio, onControlsChanged, autoTick = true }) {
-  const roam = createFreeRoam({});
+  const roam = createFreeRoam({ store: gameState.save.roam ?? null });
   const narrator = createRoamNarrator({ roam });
   const root = document.createElement('section');
   root.className = 'screen free-roam';
@@ -28,11 +28,13 @@ export function buildFreeRoamScreen({ gameState, screens, speech, audio, onContr
   const doors = roam.map.doors.map((d) =>
     `<rect data-door="${d.id}" x="${d.x0 * S}" y="${py(d.y1)}" width="${(d.x1 - d.x0) * S}" height="${(d.y1 - d.y0) * S}" fill="#f8d36a"/>`).join('');
   const furn = roam.map.furniture.map((f) =>
-    `<rect x="${f.x0 * S}" y="${py(f.y1)}" width="${(f.x1 - f.x0) * S}" height="${(f.y1 - f.y0) * S}" rx="4" fill="#7a5c3e"/>`).join('');
+    `<rect data-fur="${f.id}" x="${f.x0 * S}" y="${py(f.y1)}" width="${(f.x1 - f.x0) * S}" height="${(f.y1 - f.y0) * S}" rx="4" fill="#7a5c3e"/>`).join('');
+  const items = (roam.map.items ?? []).map((i) =>
+    `<circle data-item="${i.id}" cx="${i.x * S}" cy="${py(i.y)}" r="8" fill="#8fd18f" stroke="#2c4a2c" stroke-width="2"/>`).join('');
   visual.innerHTML = `<svg viewBox="0 0 600 480" style="width:100%;max-height:38vh;border-radius:22px;background:#1d233b">
     <rect x="0" y="0" width="600" height="480" fill="#232a42"/>
     <text x="20" y="34" fill="#c1d2df" font-size="18">HOUSE · WALK &amp; EXPLORE</text>
-    ${rects}${doors}${furn}
+    ${rects}${doors}${furn}${items}
     <g class="roam-avatar"><circle r="10" fill="#78d4ed"/><line x1="0" y1="0" x2="0" y2="-18" stroke="#102033" stroke-width="4"/></g>
   </svg>`;
   const status = document.createElement('p'); status.className = 'roam-status';
@@ -47,6 +49,7 @@ export function buildFreeRoamScreen({ gameState, screens, speech, audio, onContr
   let tapWalking = false;
   let lastSpoken = '';
   let tapHintSpoken = false;
+  let saved = JSON.stringify([gameState.save.coins, gameState.save.roam]);
   const heldKeys = new Set();
 
   function say(text, priority = 3) {
@@ -68,6 +71,7 @@ export function buildFreeRoamScreen({ gameState, screens, speech, audio, onContr
       const top = events.sort((a, b) => b.priority - a.priority)[0];
       say(top.text, top.priority);
     }
+    persist();
     render();
   }
   /** Run a short collision-safe walk synchronously (tap steps). */
@@ -118,6 +122,38 @@ export function buildFreeRoamScreen({ gameState, screens, speech, audio, onContr
     if (lastSpoken) say(lastSpoken, 3);
     else orientation();
   }
+  function satchelText() {
+    const n = roam.store.apples ?? 0;
+    const chest = roam.chestOpened() ? 'The wooden chest stands open.' : 'A wooden chest waits in the living room.';
+    return `Satchel: ${n} apple${n === 1 ? '' : 's'}. ${chest}`;
+  }
+  function persist() {
+    const now = JSON.stringify([gameState.save.coins, gameState.save.roam]);
+    if (now !== saved) { gameState.persist(); saved = now; }
+  }
+  function smartInteract() {
+    if (!api.playing) return;
+    const t = roam.nearestInteractable(1.6);
+    if (!t) { orientation(); return; }
+    if (t.kind === 'door') { useDoor(); return; }
+    if (t.kind === 'item') {
+      const item = roam.takeItem(t.id);
+      if (!item) { orientation(); return; }
+      audio?.play('loot-drop', { group: 'sfx', volume: 0.35 });
+      const n = roam.store.apples;
+      const an = /^[aeiou]/i.test(item.name) ? 'an' : 'a';
+      flush();
+      say(`You collect ${an} ${item.name}. ${n} apple${n === 1 ? '' : 's'} in your satchel.`, 3);
+      return;
+    }
+    const loot = roam.openChest();
+    if (!loot) { orientation(); return; }
+    gameState.save.coins += loot.coins;
+    roam.store.apples += loot.apples;
+    audio?.play('coins', { group: 'sfx', volume: 0.5 });
+    flush();
+    say(`You open the wooden chest. Inside: ${loot.coins} coins and ${loot.apples} apples.`, 3);
+  }
   function useDoor() {
     if (!api.playing) return;
     const near = nearestDoor(roam);
@@ -136,7 +172,7 @@ export function buildFreeRoamScreen({ gameState, screens, speech, audio, onContr
 
   const api = {
     id: 'house', title: 'Explore House',
-    summary: 'Single tap starts or stops walking. Hold to walk while held. Swipe left or right to turn. Swipe up steps forward, swipe down steps back. Two-finger tap stops. A circle turns you around. Double tap uses a nearby door, or hears orientation. Triple tap repeats. Down-left opens the menu. One up-and-left stroke goes back. Choose Start when ready. How to play reads all controls.',
+    summary: 'Single tap starts or stops walking. Hold to walk while held. Swipe left or right to turn. Swipe up steps forward, swipe down steps back. Two-finger tap stops. A circle turns you around. Double tap collects, opens, or uses the nearest thing, or hears orientation. Triple tap repeats. Down-left opens the menu. One up-and-left stroke goes back. Choose Start when ready. How to play reads all controls.',
     element: root, focusItems: [], zone: ROAM_ZONE, roam, narrator,
     get isMenu() { return menuOpen; },
     get playing() { return started && !menuOpen && !suspended && !destroyed; },
@@ -157,7 +193,7 @@ export function buildFreeRoamScreen({ gameState, screens, speech, audio, onContr
       button('Step right', 'Sidestep right without turning', () => stepWalk('strafeRight'));
       button('Step back', 'Step backward without turning', () => stepWalk('backward'));
       button('Orientation', 'Hear the room, facing and surroundings', () => orientation());
-      button('Use nearby door', 'Open or close the closest door', () => useDoor());
+      button('Use nearby', 'Collect, open, or use the closest thing', () => smartInteract());
       button('Stop walking', 'Stop immediately', () => stopNow());
       button('Open game menu', 'Or swipe down and left', () => api.openMenu());
       api.focusItems = buttons;
@@ -174,7 +210,7 @@ export function buildFreeRoamScreen({ gameState, screens, speech, audio, onContr
       // only a tap, two fingers, or Stop ends it.
       if (type === 'pressEnd' && !tapWalking) roam.stop();
       if (type === 'tap') toggleWalk();
-      if (type === 'doubleTap') { if (nearestDoor(roam)) useDoor(); else orientation(); }
+      if (type === 'doubleTap') smartInteract();
       if (type === 'tripleTap') repeatLast();
       if (type === 'twoFingerTap') stopNow();
       if (type === 'circle') turnAround();
@@ -214,7 +250,7 @@ export function buildFreeRoamScreen({ gameState, screens, speech, audio, onContr
     },
     suspend() { suspended = true; tapWalking = false; roam.stop(); },
     resume() { suspended = false; api.openMenu(); lastWall = performance.now(); },
-    destroy() { destroyed = true; if (tickId !== null) clearInterval(tickId); roam.stop(); },
+    destroy() { destroyed = true; if (tickId !== null) clearInterval(tickId); roam.stop(); persist(); },
   };
 
   function render() {
@@ -226,6 +262,11 @@ export function buildFreeRoamScreen({ gameState, screens, speech, audio, onContr
     for (const el of visual.querySelectorAll('[data-door]')) {
       el.setAttribute('fill', roam.isDoorOpen(el.dataset.door) ? '#f8d36a' : '#b0524d');
     }
+    for (const el of visual.querySelectorAll('[data-item]')) {
+      el.style.display = roam.isTaken(el.dataset.item) ? 'none' : '';
+    }
+    const chestEl = visual.querySelector('[data-fur="wooden-chest"]');
+    if (chestEl) chestEl.setAttribute('fill', roam.chestOpened() ? '#c9a227' : '#7a5c3e');
   }
   function buildMenu() {
     controls.textContent = '';
@@ -235,6 +276,7 @@ export function buildFreeRoamScreen({ gameState, screens, speech, audio, onContr
     }
     button(started ? 'Return to game' : 'Start Explore House', 'Close this menu and play', () => api.closeMenu());
     button('Where am I', 'Hear the room, facing and surroundings', () => say(narrator.orientation(), 3));
+    button('Satchel', 'Hear what you carry', () => say(satchelText(), 3));
     button('How to play', 'Read the controls for exploring', () => say(`${ROAM_HOW_TO_PLAY} Down-left opens this menu. One up-and-left stroke goes back. Keyboard: W walks forward, S walks backward, A and D turn, Space hears orientation, R uses a nearby door.`, 3));
     button('Main menu', 'Leave the house', () => screens.gotoMenu());
     button('Exit game', 'Save and stop game audio', () => screens.openExit());

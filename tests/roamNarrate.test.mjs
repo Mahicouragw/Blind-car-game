@@ -30,7 +30,7 @@ test('room entry speaks once, then the doorway ahead, then silence', () => {
   assert.equal(first[0].priority, 4);
   assert.deepEqual(texts(narrator.update()), ['The living room door is directly ahead.']);
   assert.deepEqual(texts(narrator.update()), ['The bedroom door is on your right.']);
-  assert.deepEqual(texts(narrator.update()), ['Living room door nearby. Tap to close it.']);
+  assert.deepEqual(texts(narrator.update()), ['Living room door nearby. Double tap to close it.']);
   assert.deepEqual(narrator.update(), [], 'nothing repeats while standing still');
 });
 
@@ -41,7 +41,7 @@ test('leaving range resets a target so returning re-announces it', () => {
   roam.state.x = 9; // walk to the far end of the hallway
   assert.deepEqual(texts(narrator.update()), ['The washroom door is directly ahead.']);
   assert.deepEqual(texts(narrator.update()), ['The kitchen door is on your left.']);
-  assert.deepEqual(texts(narrator.update()), ['Washroom door nearby. Tap to close it.']);
+  assert.deepEqual(texts(narrator.update()), ['Washroom door nearby. Double tap to close it.']);
 });
 
 test('walking through a doorway announces the new room', () => {
@@ -108,4 +108,44 @@ test('orientation speaks eight-wind facing when set', () => {
   assert.match(narrator.orientation(), /facing northeast/);
   narrator.setFacingSteps(4);
   assert.match(narrator.orientation(), /facing east/);
+});
+
+test('a nearby apple is announced by relative direction', () => {
+  const roam = createFreeRoam({ x: 3.9, y: 4.2, headingDeg: 0 });
+  const narrator = createRoamNarrator({ roam });
+  narrator.update(); // room entry
+  assert.deepEqual(texts(narrator.update()), ['An apple is ahead and slightly to the left.']);
+});
+
+test('the chest is announced, then the apple beside it, then the action hint', () => {
+  const roam = createFreeRoam({ x: 0.7, y: 6.5, headingDeg: 0 });
+  const narrator = createRoamNarrator({ roam });
+  narrator.update(); // room entry
+  assert.deepEqual(texts(narrator.update()), ['The wooden chest is directly ahead.']);
+  assert.deepEqual(texts(narrator.update()), ['An apple is on your right.']);
+  assert.deepEqual(texts(narrator.update()), ['Wooden chest nearby. Double tap to open it.']);
+});
+
+test('an apple in reach offers collection', () => {
+  const roam = createFreeRoam({ x: 7.0, y: 2.9, headingDeg: 0 });
+  const narrator = createRoamNarrator({ roam });
+  narrator.update();
+  assert.deepEqual(texts(narrator.update()), ['An apple is directly ahead.']);
+  const rest = [texts(narrator.update()), texts(narrator.update()), texts(narrator.update())].flat();
+  assert.ok(rest.includes('Apple nearby. Double tap to collect it.'));
+});
+
+test('taken apples and the opened chest go silent', () => {
+  const roam = createFreeRoam({ x: 7.0, y: 2.9, headingDeg: 0 });
+  roam.takeItem('apple-kitchen');
+  const narrator = createRoamNarrator({ roam });
+  const heard = [];
+  for (let i = 0; i < 5; i++) heard.push(...texts(narrator.update()));
+  assert.ok(heard.every((t) => !/apple/i.test(t)), 'no apple lines after taking');
+
+  roam.state.x = 0.7; roam.state.y = 6.5;
+  roam.openChest();
+  const heard2 = [];
+  for (let i = 0; i < 6; i++) heard2.push(...texts(narrator.update()));
+  assert.ok(heard2.every((t) => !/chest/i.test(t)), 'no chest lines after opening');
 });

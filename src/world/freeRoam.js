@@ -76,9 +76,17 @@ export const HOUSE_MAP = {
     { id: 'kitchen-table', name: 'kitchen table', x0: 5.9, y0: 4.0, x1: 6.9, y1: 5.0 },
     { id: 'kitchen-counter', name: 'kitchen counter', x0: 5.2, y0: 6.8, x1: 7.2, y1: 7.6 },
     { id: 'wash-basin', name: 'wash basin', x0: 7.7, y0: 6.8, x1: 8.5, y1: 7.6 },
+    { id: 'wooden-chest', name: 'wooden chest', x0: 0.3, y0: 7.0, x1: 1.1, y1: 7.7, special: 'chest' },
+  ],
+  items: [
+    { id: 'apple-living', name: 'apple', x: 2.0, y: 6.5, gives: { apples: 1 } },
+    { id: 'apple-bedroom', name: 'apple', x: 3.0, y: 5.0, gives: { apples: 1 } },
+    { id: 'apple-kitchen', name: 'apple', x: 7.0, y: 3.5, gives: { apples: 1 } },
   ],
   start: { x: 1.3, y: 1.0, headingDeg: 0 },
 };
+
+export const CHEST_LOOT = { coins: 5, apples: 2 };
 
 export function normalizeHeading(deg) {
   return ((deg % 360) + 360) % 360;
@@ -117,7 +125,11 @@ export function createFreeRoam({
   radius = PLAYER_RADIUS_M,
   walkSpeed = WALK_SPEED_M_S,
   turnSpeed = TURN_SPEED_DEG_S,
+  store = null,
 } = {}) {
+  // Live satchel: pass gameState.save.roam and takes persist across reloads.
+  const bag = store ?? { apples: 0, chestOpened: false, taken: [] };
+  if (!Array.isArray(bag.taken)) bag.taken = [];
   const doors = new Map(map.doors.map((d) => [d.id, d.open !== false]));
   const state = {
     x, y,
@@ -163,6 +175,49 @@ export function createFreeRoam({
     doors.set(id, open === true);
   }
 
+  function isTaken(id) { return bag.taken.includes(id); }
+  function takeItem(id) {
+    const item = (map.items ?? []).find((i) => i.id === id);
+    if (!item || isTaken(id)) return null;
+    bag.taken.push(id);
+    bag.apples = Math.max(0, (bag.apples ?? 0) + (item.gives?.apples ?? 0));
+    return item;
+  }
+  function chestOpened() { return bag.chestOpened === true; }
+  function openChest() {
+    if (chestOpened()) return null;
+    bag.chestOpened = true;
+    return { ...CHEST_LOOT };
+  }
+  function distToRect(x, y, r) {
+    const cx = Math.min(Math.max(x, r.x0), r.x1);
+    const cy = Math.min(Math.max(y, r.y0), r.y1);
+    return Math.hypot(x - cx, y - cy);
+  }
+  function nearestItem(maxDist = 1.6) {
+    let best = null;
+    for (const i of map.items ?? []) {
+      if (isTaken(i.id)) continue;
+      const m = Math.hypot(state.x - i.x, state.y - i.y);
+      if (m <= maxDist && (!best || m < best.dist)) best = { item: i, dist: m };
+    }
+    return best;
+  }
+  /** Nearest usable thing - item, unopened chest, or door - by true distance. */
+  function nearestInteractable(maxDist = 1.6) {
+    let best = null;
+    const consider = (entry) => { if (entry.dist <= maxDist && (!best || entry.dist < best.dist)) best = entry; };
+    for (const d of map.doors) {
+      consider({ kind: 'door', id: d.id, name: d.name, dist: Math.hypot(state.x - (d.x0 + d.x1) / 2, state.y - (d.y0 + d.y1) / 2) });
+    }
+    for (const i of map.items ?? []) {
+      if (!isTaken(i.id)) consider({ kind: 'item', id: i.id, name: i.name, dist: Math.hypot(state.x - i.x, state.y - i.y) });
+    }
+    const chest = map.furniture.find((f) => f.special === 'chest');
+    if (chest && !chestOpened()) consider({ kind: 'chest', id: chest.id, name: chest.name, dist: distToRect(state.x, state.y, chest) });
+    return best;
+  }
+
   function update(dt) {
     if (!Number.isFinite(dt) || dt <= 0) return;
     state.blocked = false;
@@ -196,6 +251,7 @@ export function createFreeRoam({
     state, map,
     setMove, setTurn, stop, update,
     setDoorOpen, isDoorOpen: (id) => doorOpen(id, false),
-    roomAt, facing, solidAt,
+    roomAt, facing, solidAt, store: bag,
+    isTaken, takeItem, chestOpened, openChest, nearestItem, nearestInteractable,
   };
 }

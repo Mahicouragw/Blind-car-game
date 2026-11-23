@@ -36,7 +36,7 @@ see [EASY-PLAY.md](EASY-PLAY.md). Their menus use the same cursor rule.
 | Swipe up / down | Explore House | `swipe` | **Step** forward / backward one pace, collision-safe |
 | **Two-finger tap** | Explore House | `twoFingerTap` | **Stop immediately**. Both contacts die until all fingers lift, so no phantom tap follows. With Android TalkBack on the OS eats this gesture: the Stop button is the fallback |
 | Circle | Explore House | `circle` | **Turn around** 180°, announced. Off switch: the Circle to turn around setting |
-| Double tap | Explore House | `doubleTap` | **Use nearby door**, or hear **orientation** when no door is in reach |
+| Double tap | Explore House | `doubleTap` | **Smart interact**: collect the nearest item, open the chest, or toggle the nearest door — whichever is closest; hear **orientation** when nothing is in reach. Announcements alone never collect |
 | Triple tap | Explore House | `tripleTap` | **Repeat** the last announcement |
 | Single tap | menu / list / menu panel | `tap` | **Confirm** the item under the cursor and say its name, wherever tapped — never move the cursor or activate |
 | **Double tap** | menu / list / menu panel | `doubleTap` | **Activate the selected control** (the TalkBack rule the player asked for) |
