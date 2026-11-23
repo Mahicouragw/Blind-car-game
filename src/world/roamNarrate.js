@@ -94,6 +94,18 @@ export function createRoamNarrator({ roam, facingSteps = 4 }) {
   let lastActionKey = null;
   const announced = new Set();
 
+  function actionKey(t) {
+    if (t.kind === 'door') return `${t.id}:${roam.isDoorOpen(t.id) ? 'open' : 'closed'}`;
+    return `${t.kind}:${t.id}`;
+  }
+  function actionText(t) {
+    if (t.kind === 'door') {
+      const verb = roam.isDoorOpen(t.id) ? 'close' : 'open';
+      return `${cap(t.name)} nearby. Double tap to ${verb} it.`;
+    }
+    if (t.kind === 'item') return `${cap(t.name)} nearby. Double tap to collect it.`;
+    return `${cap(t.name)} nearby. Double tap to open it.`;
+  }
   function bumpText() {
     const p = pointAhead(roam, 0.4);
     const hit = whatsAt(roam, p.x, p.y);
@@ -114,12 +126,30 @@ export function createRoamNarrator({ roam, facingSteps = 4 }) {
       out.push({ key: `door:${d.id}`, dist: m, text: `The ${d.name} is ${rel}.` });
     }
     for (const f of roam.map.furniture) {
+      if (f.special === 'chest') continue; // the chest gets its own lines below
       const c = center(f);
       const m = dist(x, y, c.x, c.y);
       if (m > FURNITURE_RANGE_M) continue;
       const rel = relativeDirection(headingDeg, x, y, c.x, c.y);
       if (!rel) continue;
       out.push({ key: `fur:${f.id}`, dist: m, text: `A ${f.name} is ${rel}.` });
+    }
+    for (const i of roam.map.items ?? []) {
+      if (roam.isTaken(i.id)) continue;
+      const m = dist(x, y, i.x, i.y);
+      if (m > FURNITURE_RANGE_M) continue;
+      const rel = relativeDirection(headingDeg, x, y, i.x, i.y);
+      if (!rel) continue;
+      out.push({ key: `item:${i.id}`, dist: m, text: `${article(i.name)} ${i.name} is ${rel}.` });
+    }
+    const chest = roam.map.furniture.find((f) => f.special === 'chest');
+    if (chest && !roam.chestOpened()) {
+      const c = center(chest);
+      const m = dist(x, y, c.x, c.y);
+      if (m <= DOOR_RANGE_M) {
+        const rel = relativeDirection(headingDeg, x, y, c.x, c.y);
+        if (rel) out.push({ key: `chest:${chest.id}`, dist: m, text: `The ${chest.name} is ${rel}.` });
+      }
     }
     out.sort((a, b) => a.dist - b.dist);
     return out;
@@ -163,12 +193,25 @@ export function createRoamNarrator({ roam, facingSteps = 4 }) {
     // Leaving range resets a target, so returning re-announces it once.
     for (const key of [...announced]) {
       const [kind, id] = key.split(':');
-      const list = kind === 'door' ? roam.map.doors : roam.map.furniture;
-      const target = list.find((t) => t.id === id);
-      const range = (kind === 'door' ? DOOR_RANGE_M : FURNITURE_RANGE_M) + RESET_MARGIN_M;
-      if (!target || dist(roam.state.x, roam.state.y, center(target).x, center(target).y) > range) {
-        announced.delete(key);
+      let px = null; let py = null; let range = 0;
+      if (kind === 'door') {
+        const t = roam.map.doors.find((d) => d.id === id);
+        if (t) { const c = center(t); px = c.x; py = c.y; }
+        range = DOOR_RANGE_M + RESET_MARGIN_M;
+      } else if (kind === 'item') {
+        const t = (roam.map.items ?? []).find((i) => i.id === id);
+        if (t && !roam.isTaken(t.id)) { px = t.x; py = t.y; }
+        range = FURNITURE_RANGE_M + RESET_MARGIN_M;
+      } else if (kind === 'chest') {
+        const t = roam.map.furniture.find((f) => f.special === 'chest');
+        if (t) { const c = center(t); px = c.x; py = c.y; }
+        range = DOOR_RANGE_M + RESET_MARGIN_M;
+      } else {
+        const t = roam.map.furniture.find((f) => f.id === id);
+        if (t) { const c = center(t); px = c.x; py = c.y; }
+        range = FURNITURE_RANGE_M + RESET_MARGIN_M;
       }
+      if (px === null || dist(roam.state.x, roam.state.y, px, py) > range) announced.delete(key);
     }
     const fresh = nearbyTargets().find((t) => !announced.has(t.key));
     if (fresh) {
@@ -177,14 +220,11 @@ export function createRoamNarrator({ roam, facingSteps = 4 }) {
     }
 
     // Action panel hint: only when it changes, and only when quiet.
-    const near = nearestDoor(roam);
-    const key = near ? `${near.door.id}:${roam.isDoorOpen(near.door.id) ? 'open' : 'closed'}` : null;
+    const near = roam.nearestInteractable(ACTION_RANGE_M);
+    const key = near ? actionKey(near) : null;
     if (key !== lastActionKey) {
       lastActionKey = key;
-      if (near) {
-        const verb = roam.isDoorOpen(near.door.id) ? 'close' : 'open';
-        return [{ text: `${cap(near.door.name)} nearby. Tap to ${verb} it.`, priority: 1, action: { type: 'door', id: near.door.id } }];
-      }
+      if (near) return [{ text: actionText(near), priority: 1, action: { type: near.kind, id: near.id } }];
     }
     return [];
   }
@@ -194,4 +234,8 @@ export function createRoamNarrator({ roam, facingSteps = 4 }) {
 
 function cap(s) {
   return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+function article(name) {
+  return /^[aeiou]/i.test(name) ? 'An' : 'A';
 }

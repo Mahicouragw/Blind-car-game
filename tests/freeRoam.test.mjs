@@ -167,3 +167,62 @@ test('eight-wind facing names diagonals for 45-degree turns', () => {
   roam.state.headingDeg = 359;
   assert.equal(roam.facing(8), 'north', '359 rounds to north');
 });
+
+test('items rest on walkable ground in their rooms; the chest is solid but approachable', () => {
+  const roam = createFreeRoam({});
+  const rooms = { 'apple-living': 'living', 'apple-bedroom': 'bedroom', 'apple-kitchen': 'kitchen' };
+  for (const item of HOUSE_MAP.items) {
+    assert.equal(roam.solidAt(item.x, item.y), false, `${item.id} is reachable`);
+    roam.state.x = item.x; roam.state.y = item.y;
+    assert.equal(roam.roomAt(), rooms[item.id]);
+  }
+  assert.equal(roam.solidAt(0.7, 7.35), true, 'inside the chest is solid');
+  assert.equal(roam.solidAt(0.7, 6.5), false, 'south of the chest is walkable');
+});
+
+test('taking an apple fills the satchel once and only once', () => {
+  const roam = createFreeRoam({});
+  assert.equal(roam.takeItem('apple-kitchen').id, 'apple-kitchen');
+  assert.equal(roam.store.apples, 1);
+  assert.equal(roam.isTaken('apple-kitchen'), true);
+  assert.equal(roam.takeItem('apple-kitchen'), null, 'no double take');
+  assert.equal(roam.takeItem('nope'), null, 'unknown items give nothing');
+  assert.equal(roam.store.apples, 1);
+});
+
+test('the chest opens once with its loot', () => {
+  const roam = createFreeRoam({});
+  assert.deepEqual(roam.openChest(), { coins: 5, apples: 2 });
+  assert.equal(roam.chestOpened(), true);
+  assert.equal(roam.openChest(), null, 'no second loot');
+});
+
+test('the nearest usable thing wins across doors, items and the chest', () => {
+  const roam = createFreeRoam({ x: 1.3, y: 1.0 });
+  assert.equal(roam.nearestInteractable().id, 'living-door');
+  roam.state.x = 7.0; roam.state.y = 2.9;
+  const near = roam.nearestInteractable();
+  assert.equal(near.kind, 'item');
+  assert.equal(near.id, 'apple-kitchen');
+  roam.state.x = 0.7; roam.state.y = 6.5;
+  assert.equal(roam.nearestInteractable().kind, 'chest');
+  roam.state.x = 5; roam.state.y = 0.5;
+  assert.equal(roam.nearestInteractable(), null, 'nothing in reach mid-hallway');
+});
+
+test('takes persist through a shared store', () => {
+  const store = { apples: 0, chestOpened: false, taken: [] };
+  createFreeRoam({ store }).takeItem('apple-living');
+  assert.deepEqual(store.taken, ['apple-living']);
+  const again = createFreeRoam({ store });
+  assert.equal(again.isTaken('apple-living'), true);
+  const rest = again.nearestItem(99);
+  assert.ok(rest && rest.item.id !== 'apple-living', 'taken apples are skipped');
+});
+
+test('save files carry the roam satchel with safe defaults', async () => {
+  const { coerceSave } = await import('../src/core/save.js');
+  assert.deepEqual(coerceSave({}).save.roam, { apples: 0, chestOpened: false, taken: [] });
+  const dirty = coerceSave({ roam: { apples: -5, chestOpened: 'yes', taken: 'x' } }).save.roam;
+  assert.deepEqual(dirty, { apples: 0, chestOpened: false, taken: [] });
+});

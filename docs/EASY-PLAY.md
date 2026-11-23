@@ -115,9 +115,12 @@ menu reads that area's controls. There is no time limit or tutorial gate.
 - The narrator announces room entries, nearby doors and furniture by relative
   direction (directly ahead, slightly left, on your right), and names what
   blocks you. Nothing repeats while standing still.
-- Double tap opens/closes the nearest door, or reads orientation when no door
-  is in reach. Triple tap repeats the last announcement. Here, Back is one
-  up-and-left stroke, since swipe up then left is ordinary walking.
+- Double tap collects, opens, or uses the nearest thing in reach — apples in
+  three rooms, a wooden chest (5 coins, 2 apples, once), doors — or reads
+  orientation when nothing is near. Approaching never collects by itself.
+  The Satchel menu speaks what you carry; takes survive reloads. Triple tap
+  repeats the last announcement. Here, Back is one up-and-left stroke, since
+  swipe up then left is ordinary walking.
 - Turn off Tap to walk and circles in Game TalkBack settings; sensitivity
   (relaxed/standard/swift) forgives or sharpens all gestures at once.
 - Keyboard: W/S walk, A/D turn, Space orientation, R use door.

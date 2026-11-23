@@ -45,7 +45,7 @@ test('starting announces the hallway; holding walks forward, release stops', () 
   const app = boot(); const screen = start(app);
   assert.match(actionText(screen), /You are standing in the main hallway/);
   const labels = screen.focusItems.map(b => b.label);
-  for (const name of ['Step left', 'Step right', 'Step back', 'Orientation', 'Use nearby door', 'Stop walking', 'Open game menu']) {
+  for (const name of ['Step left', 'Step right', 'Step back', 'Orientation', 'Use nearby', 'Stop walking', 'Open game menu']) {
     assert.ok(labels.includes(name), `${name} button exists for TalkBack`);
   }
   const y0 = screen.roam.state.y;
@@ -156,6 +156,56 @@ test('swipe up then left walks then turns; the one-stroke diagonal goes back', (
   assert.equal(screen.roam.state.headingDeg, 270, 'then turned left');
   bus.emit('gesture:swipe', { direction: 'up', dx: -30, dy: -30, zone: { id: 'roam-play' } });
   assert.ok(app.screens.current.id !== 'house', 'the diagonal still goes back');
+  app.destroy();
+});
+
+test('double tap collects the nearest apple, then falls through to the door', () => {
+  const app = boot(); const screen = start(app);
+  screen.roam.state.x = 7.0; screen.roam.state.y = 2.9; screen.roam.state.headingDeg = 0;
+  screen.handleGesture('doubleTap');
+  assert.match(actionText(screen), /You collect an apple\. 1 apple in your satchel/);
+  assert.equal(app.gameState.save.roam.apples, 1);
+  assert.deepEqual(app.gameState.save.roam.taken, ['apple-kitchen']);
+  assert.equal(screen.element.querySelector('[data-item="apple-kitchen"]').style.display, 'none');
+  screen.handleGesture('doubleTap');
+  assert.match(actionText(screen), /You close the kitchen door/, 'next-nearest wins after the take');
+  app.destroy();
+});
+
+test('double tap opens the chest once for coins and apples', () => {
+  const app = boot(); const screen = start(app);
+  screen.roam.state.x = 0.7; screen.roam.state.y = 6.5; screen.roam.state.headingDeg = 0;
+  screen.handleGesture('doubleTap');
+  assert.match(actionText(screen), /You open the wooden chest\. Inside: 5 coins and 2 apples/);
+  assert.equal(app.gameState.save.coins, 5);
+  assert.equal(app.gameState.save.roam.apples, 2);
+  assert.equal(app.gameState.save.roam.chestOpened, true);
+  assert.equal(screen.element.querySelector('[data-fur="wooden-chest"]').getAttribute('fill'), '#c9a227');
+  screen.handleGesture('doubleTap');
+  assert.match(actionText(screen), /You collect an apple\. 3 apples in your satchel/, 'next-nearest wins after opening');
+  screen.handleGesture('doubleTap');
+  assert.match(actionText(screen), /You are in the living room/, 'empty reach falls through to orientation');
+  app.destroy();
+});
+
+test('the Satchel menu speaks what you carry', () => {
+  const app = boot(); const screen = start(app);
+  screen.roam.state.x = 7.0; screen.roam.state.y = 2.9;
+  screen.handleGesture('doubleTap');
+  screen.openMenu();
+  screen.focusItems.find((b) => b.label === 'Satchel').activate();
+  assert.match(actionText(screen), /Satchel: 1 apple\. A wooden chest waits/);
+  app.destroy();
+});
+
+test('walking near an apple announces it without collecting', () => {
+  const app = boot(); const screen = start(app);
+  screen.roam.state.x = 3.9; screen.roam.state.y = 4.2; screen.roam.state.headingDeg = 0;
+  const heard = [];
+  for (let i = 0; i < 6; i++) { screen.tick(0.1); heard.push(actionText(screen)); }
+  assert.ok(heard.some((t) => /An apple is ahead and slightly to the left/.test(t)));
+  assert.equal(app.gameState.save.roam.apples, 0, 'announcement never collects');
+  assert.equal(app.gameState.save.roam.taken.length, 0);
   app.destroy();
 });
 
