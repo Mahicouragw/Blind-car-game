@@ -157,3 +157,13 @@ test('the starter map is fully connected through door gaps', () => {
   }
   assert.equal(HOUSE_MAP.rooms.length, 5);
 });
+
+test('eight-wind facing names diagonals for 45-degree turns', () => {
+  const roam = createFreeRoam({ headingDeg: 45 });
+  assert.equal(roam.facing(), 'east', 'cardinal default rounds up');
+  assert.equal(roam.facing(8), 'northeast');
+  roam.state.headingDeg = 225;
+  assert.equal(roam.facing(8), 'southwest');
+  roam.state.headingDeg = 359;
+  assert.equal(roam.facing(8), 'north', '359 rounds to north');
+});

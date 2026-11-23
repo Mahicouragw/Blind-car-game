@@ -858,6 +858,24 @@ const TUTORIAL_STEPS = [
     require: 'menuNavigated',
   },
   {
+    id: 'roamWalk',
+    title: 'Explore House: tap to walk',
+    text: 'In Explore House a single tap starts walking and a second tap stops. Holding walks only while held, and a two-finger tap stops at once. Releasing after a hold stops too. The Stop button and the keyboard do the same, so the house stays playable with Android TalkBack on. Practice in Explore House from the main menu.',
+    require: null,
+  },
+  {
+    id: 'roamTurn',
+    title: 'Explore House: turn and step',
+    text: 'Swipe left or right to turn without moving. The turn angle setting offers 45, 90 or 180 degrees. Swipe up steps forward and swipe down steps back. Draw a circle to turn around. Turning never walks you into anything. Here, and only here, going back is one up-and-left stroke, because swipe up then left is ordinary walking.',
+    require: null,
+  },
+  {
+    id: 'roamSense',
+    title: 'Explore House: doors and orientation',
+    text: 'Double tap opens or closes a nearby door. With no door near, it reads your orientation instead: room, facing and surroundings. Triple tap repeats the last announcement. The narrator names rooms, doors and furniture once each and never nags. Walk through doorways to change rooms.',
+    require: null,
+  },
+  {
     id: 'keyboard',
     title: 'Keyboard and switch equivalents',
     text: keyboardHelpLines().join(' '),

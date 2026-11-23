@@ -108,14 +108,18 @@ menu reads that area's controls. There is no time limit or tutorial gate.
 - True free-roam: a real position and facing on a connected house map —
   main hallway plus living room, bedroom, kitchen and washroom, joined by
   physical doorways. Walk through a doorway to change rooms; nothing teleports.
-- Hold to walk forward, release to stop; swipe left/right for quarter turns
-  (facing is announced); swipe down steps back; Step buttons sidestep without
-  turning. Walls, furniture and closed doors are solid and named on bumps.
+- Single tap starts/stops walking; hold walks while held; two-finger tap or
+  the Stop button stops at once. Swipe left/right to turn (45/90/180 degrees
+  in settings, facing announced); swipe up/down to step; circle turns around.
+  Turning never moves. Walls, furniture and closed doors are solid and named.
 - The narrator announces room entries, nearby doors and furniture by relative
   direction (directly ahead, slightly left, on your right), and names what
   blocks you. Nothing repeats while standing still.
-- Tap (or the Use button) opens/closes the nearest door, with an action hint
-  when one is in reach. Swipe up, double tap, or Where am I reads orientation.
+- Double tap opens/closes the nearest door, or reads orientation when no door
+  is in reach. Triple tap repeats the last announcement. Here, Back is one
+  up-and-left stroke, since swipe up then left is ordinary walking.
+- Turn off Tap to walk and circles in Game TalkBack settings; sensitivity
+  (relaxed/standard/swift) forgives or sharpens all gestures at once.
 - Keyboard: W/S walk, A/D turn, Space orientation, R use door.
 
 ## Saving, sound and lifecycle

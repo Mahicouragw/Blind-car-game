@@ -125,14 +125,14 @@ test('a single tap confirms the CURSOR anywhere, a double tap ACTIVATES it', () 
 test('the tutorial lists every gesture and refuses to finish early', () => {
   const app = window.__app;
   const screen = app.screens.current;
-  assert.equal(screen.steps.length, 11);
+  assert.equal(screen.steps.length, 14);
   // Only the current step is on screen, so check the step content itself: every
   // gesture must be taught somewhere in the lesson, not just on step one.
   const taught = screen.steps.map((s) => `${s.title} ${s.text}`).join(' ').toLowerCase();
-  for (const phrase of ['press and hold', 'tap the driving surface once', 'twice quickly', 'double tap and hold', 'handbrake', 'drag left or right', 'circular drag', 'f1', 'gradually', 'straightens itself', 'recovery']) {
+  for (const phrase of ['press and hold', 'tap the driving surface once', 'twice quickly', 'double tap and hold', 'handbrake', 'drag left or right', 'circular drag', 'f1', 'gradually', 'straightens itself', 'recovery', 'two-finger tap', 'turn around', 'triple tap repeats']) {
     assert.ok(taught.includes(phrase.toLowerCase()), `tutorial should teach "${phrase}"`);
   }
-  assert.ok(document.body.textContent.includes('Step 1 of 11'), 'the on-screen step is labelled with its position');
+  assert.ok(document.body.textContent.includes('Step 1 of 14'), 'the on-screen step is labelled with its position');
   // Nothing has been demonstrated yet, so finishing must be refused.
   const finish = buttons().find((b) => b.textContent.includes('Finish the tutorial'));
   window.speechSynthesis.spoken.length = 0;

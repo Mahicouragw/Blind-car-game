@@ -398,3 +398,19 @@ test('a tap far from the previous tap starts a new chain instead of a double tap
   assert.equal(h.count('doubleTap'), 0, 'a far-apart second tap is not a double tap');
   assert.equal(h.count('tap'), 2, 'both taps are reported, neither is swallowed');
 });
+
+test('setThresholds tunes live thresholds and ignores junk', () => {
+  const h = harness();
+  h.g.setThresholds({ swipeMinPx: 60, bogus: 5, tapMaxMs: -3 });
+  assert.equal(h.g.thresholds.swipeMinPx, 60);
+  assert.equal(h.g.thresholds.tapMaxMs, GESTURE_DEFAULTS.tapMaxMs);
+  assert.equal('bogus' in h.g.thresholds, false);
+});
+
+test('sensitivity presets bracket the defaults', async () => {
+  const { SENSITIVITY_THRESHOLDS } = await import('../src/input/gestures.js');
+  assert.deepEqual(Object.keys(SENSITIVITY_THRESHOLDS).sort(), ['relaxed', 'standard', 'swift']);
+  assert.deepEqual(SENSITIVITY_THRESHOLDS.standard, {}, 'standard is exactly the defaults');
+  assert.ok(SENSITIVITY_THRESHOLDS.relaxed.swipeMinPx > GESTURE_DEFAULTS.swipeMinPx);
+  assert.ok(SENSITIVITY_THRESHOLDS.swift.swipeMinPx < GESTURE_DEFAULTS.swipeMinPx);
+});

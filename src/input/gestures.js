@@ -74,6 +74,17 @@ export const GESTURE_DEFAULTS = {
   circleMinPathPx: 120,
 };
 
+/**
+ * Named sensitivity presets applied over GESTURE_DEFAULTS through
+ * `setThresholds`. Relaxed forgives wobbles and slow swipes; swift reacts to
+ * smaller, quicker gestures. Standard is exactly the defaults.
+ */
+export const SENSITIVITY_THRESHOLDS = {
+  relaxed: { swipeMinPx: 48, tapMaxDistPx: 30, doubleTapWindowMs: 520, tapMaxMs: 420 },
+  standard: {},
+  swift: { swipeMinPx: 26, tapMaxDistPx: 18, doubleTapWindowMs: 320, tapMaxMs: 260 },
+};
+
 export const GESTURE_EVENTS = [
   'pressStart',
   'pressEnd',
@@ -241,6 +252,14 @@ export function createGestureRecognizer(config = {}) {
     /** Replace the clock (tests) or the emitter (wiring). */
     setClock(fn) {
       now = fn;
+    },
+    /** Adjust live thresholds (the gesture-sensitivity setting). Unknown keys are ignored. */
+    setThresholds(patch = {}) {
+      for (const [key, value] of Object.entries(patch)) {
+        if (Object.prototype.hasOwnProperty.call(GESTURE_DEFAULTS, key) && Number.isFinite(value) && value > 0) {
+          T[key] = value;
+        }
+      }
     },
     setEmitter(fn) {
       // eslint-disable-next-line no-func-assign
