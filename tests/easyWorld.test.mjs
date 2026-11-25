@@ -396,3 +396,15 @@ test('swipe up at the Fair Gate returns to the city', () => {
   w.swipe('up');
   assert.equal(w.drain().find((e) => e.travel).travel, 'city');
 });
+test('the Cottage Door announces itself and swipe up enters the house', () => {
+  const w = createEasyWorld({ area: 'city' });
+  w.state.distance = 148; w.state.maxDistance = 148; w.state.nextCoinAt = 10000;
+  w.pressStart(); w.update(0.5); w.pressEnd(500);
+  assert.match(words(w), /Cottage Door\. Swipe up to enter the house/);
+  const gate = createEasyWorld({ area: 'city' });
+  gate.state.distance = 149; gate.state.maxDistance = 149;
+  gate.swipe('up');
+  const door = gate.drain().find((e) => e.travel);
+  assert.equal(door && door.travel, 'house');
+  assert.match(door.text, /Pushing open the cottage door/);
+});

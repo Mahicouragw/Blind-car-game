@@ -7,7 +7,7 @@ export const ROAM_ZONE = {
   tapAnywhere: true, tapWindowMs: 600, immediateTap: false, doubleTapHoldTarget: false, deferDoubleTap: true, allowCircle: true, preventScroll: true,
 };
 
-export const ROAM_HOW_TO_PLAY = 'Single tap starts or stops walking. Hold to walk only while held. Swipe left or right to turn without moving. Swipe up steps forward and swipe down steps back. Two-finger tap stops at once. Draw a circle to turn around. Double tap collects, opens, or uses the nearest thing, or hears your orientation when nothing is near. Triple tap repeats the last announcement. The Step and Stop buttons and the keyboard do the same without gestures. Walk through doorways to move between rooms; nothing teleports you.';
+export const ROAM_HOW_TO_PLAY = 'Single tap starts or stops walking. Hold to walk only while held. Swipe left or right to turn without moving. Swipe up steps forward and swipe down steps back. Two-finger tap stops at once. Draw a circle to turn around. Double tap collects, opens, or uses the nearest thing, or hears your orientation when nothing is near. Triple tap repeats the last announcement. The Step and Stop buttons and the keyboard do the same without gestures. Walk through doorways to move between rooms; nothing teleports you. At the main entrance, swipe up to walk out to the city.';
 
 /** Step length for tap sidesteps/steps-back: one 0.5 s walk, collision-safe. */
 const STEP_S = 0.5;
@@ -164,6 +164,13 @@ export function buildFreeRoamScreen({ gameState, screens, speech, audio, onContr
     flush(); // the toggled action hint first, so the result is what is heard
     say(`You ${opening ? 'open' : 'close'} the ${near.door.name}.`, 3);
   }
+  function goToCity() {
+    if (!api.playing) return;
+    tapWalking = false;
+    roam.stop();
+    say('Walking out to the city.', 3);
+    screens.openEasyWorld('city');
+  }
   function orientation() {
     if (!api.playing) return;
     say(narrator.orientation(), 3);
@@ -195,6 +202,10 @@ export function buildFreeRoamScreen({ gameState, screens, speech, audio, onContr
       button('Orientation', 'Hear the room, facing and surroundings', () => orientation());
       button('Use nearby', 'Collect, open, or use the closest thing', () => smartInteract());
       button('Stop walking', 'Stop immediately', () => stopNow());
+      button('Walk out to the city', 'Stand at the main entrance first', () => {
+        if (roam.atEntrance()) goToCity();
+        else say('Walk to the main entrance first.', 2);
+      });
       button('Open game menu', 'Or swipe down and left', () => api.openMenu());
       api.focusItems = buttons;
       onControlsChanged?.(api); lastWall = performance.now(); flush();
@@ -217,7 +228,7 @@ export function buildFreeRoamScreen({ gameState, screens, speech, audio, onContr
       if (type === 'swipe') {
         if (d.direction === 'left' || d.direction === 'right') stepTurn(d.direction);
         else if (d.direction === 'down') stepWalk('backward');
-        else if (d.direction === 'up') stepWalk('forward');
+        else if (d.direction === 'up') { if (roam.atEntrance()) goToCity(); else stepWalk('forward'); }
       }
       render(); return true;
     },
@@ -277,6 +288,7 @@ export function buildFreeRoamScreen({ gameState, screens, speech, audio, onContr
     button(started ? 'Return to game' : 'Start Explore House', 'Close this menu and play', () => api.closeMenu());
     button('Where am I', 'Hear the room, facing and surroundings', () => say(narrator.orientation(), 3));
     button('Satchel', 'Hear what you carry', () => say(satchelText(), 3));
+    button('Visit City Walk', 'Fast travel; the forest road leaves from the North Gate', () => screens.openEasyWorld('city'));
     button('How to play', 'Read the controls for exploring', () => say(`${ROAM_HOW_TO_PLAY} Down-left opens this menu. One up-and-left stroke goes back. Keyboard: W walks forward, S walks backward, A and D turn, Space hears orientation, R uses a nearby door.`, 3));
     button('Main menu', 'Leave the house', () => screens.gotoMenu());
     button('Exit game', 'Save and stop game audio', () => screens.openExit());

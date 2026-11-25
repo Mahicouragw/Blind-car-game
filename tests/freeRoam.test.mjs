@@ -226,3 +226,12 @@ test('save files carry the roam satchel with safe defaults', async () => {
   const dirty = coerceSave({ roam: { apples: -5, chestOpened: 'yes', taken: 'x' } }).save.roam;
   assert.deepEqual(dirty, { apples: 0, chestOpened: false, taken: [] });
 });
+
+test('the main entrance gate reads only at the south-wall gap', () => {
+  const roam = createFreeRoam({ x: 1.3, y: 1.0 });
+  assert.equal(roam.atEntrance(), false, 'a metre north is not the gate');
+  roam.state.y = 0.4;
+  assert.equal(roam.atEntrance(), true);
+  roam.state.x = 5;
+  assert.equal(roam.atEntrance(), false, 'mid-wall is not the gate');
+});
