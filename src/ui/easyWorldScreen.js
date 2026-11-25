@@ -8,7 +8,7 @@ export const PLAY_ZONE = {
   id: 'easy-play', role: 'easyPlay', hold: true, allowSwipe: true,
   tapAnywhere: true, tapWindowMs: 600, immediateTap: false, doubleTapHoldTarget: false, deferDoubleTap: true, allowCircle: false, preventScroll: true,
 };
-const TITLES = { ground: 'Easy Racing Ground', forest: 'Forest Adventure', city: 'City Walk', christmas: 'Christmas Bolt Fair' };
+const TITLES = { ground: 'Easy Racing Ground', forest: 'Forest Adventure', city: 'City Walk', christmas: 'Christmas Bolt Fair', house: 'Explore House' };
 export const EASY_CONTROLS = {
   ground: 'The car drives automatically. Hold more than three seconds and release to accelerate and keep driving. Single tap, or hold one or two seconds and release, to stop. At 500 metres hear the direction, then no automatic chatter until 50 metres: turn now. Double tap and hold the second press over one second to sound the recorded car horn; release to stop the horn. Swipe left or right to select the next turn; the car turns at the junction. After a missed turn or crash the car stops. Choose Try again yourself; it never restarts automatically. Coins come as you drive. Petrol runs out; its menu opens automatically.',
   forest: 'Hold to walk; release to stop. Double tap to sit or stand. Swipe left or right to follow a path. Swipe down to walk backward, and again to walk forward. Swipe up at the forest entrance to return to the city. Monsters are announced ahead, left or right. Single tap to strike the announced nearby monster with your sword. Aiming is automatic; swipes can also aim. Triple tap to use a healing potion. You start with three potions. Spiders fall in one hit, goblins and wolves in two, moss imps in three. Your health is spoken after each attack.',
@@ -186,7 +186,10 @@ export function buildEasyWorldScreen({ area, gameState, screens, speech, audio, 
     // Walking through a gate travels for real: the announcement above is
     // spoken from the app-level queue, so it survives the screen change.
     const travel = items.find(i => i.travel);
-    if (travel && !destroyed) screens.openEasyWorld(travel.travel);
+    if (travel && !destroyed) {
+      if (travel.travel === 'house') screens.openFreeRoam();
+      else screens.openEasyWorld(travel.travel);
+    }
   }
   function render() {
     const s = world.state;
@@ -239,10 +242,10 @@ export function buildEasyWorldScreen({ area, gameState, screens, speech, audio, 
     button('Easy quest', 'Collect ten coins, with no time limit', () => {
       speech?.say(world.inventory.questDone ? 'Quest complete. You have already received the ten-coin bonus. Keep exploring for unlimited coins.' : `Collect ten coins in a single visit to any area. ${Math.min(10, world.state.collected)} of ten collected. Reward: ten bonus coins.`, { hardInterrupt: true, replace: true, cooldownMs: 0 });
     });
-    const travelDests = ['ground', 'forest', 'city'];
+    const travelDests = ['ground', 'forest', 'city', 'house'];
     // The fair is a December place: it is offered only while open.
     try { if (fairOpen(typeof now === 'function' ? now() : new Date())) travelDests.push('christmas'); } catch { /* closed */ }
-    for (const dest of travelDests) if (dest !== area) button(`Visit ${TITLES[dest]}`, 'Your coins and inventory are saved', () => screens.openEasyWorld(dest));
+    for (const dest of travelDests) if (dest !== area) button(`Visit ${TITLES[dest]}`, 'Your coins and inventory are saved', () => (dest === 'house' ? screens.openFreeRoam() : screens.openEasyWorld(dest)));
     button('Main menu', 'Save and leave this area', () => screens.gotoMenu());
     button('Exit game', 'Save and stop game audio', () => screens.openExit());
     api.focusItems = buttons;

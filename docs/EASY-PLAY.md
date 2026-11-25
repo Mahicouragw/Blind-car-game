@@ -123,6 +123,9 @@ menu reads that area's controls. There is no time limit or tutorial gate.
   swipe up then left is ordinary walking.
 - Turn off Tap to walk and circles in Game TalkBack settings; sensitivity
   (relaxed/standard/swift) forgives or sharpens all gestures at once.
+- The main entrance gate leads out to City Walk (Harbour Gate); the Cottage
+  Door leads back. The forest road leaves from the city North Gate, so the
+  house, city and forest are one connected walk. Menus offer Visit links.
 - Keyboard: W/S walk, A/D turn, Space orientation, R use door.
 
 ## Saving, sound and lifecycle

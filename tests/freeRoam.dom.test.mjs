@@ -45,7 +45,7 @@ test('starting announces the hallway; holding walks forward, release stops', () 
   const app = boot(); const screen = start(app);
   assert.match(actionText(screen), /You are standing in the main hallway/);
   const labels = screen.focusItems.map(b => b.label);
-  for (const name of ['Step left', 'Step right', 'Step back', 'Orientation', 'Use nearby', 'Stop walking', 'Open game menu']) {
+  for (const name of ['Step left', 'Step right', 'Step back', 'Orientation', 'Use nearby', 'Stop walking', 'Walk out to the city', 'Open game menu']) {
     assert.ok(labels.includes(name), `${name} button exists for TalkBack`);
   }
   const y0 = screen.roam.state.y;
@@ -206,6 +206,38 @@ test('walking near an apple announces it without collecting', () => {
   assert.ok(heard.some((t) => /An apple is ahead and slightly to the left/.test(t)));
   assert.equal(app.gameState.save.roam.apples, 0, 'announcement never collects');
   assert.equal(app.gameState.save.roam.taken.length, 0);
+  app.destroy();
+});
+
+test('swipe up at the main entrance walks out to the city', () => {
+  const app = boot(); const screen = start(app);
+  screen.roam.state.x = 1.3; screen.roam.state.y = 0.4;
+  screen.handleGesture('swipe', { direction: 'up' });
+  assert.equal(app.screens.current.id, 'city');
+  assert.equal(app.screens.current.world.state.distance, 0, 'arrive at the Harbour Gate');
+  app.destroy();
+});
+
+test('swipe up at the Cottage Door enters the house', () => {
+  const app = boot();
+  app.screens.openEasyWorld('city');
+  bus.emit('gesture:doubleTap', { zone: { role: 'menu' } });
+  const city = app.screens.current;
+  assert.equal(city.playing, true);
+  city.world.state.distance = 149; city.world.state.maxDistance = 149;
+  city.handleGesture('swipe', { direction: 'up' });
+  assert.equal(app.screens.current.id, 'house');
+  assert.equal(app.screens.current.roam.roomAt(), 'hallway');
+  app.destroy();
+});
+
+test('menu Visit links connect house and city both ways', () => {
+  const app = boot();
+  app.screens.openFreeRoam();
+  app.screens.current.focusItems.find((b) => b.label === 'Visit City Walk').activate();
+  assert.equal(app.screens.current.id, 'city');
+  app.screens.current.focusItems.find((b) => b.label === 'Visit Explore House').activate();
+  assert.equal(app.screens.current.id, 'house');
   app.destroy();
 });
 

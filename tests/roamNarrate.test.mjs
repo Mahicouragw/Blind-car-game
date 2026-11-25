@@ -149,3 +149,22 @@ test('taken apples and the opened chest go silent', () => {
   for (let i = 0; i < 6; i++) heard2.push(...texts(narrator.update()));
   assert.ok(heard2.every((t) => !/chest/i.test(t)), 'no chest lines after opening');
 });
+
+test('the main entrance announces itself once per approach', () => {
+  const roam = createFreeRoam({ x: 1.3, y: 1.5, headingDeg: 180 });
+  const narrator = createRoamNarrator({ roam });
+  narrator.update(); // room entry
+  roam.state.y = 0.4;
+  assert.deepEqual(texts(narrator.update()), ['You are at the main entrance. Swipe up to walk out to the city.']);
+  assert.ok(!texts(narrator.update()).some((t) => /main entrance/.test(t)), 'no repeat while standing there');
+  roam.state.y = 1.5; // step away resets the approach
+  narrator.update();
+  roam.state.y = 0.4;
+  assert.deepEqual(texts(narrator.update()), ['You are at the main entrance. Swipe up to walk out to the city.']);
+});
+
+test('orientation at the entrance names the way out', () => {
+  const roam = createFreeRoam({ x: 1.3, y: 0.4, headingDeg: 180 });
+  const narrator = createRoamNarrator({ roam });
+  assert.match(narrator.orientation(), /The main entrance is here\. Swipe up to walk out to the city\./);
+});

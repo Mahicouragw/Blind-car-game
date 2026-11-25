@@ -150,6 +150,10 @@ export function createFreeRoam({
     return 'hallway';
   }
 
+  /** True at the main-entrance gate: the south-wall gap, x 0.8-1.8. */
+  function atEntrance() {
+    return state.y <= 0.7 && state.x >= 0.8 && state.x <= 1.8 && roomAt() === 'hallway';
+  }
   function facing(steps = 4) {
     if (steps === 8) return EIGHT_WIND[Math.round(state.headingDeg / 45) % 8];
     return CARDINALS[Math.round(state.headingDeg / 90) % 4];
@@ -251,7 +255,7 @@ export function createFreeRoam({
     state, map,
     setMove, setTurn, stop, update,
     setDoorOpen, isDoorOpen: (id) => doorOpen(id, false),
-    roomAt, facing, solidAt, store: bag,
+    roomAt, facing, solidAt, atEntrance, store: bag,
     isTaken, takeItem, chestOpened, openChest, nearestItem, nearestInteractable,
   };
 }

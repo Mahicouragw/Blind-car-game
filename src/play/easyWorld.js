@@ -39,6 +39,7 @@ export const CITY_PLACES = [
   { id: 'palace', name: 'Palace Steps', at: 65, kind: 'palace' },
   { id: 'boltgreen', name: 'Bolt Green', at: 100, kind: 'christmas' },
   { id: 'northgate', name: 'North Gate', at: 135, kind: 'forestgate' },
+  { id: 'cottage', name: 'Cottage Door', at: 150, kind: 'house' },
 ];
 /** A place counts as reached within this loop distance, in metres. */
 export const PLACE_ENTER_M = 6;
@@ -162,6 +163,7 @@ export function createEasyWorld({ area = 'ground', wallet = {}, inventory = {}, 
         return `${text} Palace Steps. Tap to hear the herald's quest.`;
       }
       if (near && near.kind === 'forestgate') return `${text} North Gate. Swipe up to walk to the forest.`;
+      if (near && near.kind === 'house') return `${text} Cottage Door. Swipe up to enter the house.`;
       if (near && near.kind === 'christmas') {
         return fairIsOpen()
           ? `${text} Bolt Green. The Christmas Bolt fair is open! Swipe up to enter.`
@@ -283,6 +285,7 @@ export function createEasyWorld({ area = 'ground', wallet = {}, inventory = {}, 
           : place.kind === 'christmas'
             ? (fairIsOpen() ? ' The Christmas Bolt fair is open! Swipe up to enter.' : ' The Christmas fair opens December 1st.')
             : place.kind === 'citygate' ? ' Swipe up to return to the city.'
+          : place.kind === 'house' ? ' Swipe up to enter the house.'
             : place.kind === 'gifts' && !inventory.starsDone ? ' The Starlight Quest: walk the full loop.'
             : '';
         emit(`${place.name}.${extra}`, place.kind === 'plaza' ? null : 'ui-select', 3);
@@ -436,6 +439,11 @@ export function createEasyWorld({ area = 'ground', wallet = {}, inventory = {}, 
           if (gate && gate.kind === 'forestgate') {
             state.speed = 0; state.holding = false;
             events.push({ text: 'Walking the North Gate road to the forest.', sound: 'path-turn', priority: 4, travel: 'forest' });
+            return;
+          }
+          if (gate && gate.kind === 'house') {
+            state.speed = 0; state.holding = false;
+            events.push({ text: 'Pushing open the cottage door.', sound: 'path-turn', priority: 4, travel: 'house' });
             return;
           }
           if (gate && gate.kind === 'christmas') {

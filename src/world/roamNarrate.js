@@ -91,6 +91,7 @@ export function createRoamNarrator({ roam, facingSteps = 4 }) {
   const api = { update, orientation, setFacingSteps };
   function setFacingSteps(n) { facingSteps = n === 8 ? 8 : 4; }
   let blockedActive = false;
+  let entranceAnnounced = false;
   let lastActionKey = null;
   const announced = new Set();
 
@@ -159,6 +160,7 @@ export function createRoamNarrator({ roam, facingSteps = 4 }) {
   function orientation() {
     const room = roam.roomAt();
     const parts = [`You are in the ${roomName(roam.map, room)}, facing ${roam.facing(facingSteps)}.`];
+    if (roam.atEntrance()) parts.push('The main entrance is here. Swipe up to walk out to the city.');
     const near = nearbyTargets().slice(0, 3);
     for (const t of near) parts.push(t.text);
     if (near.length === 0) parts.push('Nothing close by.');
@@ -181,6 +183,7 @@ export function createRoamNarrator({ roam, facingSteps = 4 }) {
       lastRoom = room;
       announced.clear();
       blockedActive = false;
+      entranceAnnounced = false;
       lastActionKey = null;
       return [{ text: `You are standing in the ${roomName(roam.map, room)}.`, priority: 4 }];
     }
@@ -189,6 +192,12 @@ export function createRoamNarrator({ roam, facingSteps = 4 }) {
       return [{ text: bumpText(), priority: 4 }];
     }
     if (!roam.state.blocked) blockedActive = false;
+    const atGate = roam.atEntrance();
+    if (atGate && !entranceAnnounced) {
+      entranceAnnounced = true;
+      return [{ text: 'You are at the main entrance. Swipe up to walk out to the city.', priority: 3 }];
+    }
+    if (!atGate) entranceAnnounced = false;
 
     // Leaving range resets a target, so returning re-announces it once.
     for (const key of [...announced]) {
