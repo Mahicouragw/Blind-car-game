@@ -118,7 +118,10 @@ menu reads that area's controls. There is no time limit or tutorial gate.
 - Double tap collects, opens, or uses the nearest thing in reach — apples in
   three rooms, a wooden chest (5 coins, 2 apples, once), doors — or reads
   orientation when nothing is near. Approaching never collects by itself.
-  The Satchel menu speaks what you carry; takes survive reloads. Triple tap
+  The Satchel menu speaks what you carry; takes survive reloads. Walking works
+  up hunger: the narrator warns when hungry or starving, starving drains
+  health, and fainting wakes you at the entrance with no penalty. Eat an apple
+  in the Satchel menu for hunger down and a little healing. Triple tap
   repeats the last announcement. Here, Back is one up-and-left stroke, since
   swipe up then left is ordinary walking.
 - Turn off Tap to walk and circles in Game TalkBack settings; sensitivity

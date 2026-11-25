@@ -87,6 +87,10 @@ export const HOUSE_MAP = {
 };
 
 export const CHEST_LOOT = { coins: 5, apples: 2 };
+export const HUNGER_PER_S = 0.2;
+export const STARVE_DRAIN_PER_S = 2;
+export const EAT_HUNGER = 50;
+export const EAT_HEAL = 10;
 
 export function normalizeHeading(deg) {
   return ((deg % 360) + 360) % 360;
@@ -128,8 +132,10 @@ export function createFreeRoam({
   store = null,
 } = {}) {
   // Live satchel: pass gameState.save.roam and takes persist across reloads.
-  const bag = store ?? { apples: 0, chestOpened: false, taken: [] };
+  const bag = store ?? { apples: 0, chestOpened: false, taken: [], health: 100, hunger: 0 };
   if (!Array.isArray(bag.taken)) bag.taken = [];
+  if (!Number.isFinite(bag.health)) bag.health = 100;
+  if (!Number.isFinite(bag.hunger)) bag.hunger = 0;
   const doors = new Map(map.doors.map((d) => [d.id, d.open !== false]));
   const state = {
     x, y,
@@ -249,6 +255,30 @@ export function createFreeRoam({
         else state.blocked = true;
       }
     }
+    // Hunger grows with walking; starving drains health. Never lethal on its
+    // own: the screen wakes the player at the entrance at zero health.
+    if (state.moving) bag.hunger = Math.min(100, bag.hunger + HUNGER_PER_S * dt);
+    if (bag.hunger >= 100) bag.health = Math.max(0, bag.health - STARVE_DRAIN_PER_S * dt);
+  }
+  function eatApple() {
+    if ((bag.apples ?? 0) < 1) return { ok: false, reason: 'none' };
+    if (bag.hunger <= 0 && bag.health >= 100) return { ok: false, reason: 'full' };
+    bag.apples -= 1;
+    bag.hunger = Math.max(0, bag.hunger - EAT_HUNGER);
+    bag.health = Math.min(100, bag.health + EAT_HEAL);
+    return { ok: true, apples: bag.apples, hunger: Math.round(bag.hunger), health: Math.round(bag.health) };
+  }
+  function fainted() { return bag.health <= 0; }
+  function recover() {
+    bag.health = 50; bag.hunger = 60;
+    state.x = map.start.x; state.y = map.start.y;
+    state.headingDeg = normalizeHeading(map.start.headingDeg);
+    stop();
+  }
+  function hungerWord() {
+    if (bag.hunger >= 100) return 'Starving';
+    if (bag.hunger >= 70) return 'Hungry';
+    return 'Full';
   }
 
   return {
@@ -257,5 +287,6 @@ export function createFreeRoam({
     setDoorOpen, isDoorOpen: (id) => doorOpen(id, false),
     roomAt, facing, solidAt, atEntrance, store: bag,
     isTaken, takeItem, chestOpened, openChest, nearestItem, nearestInteractable,
+    eatApple, fainted, recover, hungerWord,
   };
 }

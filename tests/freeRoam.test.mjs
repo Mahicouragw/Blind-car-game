@@ -222,9 +222,9 @@ test('takes persist through a shared store', () => {
 
 test('save files carry the roam satchel with safe defaults', async () => {
   const { coerceSave } = await import('../src/core/save.js');
-  assert.deepEqual(coerceSave({}).save.roam, { apples: 0, chestOpened: false, taken: [] });
-  const dirty = coerceSave({ roam: { apples: -5, chestOpened: 'yes', taken: 'x' } }).save.roam;
-  assert.deepEqual(dirty, { apples: 0, chestOpened: false, taken: [] });
+  assert.deepEqual(coerceSave({}).save.roam, { apples: 0, chestOpened: false, taken: [], health: 100, hunger: 0 });
+  const dirty = coerceSave({ roam: { apples: -5, chestOpened: 'yes', taken: 'x', health: 999, hunger: -3 } }).save.roam;
+  assert.deepEqual(dirty, { apples: 0, chestOpened: false, taken: [], health: 100, hunger: 0 });
 });
 
 test('the main entrance gate reads only at the south-wall gap', () => {
@@ -234,4 +234,40 @@ test('the main entrance gate reads only at the south-wall gap', () => {
   assert.equal(roam.atEntrance(), true);
   roam.state.x = 5;
   assert.equal(roam.atEntrance(), false, 'mid-wall is not the gate');
+});
+
+test('hunger rises only while walking; starving drains health', () => {
+  const roam = createFreeRoam({ x: 5, y: 1.0, headingDeg: 90 });
+  run(roam, 5.0);
+  assert.equal(roam.store.hunger, 0, 'standing still never hungers');
+  roam.setMove('forward'); run(roam, 5.0); roam.stop();
+  assert.ok(Math.abs(roam.store.hunger - 1.0) < 0.01, `hunger ${roam.store.hunger} after 5 s walking`);
+  roam.store.hunger = 100;
+  run(roam, 2.0);
+  near(roam.store.health, 96, 'starving drains even standing still');
+});
+
+test('eating an apple lowers hunger and heals, never wasted', () => {
+  const roam = createFreeRoam({});
+  assert.deepEqual(roam.eatApple(), { ok: false, reason: 'none' });
+  roam.store.apples = 2;
+  assert.deepEqual(roam.eatApple(), { ok: false, reason: 'full' });
+  assert.equal(roam.store.apples, 2, 'full and healthy eats nothing');
+  roam.store.hunger = 80; roam.store.health = 90;
+  assert.deepEqual(roam.eatApple(), { ok: true, apples: 1, hunger: 30, health: 100 });
+  assert.equal(roam.hungerWord(), 'Full');
+  roam.store.hunger = 90;
+  assert.equal(roam.hungerWord(), 'Hungry');
+  roam.eatApple();
+  assert.equal(roam.store.hunger, 40);
+});
+
+test('fainting recovers at the entrance with no death penalty', () => {
+  const roam = createFreeRoam({ x: 3.9, y: 2.8 });
+  roam.store.health = 0;
+  assert.equal(roam.fainted(), true);
+  roam.recover();
+  assert.equal(roam.fainted(), false);
+  assert.deepEqual([roam.state.x, roam.state.y], [1.3, 1.0]);
+  assert.equal(roam.store.health, 50);
 });

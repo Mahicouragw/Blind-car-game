@@ -168,3 +168,34 @@ test('orientation at the entrance names the way out', () => {
   const narrator = createRoamNarrator({ roam });
   assert.match(narrator.orientation(), /The main entrance is here\. Swipe up to walk out to the city\./);
 });
+
+test('hunger crossings speak once with hysteresis', () => {
+  const roam = createFreeRoam({});
+  const narrator = createRoamNarrator({ roam });
+  narrator.update();
+  for (let i = 0; i < 6; i++) narrator.update();
+  roam.store.hunger = 75;
+  assert.deepEqual(texts(narrator.update()), ['Your stomach rumbles. You are hungry.']);
+  assert.deepEqual(narrator.update(), [], 'no repeat');
+  roam.store.hunger = 100;
+  assert.deepEqual(texts(narrator.update()), ['You are starving. Eat something soon.']);
+  assert.deepEqual(narrator.update(), [], 'no repeat');
+  roam.store.hunger = 60;
+  narrator.update();
+  roam.store.hunger = 75;
+  assert.deepEqual(narrator.update(), [], 'still announced until below 50');
+  roam.store.hunger = 40;
+  narrator.update();
+  roam.store.hunger = 75;
+  assert.deepEqual(texts(narrator.update()), ['Your stomach rumbles. You are hungry.']);
+});
+
+test('orientation reports hunger and starvation', () => {
+  const roam = createFreeRoam({});
+  const narrator = createRoamNarrator({ roam });
+  assert.ok(!/hungry|starving/.test(narrator.orientation()));
+  roam.store.hunger = 70;
+  assert.match(narrator.orientation(), /You are hungry\./);
+  roam.store.hunger = 100;
+  assert.match(narrator.orientation(), /You are starving\./);
+});

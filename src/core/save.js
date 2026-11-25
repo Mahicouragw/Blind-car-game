@@ -181,6 +181,8 @@ export function coerceSave(raw) {
       apples: clampInt(raw.roam?.apples, 0, 99, 0),
       chestOpened: raw.roam?.chestOpened === true,
       taken: asStringArray(raw.roam?.taken, 40),
+      health: clampInt(raw.roam?.health, 0, 100, 100),
+      hunger: clampInt(raw.roam?.hunger, 0, 100, 0),
     },
     level,
     carId,
