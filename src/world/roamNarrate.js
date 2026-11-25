@@ -91,6 +91,8 @@ export function createRoamNarrator({ roam, facingSteps = 4 }) {
   const api = { update, orientation, setFacingSteps };
   function setFacingSteps(n) { facingSteps = n === 8 ? 8 : 4; }
   let blockedActive = false;
+  let hungryAnnounced = false;
+  let starvingAnnounced = false;
   let entranceAnnounced = false;
   let lastActionKey = null;
   const announced = new Set();
@@ -161,6 +163,9 @@ export function createRoamNarrator({ roam, facingSteps = 4 }) {
     const room = roam.roomAt();
     const parts = [`You are in the ${roomName(roam.map, room)}, facing ${roam.facing(facingSteps)}.`];
     if (roam.atEntrance()) parts.push('The main entrance is here. Swipe up to walk out to the city.');
+    const hg = roam.store.hunger ?? 0;
+    if (hg >= 100) parts.push('You are starving.');
+    else if (hg >= 70) parts.push('You are hungry.');
     const near = nearbyTargets().slice(0, 3);
     for (const t of near) parts.push(t.text);
     if (near.length === 0) parts.push('Nothing close by.');
@@ -198,6 +203,17 @@ export function createRoamNarrator({ roam, facingSteps = 4 }) {
       return [{ text: 'You are at the main entrance. Swipe up to walk out to the city.', priority: 3 }];
     }
     if (!atGate) entranceAnnounced = false;
+    const hunger = roam.store.hunger ?? 0;
+    if (hunger >= 100 && !starvingAnnounced) {
+      starvingAnnounced = true; hungryAnnounced = true;
+      return [{ text: 'You are starving. Eat something soon.', priority: 3 }];
+    }
+    if (hunger < 80) starvingAnnounced = false;
+    if (hunger >= 70 && hunger < 100 && !hungryAnnounced) {
+      hungryAnnounced = true;
+      return [{ text: 'Your stomach rumbles. You are hungry.', priority: 2 }];
+    }
+    if (hunger < 50) hungryAnnounced = false;
 
     // Leaving range resets a target, so returning re-announces it once.
     for (const key of [...announced]) {

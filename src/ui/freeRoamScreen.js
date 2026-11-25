@@ -125,11 +125,19 @@ export function buildFreeRoamScreen({ gameState, screens, speech, audio, onContr
   function satchelText() {
     const n = roam.store.apples ?? 0;
     const chest = roam.chestOpened() ? 'The wooden chest stands open.' : 'A wooden chest waits in the living room.';
-    return `Satchel: ${n} apple${n === 1 ? '' : 's'}. ${chest}`;
+    return `Satchel: ${n} apple${n === 1 ? '' : 's'}. Health ${Math.round(roam.store.health ?? 100)}. ${chest}`;
   }
   function persist() {
     const now = JSON.stringify([gameState.save.coins, gameState.save.roam]);
     if (now !== saved) { gameState.persist(); saved = now; }
+  }
+  function eatApple() {
+    const r = roam.eatApple();
+    if (!r.ok && r.reason === 'none') { say('No apples in your satchel.', 2); return; }
+    if (!r.ok) { say('You are full and healthy. Save your apples.', 2); return; }
+    audio?.play('ui-confirm', { group: 'sfx', volume: 0.5 });
+    const feel = roam.hungerWord() === 'Full' ? 'You feel full' : `You are still ${roam.hungerWord().toLowerCase()}`;
+    say(`You eat an apple. Health ${r.health}. ${feel}. ${r.apples} apple${r.apples === 1 ? '' : 's'} left.`, 3);
   }
   function smartInteract() {
     if (!api.playing) return;
@@ -250,6 +258,11 @@ export function buildFreeRoamScreen({ gameState, screens, speech, audio, onContr
     tick(dt) {
       if (!api.playing) return;
       roam.update(dt);
+      if (roam.fainted()) {
+        roam.recover();
+        flush();
+        say('You feel faint from hunger and wake up at the house entrance.', 4);
+      }
       if (roam.state.moving) {
         footstepClock += dt;
         if (footstepClock >= 0.5) {
@@ -267,7 +280,7 @@ export function buildFreeRoamScreen({ gameState, screens, speech, audio, onContr
   function render() {
     const room = roam.map.rooms.find((r) => r.id === roam.roomAt());
     caption.textContent = `${room ? room.name[0].toUpperCase() + room.name.slice(1) : 'House'}. Facing ${faceWords()}.`;
-    status.textContent = `${roam.state.moving ? 'Walking' : 'Standing'} · facing ${faceWords()} · position ${roam.state.x.toFixed(1)}, ${roam.state.y.toFixed(1)} metres`;
+    status.textContent = `${roam.state.moving ? 'Walking' : 'Standing'} · facing ${faceWords()} · position ${roam.state.x.toFixed(1)}, ${roam.state.y.toFixed(1)} metres · Health ${Math.round(roam.store.health ?? 100)} · ${roam.hungerWord()}`;
     const avatar = visual.querySelector('.roam-avatar');
     avatar.setAttribute('transform', `translate(${roam.state.x * S} ${py(roam.state.y)}) rotate(${roam.state.headingDeg})`);
     for (const el of visual.querySelectorAll('[data-door]')) {
@@ -288,6 +301,7 @@ export function buildFreeRoamScreen({ gameState, screens, speech, audio, onContr
     button(started ? 'Return to game' : 'Start Explore House', 'Close this menu and play', () => api.closeMenu());
     button('Where am I', 'Hear the room, facing and surroundings', () => say(narrator.orientation(), 3));
     button('Satchel', 'Hear what you carry', () => say(satchelText(), 3));
+    button('Eat an apple', 'Lower hunger and heal a little', () => eatApple());
     button('Visit City Walk', 'Fast travel; the forest road leaves from the North Gate', () => screens.openEasyWorld('city'));
     button('How to play', 'Read the controls for exploring', () => say(`${ROAM_HOW_TO_PLAY} Down-left opens this menu. One up-and-left stroke goes back. Keyboard: W walks forward, S walks backward, A and D turn, Space hears orientation, R uses a nearby door.`, 3));
     button('Main menu', 'Leave the house', () => screens.gotoMenu());

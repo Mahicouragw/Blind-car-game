@@ -194,7 +194,7 @@ test('the Satchel menu speaks what you carry', () => {
   screen.handleGesture('doubleTap');
   screen.openMenu();
   screen.focusItems.find((b) => b.label === 'Satchel').activate();
-  assert.match(actionText(screen), /Satchel: 1 apple\. A wooden chest waits/);
+  assert.match(actionText(screen), /Satchel: 1 apple\. Health 100\. A wooden chest waits/);
   app.destroy();
 });
 
@@ -238,6 +238,35 @@ test('menu Visit links connect house and city both ways', () => {
   assert.equal(app.screens.current.id, 'city');
   app.screens.current.focusItems.find((b) => b.label === 'Visit Explore House').activate();
   assert.equal(app.screens.current.id, 'house');
+  app.destroy();
+});
+
+test('Eat an apple lowers hunger and speaks the result', () => {
+  const app = boot(); const screen = start(app);
+  app.gameState.save.roam.apples = 2;
+  app.gameState.save.roam.hunger = 80;
+  app.gameState.save.roam.health = 90;
+  screen.openMenu();
+  screen.focusItems.find((b) => b.label === 'Eat an apple').activate();
+  assert.match(actionText(screen), /You eat an apple\. Health 100\. You feel full\. 1 apple left/);
+  assert.equal(app.gameState.save.roam.apples, 1);
+  assert.equal(app.gameState.save.roam.hunger, 30);
+  app.destroy();
+});
+
+test('eating with no apples says so; fainting wakes at the entrance', () => {
+  const app = boot(); const screen = start(app);
+  screen.openMenu();
+  screen.focusItems.find((b) => b.label === 'Eat an apple').activate();
+  assert.match(actionText(screen), /No apples in your satchel/);
+  screen.closeMenu();
+  app.gameState.save.roam.hunger = 100;
+  app.gameState.save.roam.health = 3;
+  screen.roam.state.x = 6.4; screen.roam.state.y = 3.0;
+  screen.tick(2);
+  assert.match(actionText(screen), /feel faint from hunger/);
+  assert.deepEqual([screen.roam.state.x, screen.roam.state.y], [1.3, 1.0]);
+  assert.equal(app.gameState.save.roam.health, 50);
   app.destroy();
 });
 
