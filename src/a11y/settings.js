@@ -73,6 +73,26 @@ export function paceScale(id) {
   return found && Number.isFinite(found.scale) && found.scale > 0 ? found.scale : 1;
 }
 
+/**
+ * Driving style: who does the work of driving the car.
+ *
+ * Easy (the default) is one-control racing: the car accelerates itself, slows
+ * itself for corners, follows the racing line with a strong steering assist,
+ * warns about corners earlier, and treats light barrier contact as a bump
+ * rather than a race-stopper. The player only steers - one finger, with help -
+ * and taps to brake. Classic keeps the original controls: hold to accelerate,
+ * steer entirely by hand, full crash consequences.
+ */
+export const DRIVE_MODE = [
+  { id: 'easy', label: 'Easy Race', describe: 'the car accelerates and slows itself and helps you steer, so you only steer with one finger' },
+  { id: 'classic', label: 'Classic', describe: 'the original controls: hold to accelerate and steer entirely by hand' },
+];
+
+/** True unless the player explicitly chose Classic. Missing values stay Easy. */
+export function isEasyDrive(id) {
+  return id !== 'classic';
+}
+
 const ON_OFF = [
   { id: true, label: 'On' },
   { id: false, label: 'Off' },
@@ -181,6 +201,14 @@ export const SETTINGS_SCHEMA = {
     label: 'Corner warning distance',
     options: WARNING_DISTANCE,
     announce: (v) => WARNING_DISTANCE.find((f) => f.id === v)?.label ?? v,
+  },
+  driveMode: {
+    type: 'enum',
+    default: 'easy',
+    label: 'Driving style',
+    options: DRIVE_MODE,
+    help: 'Easy Race: the car accelerates and slows itself and helps you steer, so you only steer with one finger and tap to brake. Classic: hold to accelerate and steer entirely by hand.',
+    announce: (v) => DRIVE_MODE.find((f) => f.id === v)?.label ?? v,
   },
   carPace: {
     type: 'enum',

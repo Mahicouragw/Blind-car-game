@@ -2,9 +2,32 @@
 
 These are **new, untimed, spoken mini-game modes**, available from the main menu
 without finishing the story or gesture tutorial. The existing Three.js simulation
-races, opponents, garage and story remain available and keep their existing
-controls. The easy areas use a simplified endless route and a high-contrast 2D
+races, opponents, garage and story remain available; the 3D circuit races now
+default to **Easy Race** (below), with the original controls kept as Classic.
+The easy areas use a simplified endless route and a high-contrast 2D
 visual companion, not a new full 3D open-world engine.
+
+## Easy Race: the 3D circuit races
+
+Applies to every 3D circuit race, including the story races. It is the default
+**Driving style**; Classic is one change away in Game TalkBack settings.
+
+- The car **accelerates by itself** from the green light. No holding to move.
+- It **slows itself for corners** by the same proven target-speed controller
+  the opponents use, at a pace that matches the best opponent on the grid.
+- A **strong steering assist follows the racing line**, so the player only
+  steers with one finger on top of that help. Releasing the steering lets the
+  car centre itself. Yaw damping is strong at speed and fades in slow hairpins
+  so tight corners stay turnable.
+- **Tap once to brake** any time; the car sets off again on its own.
+- **Light barrier or car contact is a bump, not a stop**: felt and heard, but
+  only a heavy hit stops the car and offers Try again. Off-track grace is
+  nearly doubled, and the assist steers back to the strip by itself.
+- Turn guidance grows a **midpoint call at 250 metres** plus coaching with the
+  first call ("The car slows itself. Be ready to steer left."). Classic keeps
+  exactly the early and 50-metre calls with the original wording.
+- Everything else - horn, U-turn, reverse, race menu, pausing - works as in
+  Classic, and the starting briefing teaches the one control up front.
 
 ## One menu rule, everywhere
 

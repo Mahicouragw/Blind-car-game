@@ -52,7 +52,7 @@ test('the director uses the 50m turn-now cue, not repeated turn-in coaching', ()
   const track=getTrack(), g=track.geometry;
   const corner=track.zones.find(z=>z.id==='zone.corner.t1');
   const sample=metres=>{const p=g.pointAt(g.normaliseS(corner.from-metres));return navigationFacts(track,{x:p.x,z:p.z,heading:p.heading,speed:30},{});};
-  const director=createAnnouncementDirector({getSettings:()=>({talkback:true})});
+  const director=createAnnouncementDirector({getSettings:()=>({talkback:true,driveMode:'classic'})});
   const race={lap:1,totalLaps:2,phase:'racing'};
   director.update(sample(100),race);
   assert.equal(director.update(sample(60),race).length,0);
@@ -65,7 +65,7 @@ test('the director calls each corner twice: early with distance, then now', () =
   const track=getTrack(), g=track.geometry;
   const corner=track.zones.find(z=>z.id==='zone.corner.t1');
   const sample=metres=>{const p=g.pointAt(g.normaliseS(corner.from-metres));return navigationFacts(track,{x:p.x,z:p.z,heading:p.heading,speed:30},{});};
-  const director=createAnnouncementDirector({getSettings:()=>({talkback:true})});
+  const director=createAnnouncementDirector({getSettings:()=>({talkback:true,driveMode:'classic'})});
   const race={lap:1,totalLaps:2,phase:'racing'};
   const early=director.update(sample(400),race).find(i=>i.key?.startsWith('calls.'));
   assert.ok(early, 'a 400 m callout');
@@ -339,7 +339,7 @@ test('the side scout reads real geometry and the turn is called out in METRES', 
 
   // The look-ahead: "Turn X in N metres" on the approach - metres, never
   // seconds ("it should say turn left 500 m, 300 m, 100 m").
-  const director = createAnnouncementDirector({ getSettings: () => ({ talkback: true }), now: () => 0 });
+  const director = createAnnouncementDirector({ getSettings: () => ({ talkback: true, driveMode: 'classic' }), now: () => 0 });
   const corner = track.zones.find((z) => z.id === 'zone.corner.t1');
   const spot = g.pointAt(g.normaliseS(corner.from - 160));
   const items = director.update(
@@ -354,7 +354,7 @@ test('the side scout reads real geometry and the turn is called out in METRES', 
 
 test('distance calls stay quiet from 500m to 50m regardless of time elapsed', () => {
   const track=getTrack(),g=track.geometry; let clock=0;
-  const d=createAnnouncementDirector({getSettings:()=>({talkback:true}),now:()=>clock});
+  const d=createAnnouncementDirector({getSettings:()=>({talkback:true,driveMode:'classic'}),now:()=>clock});
   const corner=track.zones.find(z=>z.id==='zone.corner.t1');
   const sample=m=>{const p=g.pointAt(g.normaliseS(corner.from-m));return navigationFacts(track,{x:p.x,z:p.z,heading:p.heading,speed:20},{});};
   const race={lap:1,totalLaps:2,phase:'racing'};

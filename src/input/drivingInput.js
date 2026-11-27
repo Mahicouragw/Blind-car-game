@@ -151,6 +151,13 @@ export function createDrivingInput(config = {}) {
   const swipeSteerGain = config.swipeSteerGain ?? 0.0077; // per pixel of drag
   const maxSteerFromSwipe = config.maxSteerFromSwipe ?? 1;
   const keyboard = config.keyboard ?? null;
+  // Easy Race: the car accelerates itself, so the player never has to hold a
+  // finger down to move. Braking, the handbrake, the horn and reversing all
+  // override it: a brake tap still slows the car, and the throttle resumes on
+  // its own when the tap ends. The race screen switches this on at race start
+  // and off again when the race ends, because this input is shared and nothing
+  // outside a race may ever move a car.
+  let autoThrottle = config.autoThrottle ?? false;
   let dragSteer = 0;
   let dragActive = false;
   let dragStartX = 0;
@@ -370,11 +377,19 @@ export function createDrivingInput(config = {}) {
       if (!dragActive && Math.abs(state.steer) < 0.02) state.steer = 0;
 
       if (state.uturnRequest > 0) state.uturnRequest = Math.max(0, state.uturnRequest - dt);
+      const cruising =
+        autoThrottle && !state.braking && !state.handbrake && !state.horn && state.reversing <= 0;
+      if (cruising) state.throttle = 1;
       if (state.respawnRequest) {
         state.respawnRequest = false;
         return { ...state, consumeRespawn: true };
       }
       return { ...state, consumeRespawn: false };
+    },
+    /** Switch Easy Race self-acceleration on or off. See `autoThrottle`. */
+    setAutoThrottle(v) {
+      autoThrottle = !!v;
+      if (!autoThrottle && !state.holding) state.throttle = 0;
     },
     reset() {
       clearTimeout(brakeTimer); brakeTimer = null;

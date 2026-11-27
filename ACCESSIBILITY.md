@@ -138,7 +138,7 @@ Full rules, thresholds and conflict resolution are in
 | Swipe up / down | menus | Move between options |
 | Swipe left / right | car selection | Previous / next car |
 | Swipe up / down | garage | Move between cars, tyres and the wash |
-| **Press and hold** | driving surface | **Accelerate**; release coasts |
+| **Press and hold** | driving surface | **Accelerate** (Classic); in Easy Race the car accelerates itself |
 | **Double tap** | driving surface | **Brake** |
 | **Double tap and hold >1s** | driving surface | **Recorded car horn**; release stops it |
 | Drag left / right | driving surface | **Steer, gradually** |
