@@ -11,8 +11,9 @@
  */
 
 import { zoneAtS } from '../world/trackData.js';
-import { cornerSpeed, toKph, wrapPi, resolveSurface, barrierDistance } from '../vehicles/physics.js';
-import { WARNING_DISTANCE, NAV_FREQUENCY } from '../a11y/settings.js';
+import { clamp01, cornerSpeed, toKph, wrapPi, resolveSurface, barrierDistance } from '../vehicles/physics.js';
+import { aiTargetSpeed } from '../vehicles/ai.js';
+import { WARNING_DISTANCE, NAV_FREQUENCY, isEasyDrive } from '../a11y/settings.js';
 
 const ORDINALS = ['first', 'second', 'third', 'fourth', 'fifth', 'sixth', 'seventh', 'eighth'];
 
@@ -304,6 +305,9 @@ export function createAnnouncementDirector(config = {}) {
       const out = [];
       const t = now();
       if (race.lap !== state.calloutLap) { state.callouts.clear(); state.calloutLap = race.lap; }
+      // Easy Race adds a midpoint turn call plus guidance to the routine turn
+      // calls below, because one-finger steering needs more thinking time.
+      const easy = isEasyDrive(s.driveMode);
       const warn = warningMetres();
       const ff = frequencyFactor();
 
@@ -456,17 +460,38 @@ export function createAnnouncementDirector(config = {}) {
         });
       }
 
-      // Exactly two routine turn calls: first at 500m, final at 50m.
-      // If visibility starts on a shorter leg, state its actual distance.
+      // Routine turn calls: first when the corner comes into range (up to 500 m),
+      // final at 50 m. If visibility starts on a shorter leg, the first call
+      // states its actual distance. Easy Race adds a midpoint call at 250 m and
+      // guidance with the first call, because one-finger steering needs more
+      // thinking time; Classic keeps exactly the two calls.
       if (racingNow && corner && facts.speed > 2.5 && corner.distanceM <= 500) {
-        const rec = state.callouts.get(corner.id) ?? { early: false, now: false };
+        const rec = state.callouts.get(corner.id) ?? { early: false, earlyAt: 0, mid: false, now: false };
         const urgent = corner.distanceM <= 50;
-        if ((urgent && !rec.now) || (!urgent && !rec.early)) {
-          const number = Math.max(50, Math.round(corner.distanceM / 50) * 50);
-          const text = urgent ? `Turn ${corner.direction} now.` : `Turn ${corner.direction} in ${number} metres.`;
-          rec.early = true; if (urgent) rec.now = true;
+        const number = Math.max(50, Math.round(corner.distanceM / 50) * 50);
+        let text = null;
+        let kind = null;
+        if (urgent && !rec.now) {
+          text = `Turn ${corner.direction} now.`;
+          kind = 'now';
+          rec.early = true; rec.mid = true; rec.now = true;
+        } else if (!urgent && !rec.early) {
+          text = easy
+            ? `Turn ${corner.direction} in ${number} metres. The car slows itself. Be ready to steer ${corner.direction}.`
+            : `Turn ${corner.direction} in ${number} metres.`;
+          kind = 'early';
+          rec.early = true; rec.earlyAt = corner.distanceM;
+        } else if (easy && !urgent && rec.early && !rec.mid && rec.earlyAt > 250 && corner.distanceM <= 250) {
+          // Only when the first call really was early: on a short leg the
+          // first call already stated a sub-250 m distance, and repeating it
+          // a second later would be the chatter the two-call rule forbids.
+          text = `Turn ${corner.direction} in ${number} metres.`;
+          kind = 'mid';
+          rec.mid = true;
+        }
+        if (text) {
           out.push({ text, concise: text, priority: urgent ? 4 : 3,
-            key: `calls.${corner.id}.${urgent ? 'now' : 'early'}`, cooldownMs: 0,
+            key: `calls.${corner.id}.${kind}`, cooldownMs: 0,
             ttlMs: urgent ? 1500 : 5000, interrupt: true, hardInterrupt: true, replace: true, tag: 'corner' });
         }
         state.callouts.set(corner.id, rec);
@@ -703,6 +728,113 @@ function speedBand(kph) {
   if (kph < 130) return 2;
   if (kph < 190) return 3;
   return 4;
+}
+
+/**
+ * Easy Race steering: a steering angle that follows the centre-line on its own.
+ *
+ * Pure pursuit toward a look-ahead point plus an explicit lateral correction,
+ * the same two terms the opponent AI uses (see vehicles/ai.js) with the same
+ * sign convention: positive steer is LEFT and positive lateral is RIGHT of the
+ * centre-line. The race screen blends this with the player's own steering, so
+ * the car holds the track with no input and a swipe still bends the line.
+ * Off the track it steers back toward the strip instead. Pure and tested.
+ *
+ * @param {object} track
+ * @param {{x:number,z:number,heading:number,speed:number}} vehicle speed in m/s
+ * @returns {number} -1 (full right) .. +1 (full left)
+ */
+export function assistSteer(track, vehicle) {
+  const g = track.geometry;
+  const near = g.nearest(vehicle.x, vehicle.z);
+  const s = g.normaliseS(near.s);
+  const speed = Math.abs(vehicle.speed ?? 0);
+  const offTrack = Math.abs(near.lateral) > g.halfWidth + 0.4;
+  if (offTrack) {
+    const recover = g.pointAt(g.normaliseS(s + 16));
+    const errBack = wrapPi(Math.atan2(-(recover.z - vehicle.z), recover.x - vehicle.x) - vehicle.heading);
+    return Math.max(-1, Math.min(1, errBack * 2.8 + (near.lateral > 0 ? 0.85 : -0.85)));
+  }
+  const lookahead = Math.max(12, Math.min(70, 10 + speed * 1.15 + Math.abs(near.lateral) * 0.35));
+  const ahead = g.pointAt(g.normaliseS(s + lookahead));
+  const desired = Math.atan2(-(ahead.z - vehicle.z), ahead.x - vehicle.x);
+  const err = wrapPi(desired - vehicle.heading);
+  return Math.max(-1, Math.min(1, err * 2.0 + near.lateral * 0.13));
+}
+
+/**
+ * The corner-speed skill of the Easy Race automatic driver.
+ *
+ * This is the same `skill` dial the opponents use in `aiTargetSpeed`, so an
+ * Easy car corners exactly as quickly as an opponent of this skill - and the
+ * per-level pace below matches the best opponent on the grid, so Easy is never
+ * out-paced by the field it is racing.
+ */
+export const EASY_SKILL = 0.85;
+
+/**
+ * The Easy pace for a level: the best opponent's skill, floored at EASY_SKILL.
+ * Easy Race is an accessibility mode, so it never asks the player to beat a
+ * faster car with a slower one; winning still needs clean laps, not pace.
+ */
+export function easySkillFor(level) {
+  const skills = (level?.opponents ?? []).map((o) => o.skill ?? 0);
+  return Math.max(EASY_SKILL, ...skills);
+}
+
+/**
+ * Easy Race pedals: full throttle on the open track, braking down to a
+ * corner-safe target speed the same proven way the opponents do.
+ *
+ * The target comes from `aiTargetSpeed`, which scans the real curvature ahead
+ * and plans braking over the whole window - including slowing for the corner
+ * the car is already inside, which a "next corner" check alone misses. Pure
+ * and tested, including by the self-drive lap test.
+ *
+ * @param {object} track
+ * @param {{x:number,z:number,heading:number,speed:number}} vehicle speed in m/s
+ * @param {object} car the player's car object (unpaced; speedScale paces it)
+ * @param {object} [opts] {skill, speedScale, gripMultiplier}
+ * @returns {{throttle:number, brake:number, targetSpeed:number}} speeds in m/s
+ */
+export function assistPedals(track, vehicle, car, opts = {}) {
+  const g = track.geometry;
+  const near = g.nearest(vehicle.x, vehicle.z);
+  const s = g.normaliseS(near.s);
+  const speed = Math.abs(vehicle.speed ?? 0);
+  const target = aiTargetSpeed(track, car, s, speed, opts.skill ?? EASY_SKILL, opts.speedScale ?? 1, {
+    gripMultiplier: opts.gripMultiplier ?? 1,
+  });
+  const tooFast = speed > target + 1.2;
+  // Ease off while off the strip: grass and gravel have far less grip, and
+  // full throttle there just digs the car in further. Same rule as the AI.
+  const offTrack = Math.abs(near.lateral) > g.halfWidth;
+  const lift = offTrack ? 0.5 : 0;
+  return {
+    throttle: tooFast ? 0 : clamp01((target - speed) / 6 + 0.25 - lift),
+    brake: tooFast ? clamp01((speed - target) / 14) : offTrack && speed > 25 ? 0.25 : 0,
+    targetSpeed: target,
+  };
+}
+
+/**
+ * Easy Race yaw damping by speed.
+ *
+ * High speed wants strong damping - it is what keeps the car rock steady for
+ * a player steering by ear. But heavy damping in a slow hairpin is
+ * un-drivable: the car physically cannot rotate through a 23 m radius with
+ * the yaw rate strangled, so it understeers out no matter what the assist
+ * asks for. Like a real car's speed-sensitive steering, the damping fades as
+ * the car slows for corners and returns on the straights.
+ *
+ * @param {number} speedKph
+ * @returns {number} 0..1 for the physics `steeringAssist` option
+ */
+export function easySteeringAssist(speedKph) {
+  if (!Number.isFinite(speedKph)) return 0.9;
+  if (speedKph <= 60) return 0.3;
+  if (speedKph >= 120) return 0.9;
+  return 0.3 + ((speedKph - 60) / 60) * 0.6;
 }
 
 /** The spoken corner warning, phrased by severity exactly as the brief asks. */

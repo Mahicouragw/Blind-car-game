@@ -289,7 +289,9 @@ function director(settings = {}) {
 }
 
 test('fixed turn guidance warns once early, once at 50m, never intermediate distances', () => {
-  const {d,tick}=director();
+  // The two-call contract is the Classic contract now: Easy Race adds a
+  // midpoint call and guidance (see easyRace.test.mjs).
+  const {d,tick}=director({driveMode:'classic'});
   const p=g.pointAt(200);
   const base=navigationFacts(track,{x:p.x,z:p.z,heading:p.heading,speed:30},{});
   const facts=m=>({...base,nextCorner:{...base.nextCorner,distanceM:m}});
@@ -307,7 +309,7 @@ test('legacy warning-distance preference cannot reintroduce intermediate chatter
   const p=g.pointAt(200);
   const base=navigationFacts(track,{x:p.x,z:p.z,heading:p.heading,speed:30},{});
   for(const warningDistance of ['short','normal','long']) {
-    const {d,tick}=director({warningDistance}); const race={lap:1,totalLaps:2,phase:'racing'};
+    const {d,tick}=director({warningDistance,driveMode:'classic'}); const race={lap:1,totalLaps:2,phase:'racing'};
     d.update({...base,nextCorner:{...base.nextCorner,distanceM:500}},race); tick(10000);
     assert.deepEqual(d.update({...base,nextCorner:{...base.nextCorner,distanceM:120}},race),[]);
     assert.match(d.update({...base,nextCorner:{...base.nextCorner,distanceM:49}},race)[0].text,/now/);

@@ -40,7 +40,7 @@ import {
   withPace,
 } from '../vehicles/physics.js';
 import { dirtLevel, tyreGrip } from './garage.js';
-import { intToWords, paceScale, raceLapsFor } from '../a11y/settings.js';
+import { intToWords, isEasyDrive, paceScale, raceLapsFor } from '../a11y/settings.js';
 import { createAiDriver, separateRacers, updateAiDriver } from '../vehicles/ai.js';
 import {
   buildResults,
@@ -52,7 +52,7 @@ import {
   recomputePositions,
   updateRacer,
 } from './raceState.js';
-import { createAnnouncementDirector, navigationFacts, relativeBearing } from './navigation.js';
+import { assistPedals, assistSteer, createAnnouncementDirector, easySkillFor, easySteeringAssist, navigationFacts, relativeBearing } from './navigation.js';
 import { steerSelectLabel } from '../input/drivingInput.js';
 import { SPEECH_PRIORITY } from '../a11y/speechQueue.js';
 
@@ -122,6 +122,15 @@ export function createRaceScreen(config) {
   // how hard it is to win - see CAR_PACE in a11y/settings.js.
   const pace = paceScale(gameState?.settings?.carPace);
   const pacedCar = withPace(playerCar, pace);
+
+  // Easy Race is the default driving style: the car accelerates and slows
+  // itself and follows the racing line with a strong steering assist, so the
+  // player only steers with one finger and taps to brake. Missing or unknown
+  // values stay Easy, so old saves get the easier race rather than an error.
+  const easyDrive = isEasyDrive(gameState?.settings?.driveMode);
+  // The Easy pace matches the best opponent on this grid, so the automatic
+  // driver is never out-paced by the field it is racing.
+  const easySkill = easySkillFor(level);
 
   const vehicle = createVehicleState({ x: race.player.x, z: race.player.z, heading: race.player.heading });
   const carMeshes = new Map();
@@ -299,8 +308,25 @@ export function createRaceScreen(config) {
    */
   function controlBriefing() {
     const laps = race.totalLaps;
+    const gridLine = `On the grid, position ${race.player.gridPosition} of ${race.racers.length}, for ${intToWords(laps)} ${laps === 1 ? 'lap' : 'laps'} of the Vettaru circuit.`;
+    // Easy Race teaches its one control up front: the car drives itself, the
+    // player only steers. Everything else - horn, U-turn, reverse, the race
+    // menu, pausing - works exactly as in Classic.
+    if (easyDrive) {
+      return [
+        gridLine,
+        'Easy Race is on. The car accelerates by itself when the lights go out, and slows itself for corners.',
+        'You only steer, with one finger. Drag left or right, or quickly swipe left or right to select steering that stays on through the corner. After the turn, let go: the car straightens itself.',
+        'Tap once to brake if you ever want to slow down sooner. The car sets off again on its own.',
+        'Double tap and hold the second press over one second for the recorded car horn. Release to stop the horn. Keyboard Space is still the handbrake.',
+        'Draw a circle with your finger to turn around.',
+        'Swipe straight down to reverse.',
+        'Swipe down and left to open the race menu, with coins, repair, petrol, settings and where you are.',
+        'Press Escape, or the Pause button, to pause. You can leave the race from the race menu at any time.',
+      ].join(' ');
+    }
     return [
-      `On the grid, position ${race.player.gridPosition} of ${race.racers.length}, for ${intToWords(laps)} ${laps === 1 ? 'lap' : 'laps'} of the Vettaru circuit.`,
+      gridLine,
       'Hold your finger anywhere on the screen to accelerate. Release to coast.',
       'Tap once to brake. A quick double tap brakes too.',
       'Double tap and hold the second press over one second for the recorded car horn. Release to stop the horn. Keyboard Space is still the handbrake.',
@@ -569,34 +595,60 @@ export function createRaceScreen(config) {
       S.grime = Math.min(0.34, S.grime + dt * GRIME_PER_SECOND);
     }
 
+    // Easy Race: the car follows the racing line with a strong steering assist
+    // and works the pedals itself - full throttle on the open track, braking
+    // down to a corner-safe target speed by the same proven controller the
+    // opponents use. The player's own steering adds on top of the assist, so a
+    // swipe still bends the line and releasing it lets the car centre itself.
+    // A brake tap or the handbrake always wins over the automatic throttle.
+    let steer = input.steer;
+    let throttle = input.throttle;
+    let brake = input.brake;
+    if (easyDrive && !input.reversing) {
+      steer = Math.max(-1, Math.min(1, assistSteer(track, vehicle) + input.steer * 0.5));
+      if (input.brake > 0.05 || input.handbrake) {
+        throttle = 0;
+      } else {
+        // The unpaced car: aiTargetSpeed applies the pace ceiling itself, and
+        // passing the already-paced car would slow the player twice.
+        const pedals = assistPedals(track, vehicle, playerCar, {
+          skill: easySkill,
+          speedScale: pace,
+          gripMultiplier: (level.gripMultiplier ?? 1) * tyreGrip(config.gameState?.save),
+        });
+        throttle = pedals.throttle;
+        brake = Math.max(brake, pedals.brake);
+      }
+    }
+
     // U-turn request: only where the track allows it. Never a teleport - it is
     // a real steering input held for a moment.
-    let steer = input.steer;
     if (input.uturnRequest > 0) {
       const facts = navigationFacts(track, vehicle, { surface: surf.surface, car: playerCar.physics });
       const allowed = facts.zone.kind === 'corner' || facts.zone.kind === 'chicane' || Math.abs(vehicle.speed) < 9;
       if (allowed) {
         const dir = facts.nextCorner?.direction ?? 'right';
         steer = dir === 'left' ? 1 : -1;
-      } else {
-        if (input.uturnRequest > 1.35) {
-          say('A U-turn is not safe here. Wait for a corner or slow down first.', {
-            priority: SPEECH_PRIORITY.HIGH,
-            key: 'uturnDenied',
-            cooldownMs: 3000,
-          });
-        }
-        steer = input.steer;
+      } else if (input.uturnRequest > 1.35) {
+        say('A U-turn is not safe here. Wait for a corner or slow down first.', {
+          priority: SPEECH_PRIORITY.HIGH,
+          key: 'uturnDenied',
+          cooldownMs: 3000,
+        });
       }
     }
 
-    stepVehicle(vehicle, { throttle: input.throttle, brake: input.brake, steer, handbrake: !!input.handbrake }, pacedCar, dt, {
+    stepVehicle(vehicle, { throttle, brake, steer, handbrake: !!input.handbrake }, pacedCar, dt, {
       surface: surf.surface,
       // The level's grip, times the grip of the tyres actually fitted. Tyres are
       // bought in the garage, so this is the one place where spending coins
       // changes how the car drives. Opponents keep the level's grip alone.
       gripMultiplier: (level.gripMultiplier ?? 1) * tyreGrip(config.gameState?.save),
-      steeringAssist: level.steeringAssist ?? 0,
+      // Easy Race damps yaw strongly at speed for stability, fading as the
+      // car slows so tight hairpins stay turnable. See easySteeringAssist.
+      steeringAssist: easyDrive
+        ? Math.max(level.steeringAssist ?? 0, easySteeringAssist(Math.abs(toKph(vehicle.speed))))
+        : (level.steeringAssist ?? 0),
     });
 
     // --- track boundary / barrier collision ---
@@ -605,7 +657,10 @@ export function createRaceScreen(config) {
       const nx = bar.lateral > 0 ? -Math.sin(surf.near.heading) : Math.sin(surf.near.heading);
       const nz = bar.lateral > 0 ? -Math.cos(surf.near.heading) : Math.cos(surf.near.heading);
       const res = applyCollision(vehicle, { x: nx, z: nz }, { now: S.elapsed });
-      if (res.impacted && res.impactSpeed > 3) {
+      // Easy Race forgives light barrier contact: the bump is still felt and
+      // heard, but only a heavy hit stops the car and offers Try again.
+      const barrierThreshold = easyDrive ? 6.5 : 3;
+      if (res.impacted && res.impactSpeed > barrierThreshold) {
         S.collisions++;
         S.lapWasClean = false;
         const hard = res.impactSpeed > 14;
@@ -624,7 +679,7 @@ export function createRaceScreen(config) {
           interrupt: true,
           essential: true,
         });
-        if (S.phase === RACE_PHASE.RACING) { requestRetry(); return; }
+        if (S.phase === RACE_PHASE.RACING && (!easyDrive || hard)) { requestRetry(); return; }
       }
     }
 
@@ -647,7 +702,9 @@ export function createRaceScreen(config) {
           ai.state.z -= nz * push;
           ai.state.speed *= 0.93;
         }
-        if (res.impacted && res.impactSpeed > 2.5) {
+        // Easy Race forgives light car-to-car contact the same way: felt and
+        // heard, but only a heavy hit stops the car.
+        if (res.impacted && res.impactSpeed > (easyDrive ? 5 : 2.5)) {
           S.collisions++;
           S.lapWasClean = false;
           // A lighter version of the same layered crash, so a car-to-car hit is
@@ -659,7 +716,7 @@ export function createRaceScreen(config) {
           else audio?.play('barrier-medium', { group: 'sfx', volume: hit });
           navigator.vibrate?.(gameState?.settings?.haptics ? 30 : 0);
           say(`Contact with ${other.name}.`, { priority: SPEECH_PRIORITY.HIGH, key: 'carContact', cooldownMs: 2200, interrupt: true });
-          if (S.phase === RACE_PHASE.RACING) { requestRetry(); return; }
+          if (S.phase === RACE_PHASE.RACING && (!easyDrive || res.impactSpeed > 10)) { requestRetry(); return; }
         }
       }
     }
@@ -667,7 +724,9 @@ export function createRaceScreen(config) {
     // --- off-track recovery ---
     if (surf.offTrack) {
       S.offTrackTimer += dt;
-      const limit = level.respawnGraceS ?? 3.5;
+      // Easy Race gives nearly twice as long to get back on, because the
+      // steering assist is already bringing the car back by itself.
+      const limit = (level.respawnGraceS ?? 3.5) * (easyDrive ? 1.8 : 1);
       if (S.offTrackTimer > limit * 0.55 && !S.recoveryOffered) {
         S.recoveryOffered = true;
         say('You are off the track. Return toward the racing line. If you cannot recover, the car stops and offers Try again.', {
@@ -1037,6 +1096,10 @@ export function createRaceScreen(config) {
     start() {
       if (S.running) return api;
       S.running = true;
+      // Easy Race: the car accelerates itself from the green light. The input
+      // is shared with the rest of the game, so this is switched back off in
+      // abort() and destroy().
+      drivingInput?.setAutoThrottle?.(easyDrive);
       S.lastFrame = performance.now();
       resize();
       window.addEventListener('resize', resize);
@@ -1085,6 +1148,7 @@ export function createRaceScreen(config) {
       if (S.aborted) return;
       S.aborted = true;
       S.running = false;
+      drivingInput?.setAutoThrottle?.(false);
       if (rafId) cancelAnimationFrame(rafId);
       audio?.engine?.stop();
       audio?.horn?.stop();
@@ -1095,6 +1159,7 @@ export function createRaceScreen(config) {
     },
     destroy() {
       S.running = false;
+      drivingInput?.setAutoThrottle?.(false);
       if (rafId) cancelAnimationFrame(rafId);
       window.removeEventListener('resize', resize);
       window.removeEventListener('orientationchange', resize);

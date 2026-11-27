@@ -629,6 +629,7 @@ export function buildSettingsScreen({ gameState, screens, speech, audio, onSetti
     'sfx',
     'sfxVolume',
     'haptics',
+    'driveMode',
     'controlSide',
     'cameraShake',
     'textScale',
